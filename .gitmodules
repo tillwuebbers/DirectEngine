@@ -1,0 +1,3 @@
+[submodule "DirectEngine/glm"]
+	path = DirectEngine/glm
+	url = https://github.com/g-truc/glm
