@@ -1,5 +1,3 @@
-#pragma once
-
 const char* const ICON_24_HOURS_FILL = "\xee\xa8\x81";
 const char* const ICON_24_HOURS_LINE = "\xee\xa8\x82";
 const char* const ICON_4K_FILL = "\xee\xa8\x83";

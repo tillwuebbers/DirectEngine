@@ -66,13 +66,22 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 		engineCore = &engine;
 		engine.OnInit(hInstance, nCmdShow, WndProc);
 
-		while (msg.message != WM_QUIT)
+		bool wantsQuit = false;
+		while (!wantsQuit)
 		{
-			if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+			while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 			{
+				if (msg.message == WM_QUIT) wantsQuit = true;
+
 				TranslateMessage(&msg);
 				DispatchMessage(&msg);
 			}
+
+			engine.BeginProfile("Wait1", ImColor(1.f, 1.f, 1.f));
+			//WaitForSingleObjectEx(engine.m_frameLatencyWaitableObject, 1000, true);
+			engine.EndProfile("Wait1");
+			engine.OnUpdate();
+			engine.OnRender();
 		}
 
 		engine.OnDestroy();

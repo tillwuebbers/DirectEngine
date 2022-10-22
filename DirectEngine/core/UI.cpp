@@ -6,6 +6,10 @@
 
 #include "remixicon.h"
 #include "../Helpers.h"
+
+#include <glm/glm.hpp>
+#include <algorithm>
+#include <chrono>
 #include "../imgui/ImGuiProfilerRenderer.h"
 
 bool initialized = false;
@@ -15,7 +19,7 @@ bool debugVisible = true;
 ID3D12DescriptorHeap* g_pd3dSrvDescHeap = NULL;
 ImGuiUtils::ProfilersWindow* window;
 
-void SetupImgui(HWND hwnd, ID3D12Device* device, int framesInFlight)
+void SetupImgui(HWND hwnd, EngineCore* engine, int framesInFlight)
 {
 	// Setup Dear ImGui context
 	IMGUI_CHECKVERSION();
@@ -28,11 +32,11 @@ void SetupImgui(HWND hwnd, ID3D12Device* device, int framesInFlight)
 	desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	desc.NumDescriptors = 1;
 	desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	ThrowIfFailed(device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&g_pd3dSrvDescHeap)));
+	ThrowIfFailed(engine->m_device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&g_pd3dSrvDescHeap)));
 
 	// Setup Platform/Renderer backends
 	ImGui_ImplWin32_Init(hwnd);
-	ImGui_ImplDX12_Init(device, framesInFlight, DXGI_FORMAT_R8G8B8A8_UNORM, g_pd3dSrvDescHeap, g_pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(), g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
+	ImGui_ImplDX12_Init(engine->m_device.Get(), framesInFlight, DXGI_FORMAT_R8G8B8A8_UNORM, g_pd3dSrvDescHeap, g_pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(), g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
 
 	// Load Fonts
 	io.Fonts->AddFontFromFileTTF("Montserrat-Regular.ttf", 16.0f);
@@ -92,8 +96,6 @@ void UpdateImgui(EngineCore* engine)
 		ImGui::SetNextWindowPos(ImVec2{ 0, 0 });
 		if (ImGui::Begin(title.c_str(), &debugVisible, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize))
 		{
-			ImGui::Text("%.1fms / %.1f FPS", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-			ImGui::Text("Time: %.2f", engine->m_timeSinceStart);
 			switch (engine->m_windowMode)
 			{
 			case WindowMode::Borderless:
@@ -179,9 +181,15 @@ void UpdateImgui(EngineCore* engine)
 			{
 				engine->m_game->showLog = true;
 			}
-			ImGui::End();
 		}
+		ImGui::End();
 
+		if (!engine->m_pauseDebugFrames)
+		{
+			window->cpuGraph.LoadFrameData(engine->m_profilerTaskData.data(), engine->m_profilerTaskData.size());
+			engine->m_profilerTaskData.clear();
+			engine->m_profilerTasks.clear();
+		}
 		window->Render();
 	}
 

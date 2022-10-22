@@ -33,7 +33,8 @@ EngineCore::EngineCore(UINT width, UINT height, Game* game) :
     m_aspectRatio((float)width / (float)height),
     m_windowName(game->name),
     m_game(game)
-{}
+{
+}
 
 void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
 {
@@ -45,10 +46,7 @@ void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
     LoadPipeline();
     LoadAssets();
 
-    QueryPerformanceFrequency(&m_tickFrequency);
-    LARGE_INTEGER perfCounter;
-    QueryPerformanceCounter(&perfCounter);
-    m_tickCountStart = perfCounter.QuadPart;
+    m_startTime = std::chrono::high_resolution_clock::now();
 
     ShowWindow(m_hwnd, nCmdShow);
     m_game->StartGame();
@@ -118,7 +116,7 @@ LRESULT CALLBACK EngineCore::ProcessWindowMessage(HWND hWnd, UINT message, WPARA
     case WM_PAINT:
         OnUpdate();
         OnRender();
-        return 0;
+        break;
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;
@@ -238,7 +236,7 @@ void EngineCore::LoadPipeline()
     }
 #endif
 
-    ComPtr<IDXGIFactory4> factory;
+    ComPtr<IDXGIFactory6> factory;
     ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
 
     if (m_useWarpDevice)
@@ -272,7 +270,7 @@ void EngineCore::LoadPipeline()
     swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     swapChainDesc.SampleDesc.Count = 1;
-    swapChainDesc.Flags = m_tearingSupport ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
+    swapChainDesc.Flags = (m_tearingSupport ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0);
 
     ComPtr<IDXGISwapChain1> swapChain;
     ThrowIfFailed(factory->CreateSwapChainForHwnd(m_commandQueue.Get(), m_hwnd, &swapChainDesc, nullptr, nullptr, &swapChain));
@@ -280,6 +278,7 @@ void EngineCore::LoadPipeline()
     factory->MakeWindowAssociation(m_hwnd, DXGI_MWA_NO_ALT_ENTER);
 
     ThrowIfFailed(swapChain.As(&m_swapChain));
+
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
     // Create descriptor heaps.
@@ -310,7 +309,7 @@ void EngineCore::LoadPipeline()
 
     LoadSizeDependentResources();
 
-    SetupImgui(m_hwnd, m_device.Get(), FrameCount);
+    SetupImgui(m_hwnd, this, FrameCount);
 }
 
 void EngineCore::LoadSizeDependentResources()
@@ -538,14 +537,12 @@ void EngineCore::LoadAssets()
 
 void EngineCore::OnUpdate()
 {
-    LARGE_INTEGER ticks;
-    QueryPerformanceCounter(&ticks);
-    m_tickDeltaUpdate = ticks.QuadPart - m_tickCountCurrentUpdate;
-    m_tickCountCurrentUpdate = ticks.QuadPart;
-    m_timeSinceStart = static_cast<double>(m_tickCountCurrentUpdate - m_tickCountStart) / m_tickFrequency.QuadPart;
-    m_updateDeltaTime = static_cast<double>(m_tickDeltaUpdate) / m_tickFrequency.QuadPart;
+    std::chrono::steady_clock::time_point now = std::chrono::high_resolution_clock::now();
+    double secondsSinceStart = NanosecondsToSeconds(now - m_startTime);
+    m_updateDeltaTime = NanosecondsToSeconds(now - m_frameStartTime);
+    m_frameStartTime = now;
 
-    m_constantBufferData.time.x = static_cast<float>(m_timeSinceStart);
+    m_constantBufferData.time.x = static_cast<float>(secondsSinceStart);
     m_constantBufferData.time.y = static_cast<float>(m_updateDeltaTime);
     memcpy(m_pCbvDataBegin, &m_constantBufferData, sizeof(m_constantBufferData));
 
@@ -557,11 +554,15 @@ void EngineCore::OnUpdate()
 
     NewImguiFrame();
     UpdateImgui(this);
+
     m_game->UpdateGame();
 }
 
 void EngineCore::OnRender()
 {
+    BeginProfile("Commands", ImColor::HSV(.0, .5, 1.));
+    double test = TimeSinceStart();
+
     if (m_wantedWindowMode != m_windowMode)
     {
         ApplyWindowMode(m_wantedWindowMode);
@@ -586,17 +587,22 @@ void EngineCore::OnRender()
 
     ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
     m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+    EndProfile("Commands");
 
     // When using sync interval 0, it is recommended to always pass the tearing
     // flag when it is supported, even when presenting in windowed mode.
     // However, this flag cannot be used if the app is in fullscreen mode as a
     // result of calling SetFullscreenState.
+    BeginProfile("Present", ImColor::HSV(.2, .5, 1.));
     UINT presentFlags = (m_tearingSupport && m_windowMode != WindowMode::Fullscreen && !m_useVsync) ? DXGI_PRESENT_ALLOW_TEARING : 0;
 
     // Present the frame.
     ThrowIfFailed(m_swapChain->Present(m_useVsync ? 1 : 0, presentFlags));
+    EndProfile("Present");
 
+    BeginProfile("Frame Fence", ImColor::HSV(.4, .5, 1.));
     MoveToNextFrame();
+    EndProfile("Frame Fence");
 }
 
 void EngineCore::OnDestroy()
@@ -679,7 +685,8 @@ void EngineCore::MoveToNextFrame()
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
     // If the next frame is not ready to be rendered yet, wait until it is ready.
-    if (m_fence->GetCompletedValue() < m_fenceValues[m_frameIndex])
+    const UINT64 completedValue = m_fence->GetCompletedValue();
+    if (completedValue < m_fenceValues[m_frameIndex])
     {
         ThrowIfFailed(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent));
         WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
@@ -857,4 +864,31 @@ void EngineCore::ApplyWindowMode(WindowMode newMode)
             assert(false);
         }
     }
+}
+
+void EngineCore::BeginProfile(std::string name, ImColor color)
+{
+    m_profilerTaskData.emplace_back(TimeSinceFrameStart(), 0, name, color);
+    m_profilerTasks.emplace(name, m_profilerTaskData.size() - 1);
+}
+
+void EngineCore::EndProfile(std::string name)
+{
+    assert(m_profilerTasks.contains(name));
+    m_profilerTaskData[m_profilerTasks[name]].endTime = TimeSinceFrameStart();
+}
+
+inline double EngineCore::TimeSinceStart()
+{
+    return NanosecondsToSeconds(std::chrono::high_resolution_clock::now() - m_startTime);
+}
+
+inline double EngineCore::TimeSinceFrameStart()
+{
+    return NanosecondsToSeconds(std::chrono::high_resolution_clock::now() - m_frameStartTime);
+}
+
+inline double NanosecondsToSeconds(std::chrono::nanoseconds clock)
+{
+    return clock.count() / 1e+9;
 }

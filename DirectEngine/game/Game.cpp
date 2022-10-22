@@ -3,13 +3,12 @@
 #include <array>
 #include <format>
 
+#include "remixicon.h"
+
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "../import/tiny_obj_loader.h"
 
-Game::Game(std::wstring name) :
-	name(name),
-	debugLog{},
-	showLog(true)
+Game::Game(std::wstring name) : name(name)
 {}
 
 void Game::StartGame()
@@ -97,59 +96,68 @@ void Game::UpdateGame()
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2{ 100, 30 });
 	if (showLog)
 	{
-		ImGui::Begin("Log", &showLog);
-
-		ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ 0, 0 });
-		for (LogMessage& message : debugLog)
+		if (ImGui::Begin("Log", &showLog))
 		{
-			ImGui::PushStyleColor(ImGuiCol_Text, message.color.Value);
-			ImGui::Text(message.message.c_str());
-			ImGui::PopStyleColor();
-		}
-		ImGui::PopStyleVar();
-		ImGui::EndChild();
+			if (ImGui::Button(stopLog ? ICON_PLAY_FILL : ICON_STOP_FILL))
+			{
+				if (!stopLog)
+				{
+					Warn("Log paused...");
+				}
+				stopLog = !stopLog;
+				if (!stopLog)
+				{
+					Warn("Log resumed...");
+				}
+			}
+			ImGui::SameLine();
 
+			ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ 0, 0 });
+			debugLog.DrawText();
+			ImGui::PopStyleVar();
+			ImGui::EndChild();
+		}
 		ImGui::End();
 	}
 	ImGui::PopStyleVar();
 }
 
-void Game::Log(const char* message)
-{
-	Log(std::string(message));
-}
-
 void Game::Log(std::string message)
 {
-	LogMessage msg{};
-	msg.color = IM_COL32_WHITE;
-	msg.message = message;
-	debugLog.push_back(msg);
-}
-
-void Game::Warn(const char* message)
-{
-	Warn(std::string(message));
+	if (!stopLog) debugLog.AppendToLog(message, IM_COL32_WHITE);
 }
 
 void Game::Warn(std::string message)
 {
-	LogMessage msg{};
-	msg.color = ImColor::HSV(.09f, .9f, 1.f);
-	msg.message = message;
-	debugLog.push_back(msg);
-}
-
-void Game::Error(const char* message)
-{
-	Error(std::string(message));
+	if (!stopLog) debugLog.AppendToLog(message, ImColor::HSV(.09f, .9f, 1.f));
 }
 
 void Game::Error(std::string message)
 {
-	LogMessage msg{};
-	msg.color = ImColor::HSV(.0f, .9f, 1.f);
-	msg.message = message;
-	debugLog.push_back(msg);
+	if (!stopLog) debugLog.AppendToLog(message, ImColor::HSV(.0f, .9f, 1.f));
+}
+
+void RingLog::AppendToLog(std::string message, ImU32 color)
+{
+	messages[debugLogIndex].color = color;
+	messages[debugLogIndex].message = message;
+	debugLogIndex = (debugLogIndex + 1) % LOG_SIZE;
+
+	if (debugLogCount < LOG_SIZE)
+	{
+		debugLogCount++;
+	}
+}
+
+void RingLog::DrawText()
+{
+	for (int i = 0; i < LOG_SIZE; i++)
+	{
+		int realIndex = (debugLogIndex - debugLogCount + i + LOG_SIZE) % LOG_SIZE;
+		LogMessage& message = messages[realIndex];
+		ImGui::PushStyleColor(ImGuiCol_Text, message.color.Value);
+		ImGui::Text(message.message.c_str());
+		ImGui::PopStyleColor();
+	}
 }

@@ -7,8 +7,11 @@
 #include <d3dx12.h>
 #include <dxgi1_6.h>
 #include <DirectXMath.h>
+#include <chrono>
+#include <unordered_map>
 
 #include "../game/Game.h"
+#include "../imgui/ProfilerTask.h"
 
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
@@ -74,10 +77,11 @@ public:
     UINT8* m_pCbvDataBegin = nullptr;
 
     // Synchronization objects
-    UINT m_frameIndex;
-    HANDLE m_fenceEvent;
+    UINT m_frameIndex = 0;
+    HANDLE m_fenceEvent = nullptr;
     ComPtr<ID3D12Fence> m_fence = nullptr;
     UINT64 m_fenceValues[FrameCount];
+    //HANDLE m_frameLatencyWaitableObject = nullptr;
 
     // Viewport dimensions
     UINT m_width;
@@ -92,7 +96,7 @@ public:
     WindowMode m_windowMode = WindowMode::Windowed;
     WindowMode m_wantedWindowMode = WindowMode::Windowed;
     bool m_wantBorderless = false;
-    bool m_useVsync = false;
+    bool m_useVsync = true;
     RECT m_windowRect;
     const UINT m_windowStyle = WS_OVERLAPPEDWINDOW;
 
@@ -102,17 +106,13 @@ public:
     FrameDebugData m_lastFrames[256] = {};
     size_t m_lastDebugFrameIndex = 0;
     bool m_pauseDebugFrames = false;
+    std::vector<legit::ProfilerTask> m_profilerTaskData{};
+    std::unordered_map<std::string, size_t> m_profilerTasks{};
     
     // Time
-    LARGE_INTEGER m_tickFrequency;
-    int64_t m_tickCountStart;
-    int64_t m_tickCountCurrentUpdate;
-    int64_t m_tickCountCurrentRender;
-    int64_t m_tickDeltaUpdate;
-    int64_t m_tickDeltaRender;
+    std::chrono::steady_clock::time_point m_startTime;
+    std::chrono::steady_clock::time_point m_frameStartTime;
     double m_updateDeltaTime;
-    double m_renderDeltaTime;
-    double m_timeSinceStart;
 
     void RegisterWindowClass(HINSTANCE hInst, const wchar_t* windowClassName, WNDPROC wndProc);
     void CreateGameWindow(const wchar_t* windowClassName, HINSTANCE hInst, uint32_t width, uint32_t height);
@@ -128,4 +128,10 @@ public:
     void CheckTearingSupport();
     void ToggleWindowMode();
     void ApplyWindowMode(WindowMode newMode);
+    void BeginProfile(std::string name, ImColor color);
+    void EndProfile(std::string name);
+    double TimeSinceStart();
+    double TimeSinceFrameStart();
 };
+
+double NanosecondsToSeconds(std::chrono::nanoseconds clock);

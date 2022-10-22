@@ -13,7 +13,7 @@ struct ImGuiInputBlock
 	bool blockKeyboard;
 };
 
-void SetupImgui(HWND hwnd, ID3D12Device* device, int framesInFlight);
+void SetupImgui(HWND hwnd, EngineCore* engine, int framesInFlight);
 ImGuiInputBlock ParseImGuiInputs(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 void NewImguiFrame();
 void UpdateImgui(EngineCore* engine);

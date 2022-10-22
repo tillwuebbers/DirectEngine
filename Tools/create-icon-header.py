@@ -16,7 +16,7 @@ with open(outputHeaderPath, "w") as outputHeaderFile:
                 groups = match.groups()
                 iconName = "ICON_" + groups[0].replace("-", "_").upper()
                 utf8Bytes = bytes(chr(int(groups[1], 16)), "UTF-8")
-                outputHeaderFile.write("const char* ")
+                outputHeaderFile.write("const char* const ")
                 outputHeaderFile.write(iconName)
                 outputHeaderFile.write(" = \"")
                 for byte in utf8Bytes:
