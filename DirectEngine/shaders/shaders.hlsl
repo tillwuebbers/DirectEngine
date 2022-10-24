@@ -1,7 +1,11 @@
 cbuffer SceneConstantBuffer : register(b0)
 {
-    float4 time;
-    float4 padding[15];
+    float4x4 modelTransform;
+    float4x4 cameraTransform;
+    float4x4 clipTransform;
+    float time;
+    float deltaTime;
+    float padding[3];
 };
 
 struct PSInput
@@ -15,10 +19,10 @@ PSInput VSMain(float4 position : POSITION, float4 color : COLOR, uint id : SV_In
 {
     PSInput result;
 
-    uint totalCount = 6000;
-    uint countPerRow = 100;
-    uint rowCount = totalCount / countPerRow;
-    result.position = (position * float4(0.03, 0.03, 0.03, 1)) + float4((id % countPerRow) / (float)countPerRow * 1.8 - 0.9 + sin(time.x), (id / countPerRow) * (1. / rowCount) * 1.4 - 0.7, 0, 0);
+    float4x4 mvp = mul(modelTransform, mul(cameraTransform, clipTransform));
+    result.position = mul(position, mvp);
+    result.position.x += id * 1.5;
+    
     result.color = color;
     result.id = id;
 

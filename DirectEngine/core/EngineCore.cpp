@@ -501,9 +501,8 @@ void EngineCore::OnUpdate()
     m_updateDeltaTime = NanosecondsToSeconds(now - m_frameStartTime);
     m_frameStartTime = now;
 
-    m_constantBufferData.time.x = static_cast<float>(secondsSinceStart);
-    m_constantBufferData.time.y = static_cast<float>(m_updateDeltaTime);
-    memcpy(m_pCbvDataBegin, &m_constantBufferData, sizeof(m_constantBufferData));
+    m_constantBufferData.time = static_cast<float>(secondsSinceStart);
+    m_constantBufferData.deltaTime = static_cast<float>(m_updateDeltaTime);
 
     if (!m_pauseDebugFrames)
     {
@@ -515,6 +514,8 @@ void EngineCore::OnUpdate()
     UpdateImgui(this);
 
     m_game->UpdateGame(*this);
+
+    memcpy(m_pCbvDataBegin, &m_constantBufferData, sizeof(m_constantBufferData));
 }
 
 void EngineCore::OnRender()

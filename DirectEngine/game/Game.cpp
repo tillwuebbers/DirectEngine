@@ -6,6 +6,9 @@
 #include "../core/vkcodes.h"
 #include "remixicon.h"
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "../import/tiny_obj_loader.h"
 
@@ -101,8 +104,9 @@ void Game::StartGame(EngineCore& engine)
 		{ { 0.25f, -0.25f * engine.m_aspectRatio, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
 		{ { -0.25f, -0.25f * engine.m_aspectRatio, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } }
 	};
-	//engine->CreateMesh(copiedVertices.data(), sizeof(Vertex), copiedVertices.size());
-	engine.CreateMesh(triangleVertices.data(), sizeof(Vertex), triangleVertices.size(), 6000);
+
+	engine.CreateMesh(copiedVertices.data(), sizeof(Vertex), copiedVertices.size(), 6000);
+	//engine.CreateMesh(triangleVertices.data(), sizeof(Vertex), triangleVertices.size(), 1);
 }
 
 void Game::UpdateGame(EngineCore& engine)
@@ -114,6 +118,20 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 	input.NextFrame();
 	engine.EndProfile("Input Mutex");
+
+	engine.BeginProfile("Game Update", ImColor::HSV(.75f, 1.f, 1.f));
+
+	engine.m_constantBufferData.modelTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixRotationY(engine.TimeSinceStart()));
+
+	XMVECTOR pos{ 0.f, 0.f, -10.f };
+	XMVECTOR lookAt{ 0.f, 0.f, 0.f };
+	XMVECTOR up{ 0.f, 1.f, 0.f };
+	engine.m_constantBufferData.cameraTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixLookAtLH(pos, lookAt, up));
+	engine.m_constantBufferData.clipTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixPerspectiveFovLH(45.f, engine.m_aspectRatio, .1f, 1000.f));
+
+	//engine.m_constantBufferData.modelTransform = DirectX::XMMatrixTranspose(engine.m_constantBufferData.modelTransform * engine.m_constantBufferData.cameraTransform * engine.m_constantBufferData.clipTransform);
+
+	engine.EndProfile("Game Update");
 
 	engine.BeginProfile("Game UI", ImColor::HSV(.75f, 1.f, .75f));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2{ 100, 30 });

@@ -10,6 +10,8 @@
 #include <chrono>
 #include <unordered_map>
 
+#include "glm/mat4x4.hpp"
+
 #include "Input.h"
 
 #include "../game/IGame.h"
@@ -45,8 +47,12 @@ struct MeshData
 
 struct SceneConstantBuffer
 {
-    XMFLOAT4 time;
-    float padding[60]; // Padding so the constant buffer is 256-byte aligned.
+    XMMATRIX modelTransform = {};
+    XMMATRIX cameraTransform = {};
+    XMMATRIX clipTransform = {};
+    float time;
+    float deltaTime;
+    float padding[14]; // Padding so the constant buffer is 256-byte aligned.
 };
 static_assert((sizeof(SceneConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
