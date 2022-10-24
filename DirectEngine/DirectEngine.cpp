@@ -1,6 +1,7 @@
 ﻿#define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
+#include <iostream>
 #include <mutex>
 
 #include <d3d12.h>
@@ -33,6 +34,18 @@ struct EngineUpdate
 EngineCore* engineCore;
 EngineUpdate updateData{};
 std::mutex updateDataMutex;
+
+#ifdef _DEBUG
+void* operator new(size_t size)
+{
+	if (engineCore != nullptr && engineCore->m_inUpdate)
+	{
+		//OutputDebugString(L"Allocating in update!!\n");
+	}
+	return malloc(size);
+}
+#endif // _DEBUG
+
 
 // Watch development files for quick reload of shaders
 DWORD WINAPI FileWatcherThread(LPVOID lpParameter)
@@ -104,8 +117,11 @@ DWORD WINAPI GameRenderThread(LPVOID lpParameter)
 		engine.BeginProfile("Waitable", ImColor(.3f, .3f, .3f));
 		WaitForSingleObjectEx(engine.m_frameWaitableObject, 1000, true);
 		engine.EndProfile("Waitable");
+
 		engine.OnUpdate();
+		engine.m_inUpdate = true;
 		engine.OnRender();
+		engine.m_inUpdate = false;
 	}
 
 	engine.OnDestroy();

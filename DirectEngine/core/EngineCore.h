@@ -127,6 +127,7 @@ public:
     bool m_pauseDebugFrames = false;
     std::vector<legit::ProfilerTask> m_profilerTaskData{};
     std::unordered_map<std::string, size_t> m_profilerTasks{};
+    bool m_inUpdate = false;
     
     // Time
     std::chrono::steady_clock::time_point m_startTime;
