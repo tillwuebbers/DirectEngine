@@ -10,7 +10,9 @@
 #include <chrono>
 #include <unordered_map>
 
-#include "../game/Game.h"
+#include "../game/IGame.h"
+
+#include "../imgui/imgui.h"
 #include "../imgui/ProfilerTask.h"
 
 using namespace DirectX;
@@ -28,6 +30,17 @@ struct FrameDebugData
     float duration;
 };
 
+struct MeshData
+{
+    UINT vertexCount = 0;
+    UINT indexCount = 0;
+    UINT instanceCount = 1;
+    ComPtr<ID3D12Resource> vertexBuffer;
+    ComPtr<ID3D12Resource> indexBuffer;
+    D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
+    D3D12_INDEX_BUFFER_VIEW indexBufferView = {};
+};
+
 struct SceneConstantBuffer
 {
     XMFLOAT4 time;
@@ -41,7 +54,7 @@ public:
     static const UINT FrameCount = 3;
     static const DXGI_FORMAT DisplayFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
-    EngineCore(UINT width, UINT height, Game* game);
+    EngineCore(UINT width, UINT height, IGame* game);
 
     void OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc);
     void OnResize(UINT width, UINT height);
@@ -50,11 +63,11 @@ public:
     void OnRender();
     void OnDestroy();
 
-    Game* m_game;
+    IGame* m_game;
 
     // Window Handle
     HWND m_hwnd;
-    std::wstring m_windowName;
+    std::wstring m_windowName = L"DirectEngine";
 
     // Pipeline objects
     CD3DX12_VIEWPORT m_viewport;
@@ -72,23 +85,21 @@ public:
     ComPtr<ID3D12GraphicsCommandList> m_uploadCommandList = nullptr;
     ComPtr<ID3D12GraphicsCommandList> m_renderCommandList = nullptr;
     UINT m_rtvDescriptorSize;
-    HANDLE m_frameWaitableObject;
     std::vector<ID3D12CommandList*> m_scheduledCommandLists = {};
 
     // App resources
     ComPtr<ID3D12Resource> m_uploadBuffer = nullptr;
-    ComPtr<ID3D12Resource> m_vertexBuffer = nullptr;
-    D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
     ComPtr<ID3D12Resource> m_constantBuffer = nullptr;
     SceneConstantBuffer m_constantBufferData;
     UINT8* m_pCbvDataBegin = nullptr;
+    std::vector<MeshData> m_meshes = {};
 
     // Synchronization objects
     UINT m_frameIndex = 0;
     HANDLE m_fenceEvent = nullptr;
     ComPtr<ID3D12Fence> m_fence = nullptr;
     UINT64 m_fenceValues[FrameCount];
-    //HANDLE m_frameLatencyWaitableObject = nullptr;
+    HANDLE m_frameWaitableObject;
 
     // Viewport dimensions
     UINT m_width;
@@ -127,7 +138,7 @@ public:
     void LoadSizeDependentResources();
     HRESULT CreatePipelineState();
     void LoadAssets();
-    void CreateVertexBuffer(Vertex* vertices, size_t vertexCount);
+    void CreateMesh(const void* vertexData, const size_t vertexStride, const size_t vertexCount, const size_t instanceCount);
     void PopulateCommandList();
     void MoveToNextFrame();
     void WaitForGpu();

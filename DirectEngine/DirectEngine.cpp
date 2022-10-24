@@ -9,6 +9,7 @@
 
 #include "core/EngineCore.h"
 #include "core/UI.h"
+#include "game/IGame.h"
 #include "game/Game.h"
 #include "DirectEngine.h"
 
@@ -182,7 +183,7 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 		// Create game and engine on window thread to set up events, then give it to render thread and never touch it again.
 		Game game{ std::wstring(L"cool triangle") };
 
-		EngineCore engine{ 1920, 1080, &game };
+		EngineCore engine(1920, 1080, static_cast<IGame*>(&game));
 		engineCore = &engine;
 		engine.OnInit(hInstance, nCmdShow, WndProc);
 

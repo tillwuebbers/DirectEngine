@@ -175,7 +175,7 @@ void UpdateImgui(EngineCore* engine)
 			ImGui::SameLine();
 			if (ImGui::Button("Show Log"))
 			{
-				engine->m_game->showLog = true;
+				//engine->m_game->showLog = true;
 			}
 		}
 		ImGui::End();

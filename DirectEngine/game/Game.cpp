@@ -11,7 +11,7 @@
 Game::Game(std::wstring name) : name(name)
 {}
 
-void Game::StartGame()
+void Game::StartGame(EngineCore* engine)
 {
 	const char* filePath = "cube.obj";
 
@@ -46,6 +46,7 @@ void Game::StartGame()
 
 	std::vector<Vertex> vertices{ vertexCount };
 	std::vector<uint64_t> indices{};
+	std::vector<Vertex> copiedVertices{};
 
 	// Loop over shapes
 	for (size_t shapeIdx = 0; shapeIdx < shapes.size(); shapeIdx++)
@@ -61,7 +62,7 @@ void Game::StartGame()
 			{
 				// access to vertex
 				tinyobj::index_t idx = shapes[shapeIdx].mesh.indices[index_offset + v];
-				Vertex vert{};
+				Vertex& vert = copiedVertices.emplace_back();
 
 				vert.position.x = attrib.vertices[3 * size_t(idx.vertex_index) + 0];
 				vert.position.y = attrib.vertices[3 * size_t(idx.vertex_index) + 1];
@@ -92,9 +93,18 @@ void Game::StartGame()
 			shapes[shapeIdx].mesh.material_ids[faceIdx];
 		}
 	}
+
+	std::vector<Vertex> triangleVertices =
+	{
+		{ { 0.0f, 0.25f * engine->m_aspectRatio, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
+		{ { 0.25f, -0.25f * engine->m_aspectRatio, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
+		{ { -0.25f, -0.25f * engine->m_aspectRatio, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } }
+	};
+	//engine->CreateMesh(copiedVertices.data(), sizeof(Vertex), copiedVertices.size());
+	engine->CreateMesh(triangleVertices.data(), sizeof(Vertex), triangleVertices.size(), 6000);
 }
 
-void Game::UpdateGame()
+void Game::UpdateGame(EngineCore* engine)
 {
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2{ 100, 30 });
 	if (showLog)

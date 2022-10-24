@@ -17,12 +17,11 @@
 #include <fstream>
 #endif
 
-#include "../game/Game.h"
 #include "../Helpers.h"
 #include "UI.h"
 #include "EngineCore.h"
 
-EngineCore::EngineCore(UINT width, UINT height, Game* game) :
+EngineCore::EngineCore(UINT width, UINT height, IGame* game) :
     m_frameIndex(0),
     m_viewport(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)),
     m_scissorRect(0, 0, static_cast<LONG>(width), static_cast<LONG>(height)),
@@ -31,7 +30,6 @@ EngineCore::EngineCore(UINT width, UINT height, Game* game) :
     m_width(width),
     m_height(height),
     m_aspectRatio((float)width / (float)height),
-    m_windowName(game->name),
     m_game(game)
 {
 }
@@ -49,7 +47,7 @@ void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
     m_startTime = std::chrono::high_resolution_clock::now();
 
     ShowWindow(m_hwnd, nCmdShow);
-    m_game->StartGame();
+    m_game->StartGame(this);
 }
 
 void EngineCore::RegisterWindowClass(HINSTANCE hInst, const wchar_t* windowClassName, WNDPROC wndProc)
@@ -406,13 +404,6 @@ void EngineCore::LoadAssets()
 
     // Create the upload command list and use it
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_uploadCommandAllocators[m_frameIndex].Get(), nullptr, IID_PPV_ARGS(&m_uploadCommandList)));
-    Vertex triangleVertices[] =
-    {
-        { { 0.0f, 0.25f * m_aspectRatio, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
-        { { 0.25f, -0.25f * m_aspectRatio, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
-        { { -0.25f, -0.25f * m_aspectRatio, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } }
-    };
-    CreateVertexBuffer(triangleVertices, sizeof(triangleVertices) / sizeof(triangleVertices[0]));
     ThrowIfFailed(m_uploadCommandList->Close());
 
     // Create the constant buffer.
@@ -461,38 +452,45 @@ void EngineCore::LoadAssets()
     }
 }
 
-void EngineCore::CreateVertexBuffer(Vertex* vertices, size_t vertexCount)
+void EngineCore::CreateMesh(const void* vertexData, const size_t vertexStride, const size_t vertexCount, const size_t instanceCount)
 {
-    const size_t dataSizeInBytes = sizeof(Vertex) * vertexCount;
+    size_t vertexByteCount = vertexStride * vertexCount;
+
+    ThrowIfFailed(m_uploadCommandList->Reset(m_uploadCommandAllocators[m_frameIndex].Get(), m_pipelineState.Get()));
 
     // Create temporary buffer for upload
     CD3DX12_HEAP_PROPERTIES tempHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    CD3DX12_RESOURCE_DESC tempBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(dataSizeInBytes);
+    CD3DX12_RESOURCE_DESC tempBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexByteCount);
     ThrowIfFailed(m_device->CreateCommittedResource(&tempHeapProperties, D3D12_HEAP_FLAG_NONE, &tempBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_uploadBuffer)));
 
     // Upload to temp buffer
     UINT8* pVertexDataBegin = nullptr;
     CD3DX12_RANGE readRange(0, 0);
     ThrowIfFailed(m_uploadBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)));
-    memcpy(pVertexDataBegin, vertices, dataSizeInBytes);
+    memcpy(pVertexDataBegin, vertexData, vertexByteCount);
     m_uploadBuffer->Unmap(0, nullptr);
 
     // Create real vertex buffer on gpu memory
-    CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(dataSizeInBytes);
-    ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_vertexBuffer)));
+    MeshData& mesh = m_meshes.emplace_back();
+    mesh.vertexCount = vertexCount;
+    mesh.instanceCount = instanceCount;
 
-    // Copy the triangle data to the vertex buffer.
-    m_uploadCommandList->CopyResource(m_vertexBuffer.Get(), m_uploadBuffer.Get());
-    CD3DX12_RESOURCE_BARRIER transition = CD3DX12_RESOURCE_BARRIER::Transition(m_vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+    CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+    CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexByteCount);
+    ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&mesh.vertexBuffer)));
+
+    // Copy the data to the vertex buffer.
+    m_uploadCommandList->CopyResource(mesh.vertexBuffer.Get(), m_uploadBuffer.Get());
+    CD3DX12_RESOURCE_BARRIER transition = CD3DX12_RESOURCE_BARRIER::Transition(mesh.vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
     m_uploadCommandList->ResourceBarrier(1, &transition);
 
     // Initialize the vertex buffer view.
-    m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
-    m_vertexBufferView.StrideInBytes = sizeof(Vertex);
-    m_vertexBufferView.SizeInBytes = dataSizeInBytes;
+    mesh.vertexBufferView.BufferLocation = mesh.vertexBuffer->GetGPUVirtualAddress();
+    mesh.vertexBufferView.StrideInBytes = vertexStride;
+    mesh.vertexBufferView.SizeInBytes = vertexByteCount;
 
     // TODO: if we generalize this, make sure we don't push the command list twice
+    ThrowIfFailed(m_uploadCommandList->Close());
     m_scheduledCommandLists.push_back(m_uploadCommandList.Get());
 }
 
@@ -517,7 +515,7 @@ void EngineCore::OnUpdate()
     UpdateImgui(this);
 
     BeginProfile("Update Game", ImColor::HSV(.5f, 1.f, .5f));
-    m_game->UpdateGame();
+    m_game->UpdateGame(this);
     EndProfile("Update Game");
 }
 
@@ -595,8 +593,12 @@ void EngineCore::PopulateCommandList()
     const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
     m_renderCommandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
     m_renderCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    m_renderCommandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
-    m_renderCommandList->DrawInstanced(3, 6000, 0, 0);
+
+    for (auto& mesh : m_meshes)
+    {
+        m_renderCommandList->IASetVertexBuffers(0, 1, &mesh.vertexBufferView);
+        m_renderCommandList->DrawInstanced(mesh.vertexCount, mesh.instanceCount, 0, 0);
+    }
 
     // UI
     DrawImgui(m_renderCommandList.Get(), &rtvHandle);

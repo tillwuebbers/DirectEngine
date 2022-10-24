@@ -1,5 +1,7 @@
 #pragma once
 
+#include "IGame.h"
+#include "../core/EngineCore.h"
 #include "../imgui/imgui.h"
 
 #include <string>
@@ -34,7 +36,7 @@ struct Vertex
 	XMFLOAT4 color;
 };
 
-class Game
+class Game : public IGame
 {
 public:
 	std::wstring name = {};
@@ -43,10 +45,10 @@ public:
 	RingLog debugLog{};
 
 	Game(std::wstring name);
-	void StartGame();
-	void UpdateGame();
+	void StartGame(EngineCore* engine) override;
+	void UpdateGame(EngineCore* engine) override;
 
-	void Log(std::string message);
-	void Warn(std::string message);
-	void Error(std::string message);
+	void Log(std::string message) override;
+	void Warn(std::string message) override;
+	void Error(std::string message) override;
 };

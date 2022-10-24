@@ -18,7 +18,8 @@ add_executable (${PROJECT_NAME} WIN32
                 "imgui/ProfilerTask.h"
                 "import/tiny_obj_loader.h"
                 "game/Game.h"
-                "game/Game.cpp")
+                "game/Game.cpp"
+                "game/IGame.h")
 
 
 # imgui
