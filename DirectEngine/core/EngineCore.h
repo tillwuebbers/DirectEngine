@@ -60,16 +60,20 @@ public:
     ComPtr<IDXGISwapChain3> m_swapChain = nullptr;
     ComPtr<ID3D12Device> m_device = nullptr;
     ComPtr<ID3D12Resource> m_renderTargets[FrameCount];
-    ComPtr<ID3D12CommandAllocator> m_commandAllocators[FrameCount];
+    ComPtr<ID3D12CommandAllocator> m_uploadCommandAllocators[FrameCount];
+    ComPtr<ID3D12CommandAllocator> m_renderCommandAllocators[FrameCount];
     ComPtr<ID3D12CommandQueue> m_commandQueue = nullptr;
     ComPtr<ID3D12RootSignature> m_rootSignature = nullptr;
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap = nullptr;
     ComPtr<ID3D12DescriptorHeap> m_cbvHeap = nullptr;
     ComPtr<ID3D12PipelineState> m_pipelineState = nullptr;
-    ComPtr<ID3D12GraphicsCommandList> m_commandList = nullptr;
+    ComPtr<ID3D12GraphicsCommandList> m_uploadCommandList = nullptr;
+    ComPtr<ID3D12GraphicsCommandList> m_renderCommandList = nullptr;
     UINT m_rtvDescriptorSize;
+    std::vector<ID3D12CommandList*> scheduledCommandLists = {};
 
     // App resources
+    ComPtr<ID3D12Resource> m_uploadBuffer = nullptr;
     ComPtr<ID3D12Resource> m_vertexBuffer = nullptr;
     D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
     ComPtr<ID3D12Resource> m_constantBuffer = nullptr;
@@ -121,6 +125,7 @@ public:
     void LoadSizeDependentResources();
     HRESULT CreatePipelineState();
     void LoadAssets();
+    void CreateVertexBuffer(Vertex* vertices, size_t vertexCount);
     void PopulateCommandList();
     void MoveToNextFrame();
     void WaitForGpu();

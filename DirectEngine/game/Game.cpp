@@ -48,14 +48,17 @@ void Game::StartGame()
 	std::vector<uint64_t> indices{};
 
 	// Loop over shapes
-	for (size_t shapeIdx = 0; shapeIdx < shapes.size(); shapeIdx++) {
+	for (size_t shapeIdx = 0; shapeIdx < shapes.size(); shapeIdx++)
+	{
 		// Loop over faces(polygon)
 		size_t index_offset = 0;
-		for (size_t faceIdx = 0; faceIdx < shapes[shapeIdx].mesh.num_face_vertices.size(); faceIdx++) {
+		for (size_t faceIdx = 0; faceIdx < shapes[shapeIdx].mesh.num_face_vertices.size(); faceIdx++)
+		{
 			size_t fv = size_t(shapes[shapeIdx].mesh.num_face_vertices[faceIdx]);
 
 			// Loop over vertices in the face.
-			for (size_t v = 0; v < fv; v++) {
+			for (size_t v = 0; v < fv; v++)
+			{
 				// access to vertex
 				tinyobj::index_t idx = shapes[shapeIdx].mesh.indices[index_offset + v];
 				Vertex vert{};
