@@ -73,7 +73,7 @@ public:
     ComPtr<ID3D12GraphicsCommandList> m_renderCommandList = nullptr;
     UINT m_rtvDescriptorSize;
     HANDLE m_frameWaitableObject;
-    std::vector<ID3D12CommandList*> scheduledCommandLists = {};
+    std::vector<ID3D12CommandList*> m_scheduledCommandLists = {};
 
     // App resources
     ComPtr<ID3D12Resource> m_uploadBuffer = nullptr;

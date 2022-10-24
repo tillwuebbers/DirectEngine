@@ -493,7 +493,7 @@ void EngineCore::CreateVertexBuffer(Vertex* vertices, size_t vertexCount)
     m_vertexBufferView.SizeInBytes = dataSizeInBytes;
 
     // TODO: if we generalize this, make sure we don't push the command list twice
-    scheduledCommandLists.push_back(m_uploadCommandList.Get());
+    m_scheduledCommandLists.push_back(m_uploadCommandList.Get());
 }
 
 void EngineCore::OnUpdate()
@@ -533,8 +533,8 @@ void EngineCore::OnRender()
 
     PopulateCommandList();
 
-    m_commandQueue->ExecuteCommandLists(scheduledCommandLists.size(), scheduledCommandLists.data());
-    scheduledCommandLists.clear();
+    m_commandQueue->ExecuteCommandLists(m_scheduledCommandLists.size(), m_scheduledCommandLists.data());
+    m_scheduledCommandLists.clear();
     EndProfile("Commands");
 
     // When using sync interval 0, it is recommended to always pass the tearing
@@ -607,7 +607,7 @@ void EngineCore::PopulateCommandList()
 
     ThrowIfFailed(m_renderCommandList->Close());
 
-    scheduledCommandLists.push_back(m_renderCommandList.Get());
+    m_scheduledCommandLists.push_back(m_renderCommandList.Get());
 }
 
 // Wait for pending GPU work to complete.

@@ -100,7 +100,7 @@ DWORD WINAPI GameRenderThread(LPVOID lpParameter)
 		updateDataMutex.unlock();
 		engine.EndProfile("Mutex Read");
 
-		engine.BeginProfile("Waitable", ImColor(1.f, 1.f, 1.f));
+		engine.BeginProfile("Waitable", ImColor(.3f, .3f, .3f));
 		WaitForSingleObjectEx(engine.m_frameWaitableObject, 1000, true);
 		engine.EndProfile("Waitable");
 		engine.OnUpdate();
