@@ -113,17 +113,17 @@ void UpdateImgui(EngineCore* engine)
 
 			ImDrawList* drawList = ImGui::GetWindowDrawList();
 
-			const float maxDisplayedFrameTime = (1. / 144.) * 2.;
+			const float maxDisplayedFrameTime = (1.f / 144.f) * 2.f;
 			const float lineWidth = 4.f;
 			ImVec2 pos = ImGui::GetCursorPos();
 			ImVec2 max = ImVec2(ImGui::GetWindowContentRegionMax().x, pos.y + 80);
-			int rectWidth = ImGui::GetWindowContentRegionWidth();
+			int rectWidth = static_cast<int>(ImGui::GetWindowContentRegionWidth());
 			float rectHeight = max.y - pos.y;
 
 			drawList->AddRectFilled(pos, max, ImColor::HSV(0, 0, 0), 3);
 			drawList->AddLine(ImVec2(pos.x, pos.y + rectHeight / 2.f), ImVec2(max.x, pos.y + rectHeight / 2.f), ImColor::HSV(0, 0, .5f));
 
-			int drawIndex = (rectWidth - 1) / lineWidth;
+			int drawIndex = static_cast<int>((rectWidth - 1) / lineWidth);
 			while (drawIndex >= 0)
 			{
 				int frameIndex = engine->m_lastDebugFrameIndex - drawIndex;

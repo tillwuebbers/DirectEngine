@@ -20,3 +20,8 @@ void MemoryArena::Reset()
 {
 	used = 0;
 }
+
+MemoryArena::~MemoryArena()
+{
+	free(base);
+}

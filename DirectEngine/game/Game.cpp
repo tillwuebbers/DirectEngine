@@ -91,7 +91,7 @@ void Game::StartGame(EngineCore& engine)
 			index_offset += fv;
 
 			// per-face material
-			shapes[shapeIdx].mesh.material_ids[faceIdx];
+			//shapes[shapeIdx].mesh.material_ids[faceIdx];
 		}
 	}
 

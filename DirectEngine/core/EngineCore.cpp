@@ -1,3 +1,5 @@
+#pragma warning (disable : 4996)
+
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <comdef.h>
@@ -506,7 +508,7 @@ void EngineCore::OnUpdate()
     if (!m_pauseDebugFrames)
     {
         m_lastDebugFrameIndex = (m_lastDebugFrameIndex + 1) % _ARRAYSIZE(m_lastFrames);
-        m_lastFrames[m_lastDebugFrameIndex].duration = m_updateDeltaTime;
+        m_lastFrames[m_lastDebugFrameIndex].duration = static_cast<float>(m_updateDeltaTime);
     }
 
     NewImguiFrame();
@@ -531,14 +533,14 @@ void EngineCore::OnRender()
     m_scheduledCommandLists.clear();
     EndProfile("Commands");
 
-    BeginProfile("Present", ImColor::HSV(.2, .5, 1.));
+    BeginProfile("Present", ImColor::HSV(.2f, .5f, 1.f));
     UINT presentFlags = (m_tearingSupport && m_windowMode != WindowMode::Fullscreen && !m_useVsync) ? DXGI_PRESENT_ALLOW_TEARING : 0;
 
     // Present the frame.
     ThrowIfFailed(m_swapChain->Present(m_useVsync ? 1 : 0, presentFlags));
     EndProfile("Present");
 
-    BeginProfile("Frame Fence", ImColor::HSV(.4, .5, 1.));
+    BeginProfile("Frame Fence", ImColor::HSV(.4f, .5f, 1.f));
     MoveToNextFrame();
     EndProfile("Frame Fence");
 }
@@ -691,6 +693,7 @@ void EngineCore::OnShaderReload()
     HRESULT hr = CreatePipelineState();
     if (FAILED(hr))
     {
+        
         std::wstring_convert<std::codecvt_utf8<wchar_t>> utf8_conv;
         _com_error err(hr);
 
@@ -831,7 +834,7 @@ void EngineCore::ApplyWindowMode(WindowMode newMode)
         int bestModeIndex = -1;
         UINT bestWidth = 0;
         double bestRefreshRate = 0.;
-        for (int i = 0; i < numModes; i++)
+        for (int i = 0; i < static_cast<int>(numModes); i++)
         {
             double refreshRate = static_cast<double>(modes[i].RefreshRate.Numerator) / static_cast<double>(modes[i].RefreshRate.Denominator);
             if (refreshRate >= bestRefreshRate)

@@ -14,6 +14,12 @@ public:
     MemoryArena(size_t capacity);
     void* Allocate(size_t size);
     void Reset();
+
+    MemoryArena(const MemoryArena& other) = delete;
+    MemoryArena(MemoryArena&& other) noexcept = delete;
+    MemoryArena& operator=(const MemoryArena& other) = delete;
+    MemoryArena& operator=(MemoryArena&& other) noexcept = delete;
+    ~MemoryArena();
 };
 
 #define NewObject(arena, type, ...) new(arena.Allocate(sizeof(type))) type(__VA_ARGS__);
