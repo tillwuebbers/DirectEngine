@@ -10,6 +10,8 @@
 #include <chrono>
 #include <unordered_map>
 
+#include "Input.h"
+
 #include "../game/IGame.h"
 
 #include "../imgui/imgui.h"

@@ -44,9 +44,14 @@ public:
 	bool stopLog = false;
 	RingLog debugLog{};
 
+	MemoryArena globalArena{ 1024 * 1024 };
+	EngineInput input{ globalArena };
+
 	Game(std::wstring name);
-	void StartGame(EngineCore* engine) override;
-	void UpdateGame(EngineCore* engine) override;
+	void StartGame(EngineCore& engine) override;
+	void UpdateGame(EngineCore& engine) override;
+
+	EngineInput& GetInput() override;
 
 	void Log(std::string message) override;
 	void Warn(std::string message) override;

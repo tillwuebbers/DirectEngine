@@ -155,6 +155,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 			return 0;
 		}
 		break;
+	case WM_KEYDOWN:
+		if (!blockedInputs.blockKeyboard)
+		{
+			EngineInput& input = engineCore->m_game->GetInput();
+			input.accessMutex.lock();
+			input.currentPressedKeys->Set(wParam);
+			input.accessMutex.unlock();
+		}
 	case WM_KEYUP:
 		if (!blockedInputs.blockKeyboard)
 		{

@@ -13,13 +13,16 @@ add_executable (${PROJECT_NAME} WIN32
                 "core/EngineCore.h"
                 "core/UI.cpp"
                 "core/UI.h"
+                "core/Input.h"
+                "core/Input.cpp"
+                "core/vkcodes.h"
                 "imgui/remixicon.h"
                 "imgui/ImGuiProfilerRenderer.h"
                 "imgui/ProfilerTask.h"
                 "import/tiny_obj_loader.h"
                 "game/Game.h"
                 "game/Game.cpp"
-                "game/IGame.h")
+                "game/IGame.h" "core/Memory.h" "core/Memory.cpp")
 
 
 # imgui

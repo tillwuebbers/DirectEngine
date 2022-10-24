@@ -3,6 +3,7 @@
 #include <array>
 #include <format>
 
+#include "../core/vkcodes.h"
 #include "remixicon.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
@@ -11,7 +12,7 @@
 Game::Game(std::wstring name) : name(name)
 {}
 
-void Game::StartGame(EngineCore* engine)
+void Game::StartGame(EngineCore& engine)
 {
 	const char* filePath = "cube.obj";
 
@@ -96,16 +97,25 @@ void Game::StartGame(EngineCore* engine)
 
 	std::vector<Vertex> triangleVertices =
 	{
-		{ { 0.0f, 0.25f * engine->m_aspectRatio, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
-		{ { 0.25f, -0.25f * engine->m_aspectRatio, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
-		{ { -0.25f, -0.25f * engine->m_aspectRatio, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } }
+		{ { 0.0f, 0.25f * engine.m_aspectRatio, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
+		{ { 0.25f, -0.25f * engine.m_aspectRatio, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
+		{ { -0.25f, -0.25f * engine.m_aspectRatio, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } }
 	};
 	//engine->CreateMesh(copiedVertices.data(), sizeof(Vertex), copiedVertices.size());
-	engine->CreateMesh(triangleVertices.data(), sizeof(Vertex), triangleVertices.size(), 6000);
+	engine.CreateMesh(triangleVertices.data(), sizeof(Vertex), triangleVertices.size(), 6000);
 }
 
-void Game::UpdateGame(EngineCore* engine)
+void Game::UpdateGame(EngineCore& engine)
 {
+	engine.BeginProfile("Input Mutex", ImColor::HSV(.5f, 1.f, .5f));
+	if (input.KeyJustPressed(VK_KEY_R))
+	{
+		engine.m_startTime = std::chrono::high_resolution_clock::now();
+	}
+	input.NextFrame();
+	engine.EndProfile("Input Mutex");
+
+	engine.BeginProfile("Game UI", ImColor::HSV(.75f, 1.f, .75f));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2{ 100, 30 });
 	if (showLog)
 	{
@@ -134,6 +144,12 @@ void Game::UpdateGame(EngineCore* engine)
 		ImGui::End();
 	}
 	ImGui::PopStyleVar();
+	engine.EndProfile("Game UI");
+}
+
+EngineInput& Game::GetInput()
+{
+	return input;
 }
 
 void Game::Log(std::string message)

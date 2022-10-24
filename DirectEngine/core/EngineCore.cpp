@@ -47,7 +47,7 @@ void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
     m_startTime = std::chrono::high_resolution_clock::now();
 
     ShowWindow(m_hwnd, nCmdShow);
-    m_game->StartGame(this);
+    m_game->StartGame(*this);
 }
 
 void EngineCore::RegisterWindowClass(HINSTANCE hInst, const wchar_t* windowClassName, WNDPROC wndProc)
@@ -168,8 +168,6 @@ void EngineCore::LoadPipeline()
     UINT dxgiFactoryFlags = 0;
 
 #if defined(_DEBUG)
-    // Enable the debug layer (requires the Graphics Tools "optional feature").
-    // NOTE: Enabling the debug layer after device creation will invalidate the active device.
     {
         ComPtr<ID3D12Debug> debugController;
         if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
@@ -514,9 +512,7 @@ void EngineCore::OnUpdate()
     NewImguiFrame();
     UpdateImgui(this);
 
-    BeginProfile("Update Game", ImColor::HSV(.5f, 1.f, .5f));
-    m_game->UpdateGame(this);
-    EndProfile("Update Game");
+    m_game->UpdateGame(*this);
 }
 
 void EngineCore::OnRender()
@@ -535,10 +531,6 @@ void EngineCore::OnRender()
     m_scheduledCommandLists.clear();
     EndProfile("Commands");
 
-    // When using sync interval 0, it is recommended to always pass the tearing
-    // flag when it is supported, even when presenting in windowed mode.
-    // However, this flag cannot be used if the app is in fullscreen mode as a
-    // result of calling SetFullscreenState.
     BeginProfile("Present", ImColor::HSV(.2, .5, 1.));
     UINT presentFlags = (m_tearingSupport && m_windowMode != WindowMode::Fullscreen && !m_useVsync) ? DXGI_PRESENT_ALLOW_TEARING : 0;
 
@@ -858,14 +850,13 @@ void EngineCore::ApplyWindowMode(WindowMode newMode)
         m_swapChain->ResizeTarget(&modes[bestModeIndex]);
         if (FAILED(m_swapChain->SetFullscreenState(true, nullptr)))
         {
-            // Transitions to fullscreen mode can fail when running apps over
-            // terminal services or for some other unexpected reason.  Consider
-            // notifying the user in some way when this happens.
             OutputDebugString(L"Fullscreen transition failed");
             assert(false);
         }
-
-        OnResize(modes[bestModeIndex].Width, modes[bestModeIndex].Height);
+        else
+        {
+            OnResize(modes[bestModeIndex].Width, modes[bestModeIndex].Height);
+        }
     }
 }
 
