@@ -36,7 +36,7 @@ void SetupImgui(HWND hwnd, EngineCore* engine, int framesInFlight)
 
 	// Setup Platform/Renderer backends
 	ImGui_ImplWin32_Init(hwnd);
-	ImGui_ImplDX12_Init(engine->m_device.Get(), framesInFlight, DXGI_FORMAT_R8G8B8A8_UNORM, g_pd3dSrvDescHeap, g_pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(), g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
+	ImGui_ImplDX12_Init(engine->m_device.Get(), framesInFlight, EngineCore::DisplayFormat, g_pd3dSrvDescHeap, g_pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(), g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
 
 	// Load Fonts
 	io.Fonts->AddFontFromFileTTF("Montserrat-Regular.ttf", 16.0f);
@@ -168,15 +168,11 @@ void UpdateImgui(EngineCore* engine)
 
 			ImGui::NewLine();
 
-			if (ImGui::Button("Recompile Shaders"))
-			{
-				engine->m_wantReloadShaders = true;
-			}
-			ImGui::SameLine();
 			if (ImGui::Button("ToggleDemo"))
 			{
 				showDemoWindow = !showDemoWindow;
 			}
+			ImGui::SameLine();
 			if (ImGui::Button("Show Log"))
 			{
 				engine->m_game->showLog = true;

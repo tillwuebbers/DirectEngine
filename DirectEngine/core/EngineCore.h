@@ -39,11 +39,13 @@ class EngineCore
 {
 public:
     static const UINT FrameCount = 3;
+    static const DXGI_FORMAT DisplayFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
     EngineCore(UINT width, UINT height, Game* game);
 
-    LRESULT CALLBACK ProcessWindowMessage(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
     void OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc);
+    void OnResize(UINT width, UINT height);
+    void OnShaderReload();
     void OnUpdate();
     void OnRender();
     void OnDestroy();
@@ -105,7 +107,6 @@ public:
     const UINT m_windowStyle = WS_OVERLAPPEDWINDOW;
 
     // Debug stuff
-    bool m_wantReloadShaders = false;
     std::string m_shaderError = {};
     FrameDebugData m_lastFrames[256] = {};
     size_t m_lastDebugFrameIndex = 0;
@@ -129,7 +130,6 @@ public:
     void PopulateCommandList();
     void MoveToNextFrame();
     void WaitForGpu();
-    void OnResize();
     void CheckTearingSupport();
     void ToggleWindowMode();
     void ApplyWindowMode(WindowMode newMode);

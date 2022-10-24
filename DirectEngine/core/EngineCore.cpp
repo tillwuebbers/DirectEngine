@@ -107,58 +107,6 @@ void EngineCore::CreateGameWindow(const wchar_t* windowClassName, HINSTANCE hIns
     assert(m_hwnd && "Failed to create window");
 }
 
-LRESULT CALLBACK EngineCore::ProcessWindowMessage(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    ImGuiInputBlock blockedInputs = ParseImGuiInputs(hWnd, message, wParam, lParam);
-
-    switch (message)
-    {
-    case WM_PAINT:
-        OnUpdate();
-        OnRender();
-        break;
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        return 0;
-    // The default window procedure will play a system notification sound 
-    // when pressing the Alt+Enter keyboard combination if this message is 
-    // not handled.
-    case WM_SYSCHAR:
-        return 0;
-    case WM_SIZE:
-    {
-        RECT clientRect = {};
-        ::GetClientRect(hWnd, &clientRect);
-
-        m_width = clientRect.right - clientRect.left;
-        m_height = clientRect.bottom - clientRect.top;
-
-        OnResize();
-        return 0;
-    }
-    case WM_SYSKEYDOWN:
-        // Handle ALT+ENTER:
-        if ((wParam == VK_RETURN) && (lParam & (1 << 29)))
-        {
-            ToggleWindowMode();
-            return 0;
-        }
-        break;
-    case WM_KEYUP:
-        if (!blockedInputs.blockKeyboard)
-        {
-            if (wParam == VK_ESCAPE)
-            {
-                PostQuitMessage(0);
-            }
-        }
-        return 0;
-    }
-
-    // Handle any messages the switch statement didn't.
-    return DefWindowProc(hWnd, message, wParam, lParam);
-}
-
 // Helper function for acquiring the first available hardware adapter that supports Direct3D 12.
 // If no such adapter can be found, *ppAdapter will be set to nullptr.
 _Use_decl_annotations_
@@ -566,7 +514,9 @@ void EngineCore::OnUpdate()
     NewImguiFrame();
     UpdateImgui(this);
 
+    BeginProfile("Update Game", ImColor::HSV(.5f, 1.f, .5f));
     m_game->UpdateGame();
+    EndProfile("Update Game");
 }
 
 void EngineCore::OnRender()
@@ -577,21 +527,6 @@ void EngineCore::OnRender()
     if (m_wantedWindowMode != m_windowMode)
     {
         ApplyWindowMode(m_wantedWindowMode);
-    }
-
-    if (m_wantReloadShaders)
-    {
-        WaitForGpu();
-        HRESULT hr = CreatePipelineState();
-        if (FAILED(hr))
-        {
-            std::wstring_convert<std::codecvt_utf8<wchar_t>> utf8_conv;
-            _com_error err(hr);
-
-            m_shaderError.append("Failed to create pipeline state: ");
-            m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
-        }
-        m_wantReloadShaders = false;
     }
 
     PopulateCommandList();
@@ -709,10 +644,13 @@ void EngineCore::MoveToNextFrame()
     m_fenceValues[m_frameIndex] = currentFenceValue + 1;
 }
 
-void EngineCore::OnResize()
+void EngineCore::OnResize(UINT width, UINT height)
 {
     // Flush all current GPU commands.
     WaitForGpu();
+
+    m_width = width;
+    m_height = height;
 
     m_aspectRatio = (float)m_width / (float)m_height;
     m_viewport = CD3DX12_VIEWPORT{ 0.f, 0.f, static_cast<float>(m_width), static_cast<float>(m_height) };
@@ -749,6 +687,20 @@ void EngineCore::OnResize()
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
     LoadSizeDependentResources();
+}
+
+void EngineCore::OnShaderReload()
+{
+    WaitForGpu();
+    HRESULT hr = CreatePipelineState();
+    if (FAILED(hr))
+    {
+        std::wstring_convert<std::codecvt_utf8<wchar_t>> utf8_conv;
+        _com_error err(hr);
+
+        m_shaderError.append("Failed to create pipeline state: ");
+        m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
+    }
 }
 
 // Determines whether tearing support is available for fullscreen borderless windows.
@@ -795,16 +747,21 @@ void EngineCore::ApplyWindowMode(WindowMode newMode)
         // Restore the window's attributes and size.
         SetWindowLong(m_hwnd, GWL_STYLE, m_windowStyle);
 
+        LONG width = m_windowRect.right - m_windowRect.left;
+        LONG height = m_windowRect.bottom - m_windowRect.top;
+
         SetWindowPos(
             m_hwnd,
             HWND_NOTOPMOST,
             m_windowRect.left,
             m_windowRect.top,
-            m_windowRect.right - m_windowRect.left,
-            m_windowRect.bottom - m_windowRect.top,
+            width,
+            height,
             SWP_FRAMECHANGED | SWP_NOACTIVATE);
 
         ShowWindow(m_hwnd, SW_NORMAL);
+
+        OnResize(width, height);
     }
     else if (m_windowMode == WindowMode::Borderless)
     {
@@ -860,14 +817,41 @@ void EngineCore::ApplyWindowMode(WindowMode newMode)
             fullscreenWindowRect.bottom,
             SWP_FRAMECHANGED | SWP_NOACTIVATE);
 
-
         ShowWindow(m_hwnd, SW_MAXIMIZE);
+        OnResize(fullscreenWindowRect.right - fullscreenWindowRect.left, fullscreenWindowRect.bottom - fullscreenWindowRect.top);
     }
     else if (m_windowMode == WindowMode::Fullscreen)
     {
         // Save the old window rect so we can restore it when exiting fullscreen mode.
         GetWindowRect(m_hwnd, &m_windowRect);
 
+        // Get the settings of the display on which the app's window is currently displayed
+        ComPtr<IDXGIOutput> pOutput;
+        ThrowIfFailed(m_swapChain->GetContainingOutput(&pOutput));
+        DXGI_MODE_DESC modes[1024];
+        UINT numModes;
+        ThrowIfFailed(pOutput->GetDisplayModeList(DisplayFormat, 0, &numModes, modes));
+
+        int bestModeIndex = -1;
+        UINT bestWidth = 0;
+        double bestRefreshRate = 0.;
+        for (int i = 0; i < numModes; i++)
+        {
+            double refreshRate = static_cast<double>(modes[i].RefreshRate.Numerator) / static_cast<double>(modes[i].RefreshRate.Denominator);
+            if (refreshRate >= bestRefreshRate)
+            {
+                bestRefreshRate = refreshRate;
+                if (modes[i].Width > bestWidth)
+                {
+                    bestWidth = modes[i].Width;
+                    bestModeIndex = i;
+                }
+            }
+        }
+
+        if (bestModeIndex == -1) throw std::exception();
+
+        m_swapChain->ResizeTarget(&modes[bestModeIndex]);
         if (FAILED(m_swapChain->SetFullscreenState(true, nullptr)))
         {
             // Transitions to fullscreen mode can fail when running apps over
@@ -876,6 +860,8 @@ void EngineCore::ApplyWindowMode(WindowMode newMode)
             OutputDebugString(L"Fullscreen transition failed");
             assert(false);
         }
+
+        OnResize(modes[bestModeIndex].Width, modes[bestModeIndex].Height);
     }
 }
 
