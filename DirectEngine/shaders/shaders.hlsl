@@ -21,7 +21,8 @@ PSInput VSMain(float4 position : POSITION, float4 color : COLOR, uint id : SV_In
 
     float4x4 mvp = mul(modelTransform, mul(cameraTransform, clipTransform));
     result.position = mul(position, mvp);
-    result.position.x += id * 1.5;
+    result.position.x += (id % 10) * 1.5 - 5. * 1.3333;
+    result.position.y += (id / 10) * 1.5 - 5. * 1.3333;
     
     result.color = color;
     result.id = id;
@@ -31,6 +32,6 @@ PSInput VSMain(float4 position : POSITION, float4 color : COLOR, uint id : SV_In
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    uint totalCount = 6000;
+    uint totalCount = 100;
     return float4(input.id / (float)totalCount, .3, 0.1, 1);
 }
