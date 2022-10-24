@@ -218,7 +218,7 @@ void EngineCore::LoadPipeline()
     swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     swapChainDesc.SampleDesc.Count = 1;
-    swapChainDesc.Flags = (m_tearingSupport ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0);
+    swapChainDesc.Flags = (m_tearingSupport ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0) | DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
 
     ComPtr<IDXGISwapChain1> swapChain;
     ThrowIfFailed(factory->CreateSwapChainForHwnd(m_commandQueue.Get(), m_hwnd, &swapChainDesc, nullptr, nullptr, &swapChain));
@@ -226,6 +226,8 @@ void EngineCore::LoadPipeline()
     factory->MakeWindowAssociation(m_hwnd, DXGI_MWA_NO_ALT_ENTER);
 
     ThrowIfFailed(swapChain.As(&m_swapChain));
+    m_swapChain->SetMaximumFrameLatency(1);
+    m_frameWaitableObject = m_swapChain->GetFrameLatencyWaitableObject();
 
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 

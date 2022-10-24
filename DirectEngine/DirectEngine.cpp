@@ -70,7 +70,6 @@ DWORD WINAPI FileWatcherThread(LPVOID lpParameter)
 // Render loop
 DWORD WINAPI GameRenderThread(LPVOID lpParameter)
 {
-	OutputDebugString(std::format(L"game thread id: {}\n", GetCurrentThreadId()).c_str());
 	GameThreadData* data = static_cast<GameThreadData*>(lpParameter);
 	EngineCore& engine = *data->engine;
 
@@ -101,9 +100,9 @@ DWORD WINAPI GameRenderThread(LPVOID lpParameter)
 		updateDataMutex.unlock();
 		engine.EndProfile("Mutex Read");
 
-		//engine.BeginProfile("Waitable", ImColor(1.f, 1.f, 1.f));
-		//WaitForSingleObjectEx(engine.m_frameLatencyWaitableObject, 1000, true);
-		//engine.EndProfile("Waitable");
+		engine.BeginProfile("Waitable", ImColor(1.f, 1.f, 1.f));
+		WaitForSingleObjectEx(engine.m_frameWaitableObject, 1000, true);
+		engine.EndProfile("Waitable");
 		engine.OnUpdate();
 		engine.OnRender();
 	}
@@ -147,7 +146,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 		return 0;
 	}
 	case WM_SYSKEYDOWN:
-		OutputDebugString(std::format(L"message thread id: {}\n", GetCurrentThreadId()).c_str());
 		if ((wParam == VK_RETURN) && (lParam & (1 << 29)))
 		{
 			updateDataMutex.lock();
@@ -178,8 +176,6 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 	DWORD fileWatcherThreadID;
 	HANDLE fileWatcherThreadHandle = CreateThread(0, 0, FileWatcherThread, 0, 0, &fileWatcherThreadID);
 #endif
-
-	OutputDebugString(std::format(L"window thread id: {}\n", GetCurrentThreadId()).c_str());
 
 	MSG msg = {};
 	{
