@@ -89,15 +89,17 @@ public:
     ComPtr<ID3D12RootSignature> m_rootSignature = nullptr;
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap = nullptr;
     ComPtr<ID3D12DescriptorHeap> m_cbvHeap = nullptr;
+    ComPtr<ID3D12DescriptorHeap> m_depthStencilHeap = nullptr;
     ComPtr<ID3D12PipelineState> m_pipelineState = nullptr;
     ComPtr<ID3D12GraphicsCommandList> m_uploadCommandList = nullptr;
     ComPtr<ID3D12GraphicsCommandList> m_renderCommandList = nullptr;
-    UINT m_rtvDescriptorSize;
     std::vector<ID3D12CommandList*> m_scheduledCommandLists = {};
+    UINT m_rtvDescriptorSize;
 
     // App resources
     ComPtr<ID3D12Resource> m_uploadBuffer = nullptr;
     ComPtr<ID3D12Resource> m_constantBuffer = nullptr;
+    ComPtr<ID3D12Resource> m_depthStencilBuffer = nullptr;
     SceneConstantBuffer m_constantBufferData;
     UINT8* m_pCbvDataBegin = nullptr;
     std::vector<MeshData> m_meshes = {};

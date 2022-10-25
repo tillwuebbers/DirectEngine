@@ -121,8 +121,6 @@ void Game::UpdateGame(EngineCore& engine)
 	engine.m_constantBufferData.cameraTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixLookAtLH(pos, lookAt, up));
 	engine.m_constantBufferData.clipTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixPerspectiveFovLH(45.f, engine.m_aspectRatio, .1f, 1000.f));
 
-	//engine.m_constantBufferData.modelTransform = DirectX::XMMatrixTranspose(engine.m_constantBufferData.modelTransform * engine.m_constantBufferData.cameraTransform * engine.m_constantBufferData.clipTransform);
-
 	engine.EndProfile("Game Update");
 
 	engine.BeginProfile("Game UI", ImColor::HSV(.75f, 1.f, .75f));
