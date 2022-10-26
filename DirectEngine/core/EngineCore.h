@@ -36,6 +36,14 @@ struct FrameDebugData
     float duration;
 };
 
+struct CommandList
+{
+    ComPtr<ID3D12GraphicsCommandList> list = nullptr;
+    bool scheduled = false;
+
+    void Reset(ID3D12CommandAllocator* allocator, ID3D12PipelineState* pipelineState);
+};
+
 struct SceneConstantBuffer
 {
     XMMATRIX cameraTransform = {};
@@ -82,7 +90,8 @@ public:
     void OnRender();
     void OnDestroy();
 
-    IGame* m_game;
+    IGame* m_game = nullptr;
+    bool m_gameStarted = false;
 
     // Window Handle
     HWND m_hwnd;
@@ -102,9 +111,9 @@ public:
     ComPtr<ID3D12DescriptorHeap> m_cbvHeap = nullptr;
     ComPtr<ID3D12DescriptorHeap> m_depthStencilHeap = nullptr;
     ComPtr<ID3D12PipelineState> m_pipelineState = nullptr;
-    ComPtr<ID3D12GraphicsCommandList> m_uploadCommandList = nullptr;
-    ComPtr<ID3D12GraphicsCommandList> m_renderCommandList = nullptr;
-    std::vector<ID3D12CommandList*> m_scheduledCommandLists = {};
+    CommandList m_uploadCommandList = {};
+    CommandList m_renderCommandList = {};
+    std::vector<CommandList*> m_scheduledCommandLists = {};
     UINT m_rtvDescriptorSize;
 
     // App resources
@@ -162,6 +171,7 @@ public:
     void LoadAssets();
     MeshData* CreateMesh(const void* vertexData, const size_t vertexStride, const size_t vertexCount, const size_t instanceCount);
     void PopulateCommandList();
+    void ScheduleCommandList(CommandList* newList);
     void MoveToNextFrame();
     void WaitForGpu();
     void CheckTearingSupport();

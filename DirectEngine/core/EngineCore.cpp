@@ -47,7 +47,6 @@ void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
     m_startTime = std::chrono::high_resolution_clock::now();
 
     ShowWindow(m_hwnd, nCmdShow);
-    m_game->StartGame(*this);
 }
 
 void EngineCore::RegisterWindowClass(HINSTANCE hInst, const wchar_t* windowClassName, WNDPROC wndProc)
@@ -243,7 +242,7 @@ void EngineCore::LoadPipeline()
         // Flags indicate that this descriptor heap can be bound to the pipeline 
         // and that descriptors contained in it can be referenced by a root table.
         D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc = {};
-        cbvHeapDesc.NumDescriptors = 2;
+        cbvHeapDesc.NumDescriptors = 128;
         cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
         cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
         ThrowIfFailed(m_device->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&m_cbvHeap)));
@@ -429,12 +428,12 @@ void EngineCore::LoadAssets()
     ThrowIfFailed(CreatePipelineState());
 
     // Create the render command list
-    ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_renderCommandAllocators[m_frameIndex].Get(), nullptr, IID_PPV_ARGS(&m_renderCommandList)));
-    ThrowIfFailed(m_renderCommandList->Close());
+    ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_renderCommandAllocators[m_frameIndex].Get(), nullptr, IID_PPV_ARGS(&m_renderCommandList.list)));
+    ThrowIfFailed(m_renderCommandList.list->Close());
 
     // Create the upload command list and use it
-    ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_uploadCommandAllocators[m_frameIndex].Get(), nullptr, IID_PPV_ARGS(&m_uploadCommandList)));
-    ThrowIfFailed(m_uploadCommandList->Close());
+    ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_uploadCommandAllocators[m_frameIndex].Get(), nullptr, IID_PPV_ARGS(&m_uploadCommandList.list)));
+    ThrowIfFailed(m_uploadCommandList.list->Close());
 
     // Create the constant buffer.
     CreateConstantBuffer<SceneConstantBuffer>(m_constantBuffer.Get(), & m_constantBufferData, &m_pCbvDataBegin);
@@ -462,8 +461,6 @@ MeshData* EngineCore::CreateMesh(const void* vertexData, const size_t vertexStri
 {
     size_t vertexByteCount = vertexStride * vertexCount;
 
-    ThrowIfFailed(m_uploadCommandList->Reset(m_uploadCommandAllocators[m_frameIndex].Get(), m_pipelineState.Get()));
-
     // Create temporary buffer for upload
     CD3DX12_HEAP_PROPERTIES tempHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC tempBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexByteCount);
@@ -486,18 +483,16 @@ MeshData* EngineCore::CreateMesh(const void* vertexData, const size_t vertexStri
     ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&mesh.vertexBuffer)));
 
     // Copy the data to the vertex buffer.
-    m_uploadCommandList->CopyResource(mesh.vertexBuffer.Get(), m_uploadBuffer.Get());
+    m_uploadCommandList.list->CopyResource(mesh.vertexBuffer.Get(), m_uploadBuffer.Get());
     CD3DX12_RESOURCE_BARRIER transition = CD3DX12_RESOURCE_BARRIER::Transition(mesh.vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-    m_uploadCommandList->ResourceBarrier(1, &transition);
+    m_uploadCommandList.list->ResourceBarrier(1, &transition);
 
     // Initialize the vertex buffer view.
     mesh.vertexBufferView.BufferLocation = mesh.vertexBuffer->GetGPUVirtualAddress();
     mesh.vertexBufferView.StrideInBytes = vertexStride;
     mesh.vertexBufferView.SizeInBytes = vertexByteCount;
 
-    // TODO: if we generalize this, make sure we don't push the command list twice
-    ThrowIfFailed(m_uploadCommandList->Close());
-    m_scheduledCommandLists.push_back(m_uploadCommandList.Get());
+    ScheduleCommandList(&m_uploadCommandList);
 
     return &mesh;
 }
@@ -521,7 +516,14 @@ void EngineCore::OnUpdate()
     NewImguiFrame();
     UpdateImgui(this);
 
+    m_uploadCommandList.Reset(m_uploadCommandAllocators[m_frameIndex].Get(), m_pipelineState.Get());
+    if (!m_gameStarted)
+    {
+        m_gameStarted = true;
+        m_game->StartGame(*this);
+    }
     m_game->UpdateGame(*this);
+    ThrowIfFailed(m_uploadCommandList.list->Close());
 
     memcpy(m_pCbvDataBegin, &m_constantBufferData, sizeof(m_constantBufferData));
 }
@@ -538,7 +540,12 @@ void EngineCore::OnRender()
 
     PopulateCommandList();
 
-    m_commandQueue->ExecuteCommandLists(m_scheduledCommandLists.size(), m_scheduledCommandLists.data());
+    for (CommandList* list : m_scheduledCommandLists)
+    {
+        list->scheduled = false;
+        ID3D12CommandList* listPtr = list->list.Get();
+        m_commandQueue->ExecuteCommandLists(1, &listPtr);
+    }
     m_scheduledCommandLists.clear();
     EndProfile("Commands");
 
@@ -560,6 +567,16 @@ void EngineCore::OnDestroy()
     CloseHandle(m_fenceEvent);
 }
 
+void EngineCore::ScheduleCommandList(CommandList* newList)
+{
+    newList->scheduled = true;
+    for (CommandList* list : m_scheduledCommandLists)
+    {
+        if (newList == list) return;
+    }
+    m_scheduledCommandLists.push_back(newList);
+}
+
 void EngineCore::PopulateCommandList()
 {
     // Command list allocators can only be reset when the associated 
@@ -570,54 +587,55 @@ void EngineCore::PopulateCommandList()
     // However, when ExecuteCommandList() is called on a particular command 
     // list, that command list can then be reset at any time and must be before 
     // re-recording.
-    ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex].Get(), m_pipelineState.Get()));
+    m_renderCommandList.Reset(m_renderCommandAllocators[m_frameIndex].Get(), m_pipelineState.Get());
+    ID3D12GraphicsCommandList* renderList = m_renderCommandList.list.Get();
 
     // Set necessary state.
-    m_renderCommandList->SetGraphicsRootSignature(m_rootSignature.Get());
-    m_renderCommandList->RSSetViewports(1, &m_viewport);
-    m_renderCommandList->RSSetScissorRects(1, &m_scissorRect);
+    renderList->SetGraphicsRootSignature(m_rootSignature.Get());
+    renderList->RSSetViewports(1, &m_viewport);
+    renderList->RSSetScissorRects(1, &m_scissorRect);
 
     // Constant buffer descriptor heap
     ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap.Get() };
-    m_renderCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+    renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
     D3D12_GPU_DESCRIPTOR_HANDLE cbvStart = m_cbvHeap->GetGPUDescriptorHandleForHeapStart();
-    m_renderCommandList->SetGraphicsRootDescriptorTable(0, cbvStart);
+    renderList->SetGraphicsRootDescriptorTable(0, cbvStart);
 
     CD3DX12_GPU_DESCRIPTOR_HANDLE cbvNext{};
     cbvNext.InitOffsetted(cbvStart, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
-    m_renderCommandList->SetGraphicsRootDescriptorTable(1, cbvNext);
+    renderList->SetGraphicsRootDescriptorTable(1, cbvNext);
 
     // Indicate that the back buffer will be used as a render target.
     CD3DX12_RESOURCE_BARRIER barrierToRender = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-    m_renderCommandList->ResourceBarrier(1, &barrierToRender);
+    renderList->ResourceBarrier(1, &barrierToRender);
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
     CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
-    m_renderCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+    renderList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
     // Record commands.
     const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
-    m_renderCommandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-    m_renderCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-    m_renderCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    renderList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+    renderList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+    renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     for (auto& mesh : m_meshes)
     {
-        m_renderCommandList->IASetVertexBuffers(0, 1, &mesh.vertexBufferView);
-        m_renderCommandList->DrawInstanced(mesh.vertexCount, mesh.instanceCount, 0, 0);
+        renderList->IASetVertexBuffers(0, 1, &mesh.vertexBufferView);
+        renderList->DrawInstanced(mesh.vertexCount, mesh.instanceCount, 0, 0);
     }
 
     // UI
-    DrawImgui(m_renderCommandList.Get(), &rtvHandle);
+    DrawImgui(renderList, &rtvHandle);
 
     // Indicate that the back buffer will now be used to present.
     CD3DX12_RESOURCE_BARRIER barrierToPresent = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-    m_renderCommandList->ResourceBarrier(1, &barrierToPresent);
+    renderList->ResourceBarrier(1, &barrierToPresent);
 
-    ThrowIfFailed(m_renderCommandList->Close());
+    ThrowIfFailed(renderList->Close());
 
-    m_scheduledCommandLists.push_back(m_renderCommandList.Get());
+    ScheduleCommandList(&m_renderCommandList);
 }
 
 // Wait for pending GPU work to complete.
@@ -897,6 +915,12 @@ inline double EngineCore::TimeSinceStart()
 inline double EngineCore::TimeSinceFrameStart()
 {
     return NanosecondsToSeconds(std::chrono::high_resolution_clock::now() - m_frameStartTime);
+}
+
+void CommandList::Reset(ID3D12CommandAllocator* allocator, ID3D12PipelineState* pipelineState)
+{
+    assert(!scheduled);
+    ThrowIfFailed(list->Reset(allocator, pipelineState));
 }
 
 inline double NanosecondsToSeconds(std::chrono::nanoseconds clock)

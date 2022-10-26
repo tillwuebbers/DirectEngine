@@ -39,9 +39,9 @@ struct Vertex
 class Entity
 {
 public:
-	XMFLOAT3 position{};
-	XMFLOAT4 rotation{};
-	XMFLOAT3 scale{1.f, 1.f, 1.f};
+	XMFLOAT3 position{ 0.f, 0.f, 0.f };
+	XMFLOAT4 rotation{ 0.f, 0.f, 0.f, 1.f };
+	XMFLOAT3 scale{ 1.f, 1.f, 1.f };
 	MeshData* mesh;
 };
 
@@ -61,6 +61,8 @@ public:
 	Game(std::wstring name);
 	void StartGame(EngineCore& engine) override;
 	void UpdateGame(EngineCore& engine) override;
+
+	MeshData* LoadMeshFromFile(EngineCore& engine, const std::string& filePath);
 
 	EngineInput& GetInput() override;
 

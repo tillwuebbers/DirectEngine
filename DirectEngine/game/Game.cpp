@@ -17,8 +17,84 @@ Game::Game(std::wstring name) : name(name)
 
 void Game::StartGame(EngineCore& engine)
 {
-	const char* filePath = "cube.obj";
+	Entity* entity1 = NewObject(entityArena, Entity);
+	entity1->mesh = LoadMeshFromFile(engine, "cube.obj");
 
+	/*Entity* entity2 = NewObject(entityArena, Entity);
+	entity2->mesh = LoadMeshFromFile(engine, "cube.obj");
+	entity2->position = XMFLOAT3{ 0.f, 0.f, 5.f };*/
+}
+
+void Game::UpdateGame(EngineCore& engine)
+{
+	engine.BeginProfile("Input Mutex", ImColor::HSV(.5f, 1.f, .5f));
+	if (input.KeyJustPressed(VK_KEY_R))
+	{
+		engine.m_startTime = std::chrono::high_resolution_clock::now();
+	}
+	input.NextFrame();
+	engine.EndProfile("Input Mutex");
+
+	engine.BeginProfile("Game Update", ImColor::HSV(.75f, 1.f, 1.f));
+	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
+	{
+		entity->position.x = static_cast<float>(sin(engine.TimeSinceStart()));
+		XMStoreFloat4(&entity->rotation, XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart())));
+
+		entity->mesh->constantBufferData.worldTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixAffineTransformation(
+			XMLoadFloat3(&entity->scale), XMVECTOR{}, XMLoadFloat4(&entity->rotation), XMLoadFloat3(&entity->position)));
+
+		// TODO: Race condition?
+		memcpy(entity->mesh->mappedConstantBufferData, &entity->mesh->constantBufferData, sizeof(entity->mesh->constantBufferData));
+	}
+
+	XMVECTOR pos{ 0.f, 0.f, -10.f };
+	XMVECTOR lookAt{ 0.f, 0.f, 0.f };
+	XMVECTOR up{ 0.f, 1.f, 0.f };
+	engine.m_constantBufferData.cameraTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixLookAtLH(pos, lookAt, up));
+	engine.m_constantBufferData.clipTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixPerspectiveFovLH(45.f, engine.m_aspectRatio, .1f, 1000.f));
+
+	engine.EndProfile("Game Update");
+
+	engine.BeginProfile("Game UI", ImColor::HSV(.75f, 1.f, .75f));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2{ 100, 30 });
+	if (showLog)
+	{
+		if (ImGui::Begin("Log", &showLog))
+		{
+			if (ImGui::Button(stopLog ? ICON_PLAY_FILL : ICON_STOP_FILL))
+			{
+				if (!stopLog)
+				{
+					Warn("Log paused...");
+				}
+				stopLog = !stopLog;
+				if (!stopLog)
+				{
+					Warn("Log resumed...");
+				}
+			}
+			ImGui::SameLine();
+
+			ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ 0, 0 });
+			debugLog.DrawText();
+			ImGui::PopStyleVar();
+			ImGui::EndChild();
+		}
+		ImGui::End();
+	}
+	ImGui::PopStyleVar();
+	engine.EndProfile("Game UI");
+}
+
+EngineInput& Game::GetInput()
+{
+	return input;
+}
+
+MeshData* Game::LoadMeshFromFile(EngineCore& engine, const std::string& filePath)
+{
 	tinyobj::ObjReaderConfig reader_config;
 	reader_config.mtl_search_path = "./";
 	tinyobj::ObjReader reader;
@@ -83,9 +159,9 @@ void Game::StartGame(EngineCore& engine)
 					tinyobj::real_t ty = attrib.texcoords[2 * size_t(idx.texcoord_index) + 1];
 				}
 
-				vert.color.x = attrib.colors[3*size_t(idx.vertex_index)+0];
-				vert.color.y = attrib.colors[3*size_t(idx.vertex_index)+1];
-				vert.color.z = attrib.colors[3*size_t(idx.vertex_index)+2];
+				vert.color.x = attrib.colors[3 * size_t(idx.vertex_index) + 0];
+				vert.color.y = attrib.colors[3 * size_t(idx.vertex_index) + 1];
+				vert.color.z = attrib.colors[3 * size_t(idx.vertex_index) + 2];
 				vert.color.w = 1.0f;
 
 				vertices[idx.vertex_index] = vert;
@@ -98,84 +174,9 @@ void Game::StartGame(EngineCore& engine)
 		}
 	}
 
-	Entity* entity = NewObject(entityArena, Entity);
-	entity->mesh = engine.CreateMesh(copiedVertices.data(), sizeof(Vertex), copiedVertices.size(), 100);
-
-	entity->position.x = sin(engine.TimeSinceStart());
-	XMStoreFloat4(&entity->rotation, XMQuaternionRotationAxis(XMVECTOR{ 0.f, 1.f, 0.f }, engine.TimeSinceStart()));
-
-	entity->mesh->constantBufferData.worldTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixAffineTransformation(
-		XMLoadFloat3(&entity->scale), XMVECTOR{}, XMLoadFloat4(&entity->rotation), XMLoadFloat3(&entity->position)));
-
-	engine.CreateConstantBuffer<EntityConstantBuffer>(entity->mesh->constantBuffer.Get(), &entity->mesh->constantBufferData, &entity->mesh->mappedConstantBufferData);
-}
-
-void Game::UpdateGame(EngineCore& engine)
-{
-	engine.BeginProfile("Input Mutex", ImColor::HSV(.5f, 1.f, .5f));
-	if (input.KeyJustPressed(VK_KEY_R))
-	{
-		engine.m_startTime = std::chrono::high_resolution_clock::now();
-	}
-	input.NextFrame();
-	engine.EndProfile("Input Mutex");
-
-	engine.BeginProfile("Game Update", ImColor::HSV(.75f, 1.f, 1.f));
-	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
-	{
-		entity->position.x = sin(engine.TimeSinceStart());
-		XMStoreFloat4(&entity->rotation, XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, engine.TimeSinceStart()));
-
-		entity->mesh->constantBufferData.worldTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixAffineTransformation(
-			XMLoadFloat3(&entity->scale), XMVECTOR{}, XMLoadFloat4(&entity->rotation), XMLoadFloat3(&entity->position)));
-
-		// TODO: Race condition?
-		memcpy(entity->mesh->mappedConstantBufferData, &entity->mesh->constantBufferData, sizeof(entity->mesh->constantBufferData));
-	}
-
-	XMVECTOR pos{ 0.f, 0.f, -10.f };
-	XMVECTOR lookAt{ 0.f, 0.f, 0.f };
-	XMVECTOR up{ 0.f, 1.f, 0.f };
-	engine.m_constantBufferData.cameraTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixLookAtLH(pos, lookAt, up));
-	engine.m_constantBufferData.clipTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixPerspectiveFovLH(45.f, engine.m_aspectRatio, .1f, 1000.f));
-
-	engine.EndProfile("Game Update");
-
-	engine.BeginProfile("Game UI", ImColor::HSV(.75f, 1.f, .75f));
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2{ 100, 30 });
-	if (showLog)
-	{
-		if (ImGui::Begin("Log", &showLog))
-		{
-			if (ImGui::Button(stopLog ? ICON_PLAY_FILL : ICON_STOP_FILL))
-			{
-				if (!stopLog)
-				{
-					Warn("Log paused...");
-				}
-				stopLog = !stopLog;
-				if (!stopLog)
-				{
-					Warn("Log resumed...");
-				}
-			}
-			ImGui::SameLine();
-
-			ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
-			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ 0, 0 });
-			debugLog.DrawText();
-			ImGui::PopStyleVar();
-			ImGui::EndChild();
-		}
-		ImGui::End();
-	}
-	ImGui::PopStyleVar();
-	engine.EndProfile("Game UI");
-}
-
-EngineInput& Game::GetInput()
-{
-	return input;
+	MeshData* mesh = engine.CreateMesh(copiedVertices.data(), sizeof(Vertex), copiedVertices.size(), 100);
+	engine.CreateConstantBuffer<EntityConstantBuffer>(mesh->constantBuffer.Get(), &mesh->constantBufferData, &mesh->mappedConstantBufferData);
+	return mesh;
 }
 
 void Game::Log(std::string message)
