@@ -1,11 +1,14 @@
 cbuffer SceneConstantBuffer : register(b0)
 {
-    float4x4 modelTransform;
     float4x4 cameraTransform;
     float4x4 clipTransform;
     float time;
     float deltaTime;
-    float padding[3];
+};
+
+cbuffer EntityConstantBuffer : register(b1)
+{
+    float4x4 worldTransform;
 };
 
 struct PSInput
@@ -19,7 +22,7 @@ PSInput VSMain(float4 position : POSITION, float4 color : COLOR, uint id : SV_In
 {
     PSInput result;
 
-    float4x4 mvp = mul(modelTransform, mul(cameraTransform, clipTransform));
+    float4x4 mvp = mul(worldTransform, mul(cameraTransform, clipTransform));
     result.position = mul(position, mvp);
     result.position.x += (id % 10) * 1.5 - 5. * 1.3333;
     result.position.y += (id / 10) * 1.5 - 5. * 1.3333;

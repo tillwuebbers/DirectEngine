@@ -36,6 +36,15 @@ struct Vertex
 	XMFLOAT4 color;
 };
 
+class Entity
+{
+public:
+	XMFLOAT3 position{};
+	XMFLOAT4 rotation{};
+	XMFLOAT3 scale{1.f, 1.f, 1.f};
+	MeshData* mesh;
+};
+
 class Game : public IGame
 {
 public:
@@ -45,6 +54,8 @@ public:
 	RingLog debugLog{};
 
 	MemoryArena globalArena{ 1024 * 1024 };
+	MemoryArena entityArena{ 1024 * 1024 };
+
 	EngineInput input{ globalArena };
 
 	Game(std::wstring name);

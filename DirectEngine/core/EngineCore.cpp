@@ -19,7 +19,6 @@
 #include <fstream>
 #endif
 
-#include "../Helpers.h"
 #include "UI.h"
 #include "EngineCore.h"
 
@@ -33,8 +32,7 @@ EngineCore::EngineCore(UINT width, UINT height, IGame* game) :
     m_height(height),
     m_aspectRatio((float)width / (float)height),
     m_game(game)
-{
-}
+{}
 
 void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
 {
@@ -245,7 +243,7 @@ void EngineCore::LoadPipeline()
         // Flags indicate that this descriptor heap can be bound to the pipeline 
         // and that descriptors contained in it can be referenced by a root table.
         D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc = {};
-        cbvHeapDesc.NumDescriptors = 1;
+        cbvHeapDesc.NumDescriptors = 2;
         cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
         cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
         ThrowIfFailed(m_device->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&m_cbvHeap)));
@@ -341,9 +339,8 @@ HRESULT EngineCore::CreatePipelineState()
     hr = D3DCompileFromFile(shaderPath, nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, &vsErrors);
     if (vsErrors)
     {
-        m_shaderError.append("Vertex Shader Errors:\n");
-        m_shaderError.append((LPCSTR)vsErrors->GetBufferPointer());
-        m_shaderError.append("\n");
+        m_shaderError = std::format("Vertex Shader Errors:\n{}\n", (LPCSTR)vsErrors->GetBufferPointer());
+        OutputDebugStringA(m_shaderError.c_str());
     }
     if (FAILED(hr))
     {
@@ -353,9 +350,8 @@ HRESULT EngineCore::CreatePipelineState()
     hr = D3DCompileFromFile(shaderPath, nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, &psErrors);
     if (psErrors)
     {
-        m_shaderError.append("Pixel Shader Errors:\n");
-        m_shaderError.append((LPCSTR)psErrors->GetBufferPointer());
-        m_shaderError.append("\n");
+        m_shaderError = std::format("Pixel Shader Errors:\n{}\n", (LPCSTR)psErrors->GetBufferPointer());
+        OutputDebugStringA(m_shaderError.c_str());
     }
     if (FAILED(hr))
     {
@@ -402,11 +398,13 @@ void EngineCore::LoadAssets()
             featureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
         }
 
-        CD3DX12_DESCRIPTOR_RANGE1 ranges[1];
-        CD3DX12_ROOT_PARAMETER1 rootParameters[1];
+        CD3DX12_DESCRIPTOR_RANGE1 ranges[2];
+        CD3DX12_ROOT_PARAMETER1 rootParameters[2];
 
         ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+        ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         rootParameters[0].InitAsDescriptorTable(1, &ranges[0], D3D12_SHADER_VISIBILITY_VERTEX);
+        rootParameters[1].InitAsDescriptorTable(1, &ranges[1], D3D12_SHADER_VISIBILITY_VERTEX);
 
         // Allow input layout and deny uneccessary access to certain pipeline stages.
         D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags =
@@ -420,7 +418,10 @@ void EngineCore::LoadAssets()
 
         ComPtr<ID3DBlob> signature;
         ComPtr<ID3DBlob> error;
-        ThrowIfFailed(D3DX12SerializeVersionedRootSignature(&rootSignatureDesc, featureData.HighestVersion, &signature, &error));
+        if (FAILED(D3DX12SerializeVersionedRootSignature(&rootSignatureDesc, featureData.HighestVersion, &signature, &error)))
+        {
+            OutputDebugStringA(reinterpret_cast<const char*>(error->GetBufferPointer()));
+        }
         ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
     }
 
@@ -436,31 +437,7 @@ void EngineCore::LoadAssets()
     ThrowIfFailed(m_uploadCommandList->Close());
 
     // Create the constant buffer.
-    {
-        const UINT constantBufferSize = sizeof(SceneConstantBuffer);    // CB size is required to be 256-byte aligned.
-
-        CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-        CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(constantBufferSize);
-        ThrowIfFailed(m_device->CreateCommittedResource(
-            &heapProperties,
-            D3D12_HEAP_FLAG_NONE,
-            &bufferDesc,
-            D3D12_RESOURCE_STATE_GENERIC_READ,
-            nullptr,
-            IID_PPV_ARGS(&m_constantBuffer)));
-
-        // Describe and create a constant buffer view.
-        D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-        cbvDesc.BufferLocation = m_constantBuffer->GetGPUVirtualAddress();
-        cbvDesc.SizeInBytes = constantBufferSize;
-        m_device->CreateConstantBufferView(&cbvDesc, m_cbvHeap->GetCPUDescriptorHandleForHeapStart());
-
-        // Map and initialize the constant buffer. We don't unmap this until the
-        // app closes. Keeping things mapped for the lifetime of the resource is okay.
-        CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
-        ThrowIfFailed(m_constantBuffer->Map(0, &readRange, reinterpret_cast<void**>(&m_pCbvDataBegin)));
-        memcpy(m_pCbvDataBegin, &m_constantBufferData, sizeof(m_constantBufferData));
-    }
+    CreateConstantBuffer<SceneConstantBuffer>(m_constantBuffer.Get(), & m_constantBufferData, &m_pCbvDataBegin);
 
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
     {
@@ -481,7 +458,7 @@ void EngineCore::LoadAssets()
     }
 }
 
-void EngineCore::CreateMesh(const void* vertexData, const size_t vertexStride, const size_t vertexCount, const size_t instanceCount)
+MeshData* EngineCore::CreateMesh(const void* vertexData, const size_t vertexStride, const size_t vertexCount, const size_t instanceCount)
 {
     size_t vertexByteCount = vertexStride * vertexCount;
 
@@ -521,6 +498,8 @@ void EngineCore::CreateMesh(const void* vertexData, const size_t vertexStride, c
     // TODO: if we generalize this, make sure we don't push the command list twice
     ThrowIfFailed(m_uploadCommandList->Close());
     m_scheduledCommandLists.push_back(m_uploadCommandList.Get());
+
+    return &mesh;
 }
 
 void EngineCore::OnUpdate()
@@ -577,10 +556,7 @@ void EngineCore::OnRender()
 
 void EngineCore::OnDestroy()
 {
-    // Ensure that the GPU is no longer referencing resources that are about to be
-    // cleaned up by the destructor.
     WaitForGpu();
-
     CloseHandle(m_fenceEvent);
 }
 
@@ -604,7 +580,13 @@ void EngineCore::PopulateCommandList()
     // Constant buffer descriptor heap
     ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap.Get() };
     m_renderCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
-    m_renderCommandList->SetGraphicsRootDescriptorTable(0, m_cbvHeap->GetGPUDescriptorHandleForHeapStart());
+
+    D3D12_GPU_DESCRIPTOR_HANDLE cbvStart = m_cbvHeap->GetGPUDescriptorHandleForHeapStart();
+    m_renderCommandList->SetGraphicsRootDescriptorTable(0, cbvStart);
+
+    CD3DX12_GPU_DESCRIPTOR_HANDLE cbvNext{};
+    cbvNext.InitOffsetted(cbvStart, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+    m_renderCommandList->SetGraphicsRootDescriptorTable(1, cbvNext);
 
     // Indicate that the back buffer will be used as a render target.
     CD3DX12_RESOURCE_BARRIER barrierToRender = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);

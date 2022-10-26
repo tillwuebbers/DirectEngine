@@ -98,7 +98,16 @@ void Game::StartGame(EngineCore& engine)
 		}
 	}
 
-	engine.CreateMesh(copiedVertices.data(), sizeof(Vertex), copiedVertices.size(), 100);
+	Entity* entity = NewObject(entityArena, Entity);
+	entity->mesh = engine.CreateMesh(copiedVertices.data(), sizeof(Vertex), copiedVertices.size(), 100);
+
+	entity->position.x = sin(engine.TimeSinceStart());
+	XMStoreFloat4(&entity->rotation, XMQuaternionRotationAxis(XMVECTOR{ 0.f, 1.f, 0.f }, engine.TimeSinceStart()));
+
+	entity->mesh->constantBufferData.worldTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixAffineTransformation(
+		XMLoadFloat3(&entity->scale), XMVECTOR{}, XMLoadFloat4(&entity->rotation), XMLoadFloat3(&entity->position)));
+
+	engine.CreateConstantBuffer<EntityConstantBuffer>(entity->mesh->constantBuffer.Get(), &entity->mesh->constantBufferData, &entity->mesh->mappedConstantBufferData);
 }
 
 void Game::UpdateGame(EngineCore& engine)
@@ -112,8 +121,17 @@ void Game::UpdateGame(EngineCore& engine)
 	engine.EndProfile("Input Mutex");
 
 	engine.BeginProfile("Game Update", ImColor::HSV(.75f, 1.f, 1.f));
+	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
+	{
+		entity->position.x = sin(engine.TimeSinceStart());
+		XMStoreFloat4(&entity->rotation, XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, engine.TimeSinceStart()));
 
-	engine.m_constantBufferData.modelTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixRotationY(engine.TimeSinceStart()));
+		entity->mesh->constantBufferData.worldTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixAffineTransformation(
+			XMLoadFloat3(&entity->scale), XMVECTOR{}, XMLoadFloat4(&entity->rotation), XMLoadFloat3(&entity->position)));
+
+		// TODO: Race condition?
+		memcpy(entity->mesh->mappedConstantBufferData, &entity->mesh->constantBufferData, sizeof(entity->mesh->constantBufferData));
+	}
 
 	XMVECTOR pos{ 0.f, 0.f, -10.f };
 	XMVECTOR lookAt{ 0.f, 0.f, 0.f };

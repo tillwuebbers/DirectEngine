@@ -19,6 +19,8 @@
 #include "../imgui/imgui.h"
 #include "../imgui/ProfilerTask.h"
 
+#include "../Helpers.h"
+
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
 
@@ -34,6 +36,23 @@ struct FrameDebugData
     float duration;
 };
 
+struct SceneConstantBuffer
+{
+    XMMATRIX cameraTransform = {};
+    XMMATRIX clipTransform = {};
+    float time;
+    float deltaTime;
+    float padding[30]; // Padding so the constant buffer is 256-byte aligned.
+};
+static_assert((sizeof(SceneConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
+
+struct EntityConstantBuffer
+{
+    XMMATRIX worldTransform = {};
+    float padding[48];
+};
+static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
+
 struct MeshData
 {
     UINT vertexCount = 0;
@@ -43,18 +62,10 @@ struct MeshData
     ComPtr<ID3D12Resource> indexBuffer;
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
     D3D12_INDEX_BUFFER_VIEW indexBufferView = {};
+    ComPtr<ID3D12Resource> constantBuffer = nullptr;
+    EntityConstantBuffer constantBufferData = {};
+    UINT8* mappedConstantBufferData;
 };
-
-struct SceneConstantBuffer
-{
-    XMMATRIX modelTransform = {};
-    XMMATRIX cameraTransform = {};
-    XMMATRIX clipTransform = {};
-    float time;
-    float deltaTime;
-    float padding[14]; // Padding so the constant buffer is 256-byte aligned.
-};
-static_assert((sizeof(SceneConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
 class EngineCore
 {
@@ -149,7 +160,7 @@ public:
     void LoadSizeDependentResources();
     HRESULT CreatePipelineState();
     void LoadAssets();
-    void CreateMesh(const void* vertexData, const size_t vertexStride, const size_t vertexCount, const size_t instanceCount);
+    MeshData* CreateMesh(const void* vertexData, const size_t vertexStride, const size_t vertexCount, const size_t instanceCount);
     void PopulateCommandList();
     void MoveToNextFrame();
     void WaitForGpu();
@@ -160,6 +171,37 @@ public:
     void EndProfile(std::string name);
     double TimeSinceStart();
     double TimeSinceFrameStart();
+
+    // TODO: be smarter about this?
+    UINT cbcount = 0;
+
+    template<typename T>
+    void CreateConstantBuffer(ID3D12Resource* buffer, T* data, UINT8** outMappedData)
+    {
+        const UINT constantBufferSize = sizeof(T);
+        assert(constantBufferSize % 256 == 0);
+
+        CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+        CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(constantBufferSize);
+        ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&buffer)));
+
+        // Describe and create a constant buffer view.
+        D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+        cbvDesc.BufferLocation = buffer->GetGPUVirtualAddress();
+        cbvDesc.SizeInBytes = constantBufferSize;
+        D3D12_CPU_DESCRIPTOR_HANDLE heapStart = m_cbvHeap->GetCPUDescriptorHandleForHeapStart();
+        CD3DX12_CPU_DESCRIPTOR_HANDLE heapEntry{};
+        heapEntry.InitOffsetted(heapStart, cbcount * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        m_device->CreateConstantBufferView(&cbvDesc, heapEntry);
+
+        // Map and initialize the constant buffer. We don't unmap this until the
+        // app closes. Keeping things mapped for the lifetime of the resource is okay.
+        CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
+        ThrowIfFailed(buffer->Map(0, &readRange, reinterpret_cast<void**>(outMappedData)));
+        memcpy(*outMappedData, data, sizeof(T));
+
+        cbcount++;
+    }
 };
 
 double NanosecondsToSeconds(std::chrono::nanoseconds clock);
