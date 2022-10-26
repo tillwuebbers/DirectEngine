@@ -18,11 +18,11 @@ Game::Game(std::wstring name) : name(name)
 void Game::StartGame(EngineCore& engine)
 {
 	Entity* entity1 = NewObject(entityArena, Entity);
-	entity1->mesh = LoadMeshFromFile(engine, "cube.obj");
+	entity1->meshIndex = LoadMeshFromFile(engine, "cube.obj");
 
-	/*Entity* entity2 = NewObject(entityArena, Entity);
-	entity2->mesh = LoadMeshFromFile(engine, "cube.obj");
-	entity2->position = XMFLOAT3{ 0.f, 0.f, 5.f };*/
+	Entity* entity2 = NewObject(entityArena, Entity);
+	entity2->meshIndex = LoadMeshFromFile(engine, "cube.obj");
+	entity2->position = XMFLOAT3{ 0.f, 0.f, 5.f };
 }
 
 void Game::UpdateGame(EngineCore& engine)
@@ -38,14 +38,16 @@ void Game::UpdateGame(EngineCore& engine)
 	engine.BeginProfile("Game Update", ImColor::HSV(.75f, 1.f, 1.f));
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 	{
+		MeshData& mesh = engine.m_meshes[entity->meshIndex];
+
 		entity->position.x = static_cast<float>(sin(engine.TimeSinceStart()));
 		XMStoreFloat4(&entity->rotation, XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart())));
 
-		entity->mesh->constantBufferData.worldTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixAffineTransformation(
+		mesh.constantBufferData.worldTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixAffineTransformation(
 			XMLoadFloat3(&entity->scale), XMVECTOR{}, XMLoadFloat4(&entity->rotation), XMLoadFloat3(&entity->position)));
 
 		// TODO: Race condition?
-		memcpy(entity->mesh->mappedConstantBufferData, &entity->mesh->constantBufferData, sizeof(entity->mesh->constantBufferData));
+		memcpy(mesh.mappedConstantBufferData, &mesh.constantBufferData, sizeof(mesh.constantBufferData));
 	}
 
 	XMVECTOR pos{ 0.f, 0.f, -10.f };
@@ -93,7 +95,7 @@ EngineInput& Game::GetInput()
 	return input;
 }
 
-MeshData* Game::LoadMeshFromFile(EngineCore& engine, const std::string& filePath)
+size_t Game::LoadMeshFromFile(EngineCore& engine, const std::string& filePath)
 {
 	tinyobj::ObjReaderConfig reader_config;
 	reader_config.mtl_search_path = "./";
@@ -174,9 +176,11 @@ MeshData* Game::LoadMeshFromFile(EngineCore& engine, const std::string& filePath
 		}
 	}
 
-	MeshData* mesh = engine.CreateMesh(copiedVertices.data(), sizeof(Vertex), copiedVertices.size(), 100);
-	engine.CreateConstantBuffer<EntityConstantBuffer>(mesh->constantBuffer.Get(), &mesh->constantBufferData, &mesh->mappedConstantBufferData);
-	return mesh;
+	size_t meshIndex = engine.CreateMesh(copiedVertices.data(), sizeof(Vertex), copiedVertices.size(), 100);
+	MeshData& mesh = engine.m_meshes[meshIndex];
+	engine.CreateConstantBuffer<EntityConstantBuffer>(mesh.constantBuffer, &mesh.constantBufferData, &mesh.mappedConstantBufferData);
+	mesh.constantBuffer->SetName(std::format(L"Entity Constant Buffer {}", meshIndex).c_str());
+	return meshIndex;
 }
 
 void Game::Log(std::string message)

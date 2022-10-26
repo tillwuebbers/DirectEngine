@@ -203,6 +203,7 @@ void EngineCore::LoadPipeline()
     queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
     ThrowIfFailed(m_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
+    m_commandQueue->SetName(L"Engine Command Queue");
 
     // Describe and create the swap chain.
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
@@ -242,11 +243,11 @@ void EngineCore::LoadPipeline()
         // Flags indicate that this descriptor heap can be bound to the pipeline 
         // and that descriptors contained in it can be referenced by a root table.
         D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc = {};
-        cbvHeapDesc.NumDescriptors = 128;
+        cbvHeapDesc.NumDescriptors = 3;
         cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
         cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
         ThrowIfFailed(m_device->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&m_cbvHeap)));
-        m_rtvHeap->SetName(L"Constant Buffer View Descriptor Heap");
+        m_cbvHeap->SetName(L"Constant Buffer View Descriptor Heap");
 
         // Depth/Stencil descriptor heap
         D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
@@ -260,7 +261,9 @@ void EngineCore::LoadPipeline()
     for (UINT n = 0; n < FrameCount; n++)
     {
         ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_uploadCommandAllocators[n])));
+        m_uploadCommandAllocators[n]->SetName(std::format(L"Upload Command Allocator {}", n).c_str());
         ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_renderCommandAllocators[n])));
+        m_renderCommandAllocators[n]->SetName(std::format(L"Render Command Allocator {}", n).c_str());
     }
 
     LoadSizeDependentResources();
@@ -279,6 +282,7 @@ void EngineCore::LoadSizeDependentResources()
         {
             ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n])));
             m_device->CreateRenderTargetView(m_renderTargets[n].Get(), nullptr, rtvHandle);
+            m_renderTargets[n]->SetName(std::format(L"Engine Render Target {}", n).c_str());
             rtvHandle.Offset(1, m_rtvDescriptorSize);
         }
     }
@@ -299,6 +303,7 @@ void EngineCore::LoadSizeDependentResources()
         CD3DX12_RESOURCE_DESC depthTexture = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, m_width, m_height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 
         m_device->CreateCommittedResource(&heapType, D3D12_HEAP_FLAG_NONE, &depthTexture, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, IID_PPV_ARGS(&m_depthStencilBuffer));
+        m_depthStencilBuffer->SetName(L"Depth/Stencil Buffer");
         m_device->CreateDepthStencilView(m_depthStencilBuffer.Get(), &depthStencilDesc, m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
     }
 }
@@ -380,7 +385,9 @@ HRESULT EngineCore::CreatePipelineState()
     psoDesc.SampleDesc.Count = 1;
     psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 
-    return m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState));
+    hr = m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState));
+    m_pipelineState->SetName(L"Engine Pipeline State");
+    return hr;
 }
 
 void EngineCore::LoadAssets()
@@ -400,8 +407,8 @@ void EngineCore::LoadAssets()
         CD3DX12_DESCRIPTOR_RANGE1 ranges[2];
         CD3DX12_ROOT_PARAMETER1 rootParameters[2];
 
-        ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
-        ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+        ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // scene CBV
+        ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // entity CBV
         rootParameters[0].InitAsDescriptorTable(1, &ranges[0], D3D12_SHADER_VISIBILITY_VERTEX);
         rootParameters[1].InitAsDescriptorTable(1, &ranges[1], D3D12_SHADER_VISIBILITY_VERTEX);
 
@@ -422,6 +429,7 @@ void EngineCore::LoadAssets()
             OutputDebugStringA(reinterpret_cast<const char*>(error->GetBufferPointer()));
         }
         ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
+        m_rootSignature->SetName(L"Engine Root Signature");
     }
 
     // Create the pipeline state, which includes compiling and loading shaders.
@@ -430,17 +438,22 @@ void EngineCore::LoadAssets()
     // Create the render command list
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_renderCommandAllocators[m_frameIndex].Get(), nullptr, IID_PPV_ARGS(&m_renderCommandList.list)));
     ThrowIfFailed(m_renderCommandList.list->Close());
+    m_renderCommandList.list->SetName(L"Render Command List");
 
     // Create the upload command list and use it
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_uploadCommandAllocators[m_frameIndex].Get(), nullptr, IID_PPV_ARGS(&m_uploadCommandList.list)));
     ThrowIfFailed(m_uploadCommandList.list->Close());
+    m_uploadCommandList.list->SetName(L"Upload Command List");
 
     // Create the constant buffer.
-    CreateConstantBuffer<SceneConstantBuffer>(m_constantBuffer.Get(), & m_constantBufferData, &m_pCbvDataBegin);
+    CreateConstantBuffer<SceneConstantBuffer>(m_constantBuffer, & m_constantBufferData, &m_pCbvDataBegin);
+    m_constantBuffer->SetName(L"Scene Constant Buffer");
 
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
     {
         ThrowIfFailed(m_device->CreateFence(m_fenceValues[m_frameIndex], D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
+        m_fence->SetName(L"Engine Fence");
+
         m_fenceValues[m_frameIndex]++;
 
         // Create an event handle to use for frame synchronization.
@@ -457,33 +470,35 @@ void EngineCore::LoadAssets()
     }
 }
 
-MeshData* EngineCore::CreateMesh(const void* vertexData, const size_t vertexStride, const size_t vertexCount, const size_t instanceCount)
+size_t EngineCore::CreateMesh(const void* vertexData, const size_t vertexStride, const size_t vertexCount, const size_t instanceCount)
 {
     size_t vertexByteCount = vertexStride * vertexCount;
-
-    // Create temporary buffer for upload
-    CD3DX12_HEAP_PROPERTIES tempHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    CD3DX12_RESOURCE_DESC tempBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexByteCount);
-    ThrowIfFailed(m_device->CreateCommittedResource(&tempHeapProperties, D3D12_HEAP_FLAG_NONE, &tempBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_uploadBuffer)));
-
-    // Upload to temp buffer
-    UINT8* pVertexDataBegin = nullptr;
-    CD3DX12_RANGE readRange(0, 0);
-    ThrowIfFailed(m_uploadBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)));
-    memcpy(pVertexDataBegin, vertexData, vertexByteCount);
-    m_uploadBuffer->Unmap(0, nullptr);
-
-    // Create real vertex buffer on gpu memory
+   
     MeshData& mesh = m_meshes.emplace_back();
     mesh.vertexCount = vertexCount;
     mesh.instanceCount = instanceCount;
 
+    // Create temporary buffer for upload
+    CD3DX12_HEAP_PROPERTIES tempHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+    CD3DX12_RESOURCE_DESC tempBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexByteCount);
+    ThrowIfFailed(m_device->CreateCommittedResource(&tempHeapProperties, D3D12_HEAP_FLAG_NONE, &tempBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&mesh.vertexUploadBuffer)));
+    mesh.vertexUploadBuffer->SetName(L"Temp Vertex Upload Buffer");
+
+    // Upload to temp buffer
+    UINT8* pVertexDataBegin = nullptr;
+    CD3DX12_RANGE readRange(0, 0);
+    ThrowIfFailed(mesh.vertexUploadBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)));
+    memcpy(pVertexDataBegin, vertexData, vertexByteCount);
+    mesh.vertexUploadBuffer->Unmap(0, nullptr);
+
+    // Create real vertex buffer on gpu memory
     CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
     CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexByteCount);
     ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&mesh.vertexBuffer)));
+    mesh.vertexBuffer->SetName(L"Vertex Buffer");
 
     // Copy the data to the vertex buffer.
-    m_uploadCommandList.list->CopyResource(mesh.vertexBuffer.Get(), m_uploadBuffer.Get());
+    m_uploadCommandList.list->CopyResource(mesh.vertexBuffer.Get(), mesh.vertexUploadBuffer.Get());
     CD3DX12_RESOURCE_BARRIER transition = CD3DX12_RESOURCE_BARRIER::Transition(mesh.vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
     m_uploadCommandList.list->ResourceBarrier(1, &transition);
 
@@ -494,7 +509,7 @@ MeshData* EngineCore::CreateMesh(const void* vertexData, const size_t vertexStri
 
     ScheduleCommandList(&m_uploadCommandList);
 
-    return &mesh;
+    return m_meshes.size() - 1;
 }
 
 void EngineCore::OnUpdate()
@@ -516,16 +531,25 @@ void EngineCore::OnUpdate()
     NewImguiFrame();
     UpdateImgui(this);
 
+    BeginProfile("Reset Upload CB", ImColor::HSV(.33f, .33f, 1.f));
+    ThrowIfFailed(m_uploadCommandAllocators[m_frameIndex]->Reset());
     m_uploadCommandList.Reset(m_uploadCommandAllocators[m_frameIndex].Get(), m_pipelineState.Get());
+    EndProfile("Reset Upload CB");
+
     if (!m_gameStarted)
     {
+        BeginProfile("Start Game", ImColor::HSV(0.f, 0.f, 1.f));
         m_gameStarted = true;
         m_game->StartGame(*this);
+        EndProfile("Start Game");
     }
-    m_game->UpdateGame(*this);
-    ThrowIfFailed(m_uploadCommandList.list->Close());
 
+    m_game->UpdateGame(*this);
+
+    BeginProfile("Finish Update", ImColor::HSV(.2f, .33f, 1.f));
+    ThrowIfFailed(m_uploadCommandList.list->Close());
     memcpy(m_pCbvDataBegin, &m_constantBufferData, sizeof(m_constantBufferData));
+    EndProfile("Finish Update");
 }
 
 void EngineCore::OnRender()
@@ -540,12 +564,13 @@ void EngineCore::OnRender()
 
     PopulateCommandList();
 
+    std::vector<ID3D12CommandList*> lists{};
     for (CommandList* list : m_scheduledCommandLists)
     {
         list->scheduled = false;
-        ID3D12CommandList* listPtr = list->list.Get();
-        m_commandQueue->ExecuteCommandLists(1, &listPtr);
+        lists.push_back(list->list.Get());
     }
+    m_commandQueue->ExecuteCommandLists(lists.size(), lists.data());
     m_scheduledCommandLists.clear();
     EndProfile("Commands");
 
@@ -602,10 +627,6 @@ void EngineCore::PopulateCommandList()
     D3D12_GPU_DESCRIPTOR_HANDLE cbvStart = m_cbvHeap->GetGPUDescriptorHandleForHeapStart();
     renderList->SetGraphicsRootDescriptorTable(0, cbvStart);
 
-    CD3DX12_GPU_DESCRIPTOR_HANDLE cbvNext{};
-    cbvNext.InitOffsetted(cbvStart, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
-    renderList->SetGraphicsRootDescriptorTable(1, cbvNext);
-
     // Indicate that the back buffer will be used as a render target.
     CD3DX12_RESOURCE_BARRIER barrierToRender = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
     renderList->ResourceBarrier(1, &barrierToRender);
@@ -620,10 +641,17 @@ void EngineCore::PopulateCommandList()
     renderList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+    int meshIndex = 0;
     for (auto& mesh : m_meshes)
     {
+        CD3DX12_GPU_DESCRIPTOR_HANDLE cbvNext{};
+        cbvNext.InitOffsetted(cbvStart, 1 + meshIndex, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        renderList->SetGraphicsRootDescriptorTable(1, cbvNext);
+
         renderList->IASetVertexBuffers(0, 1, &mesh.vertexBufferView);
         renderList->DrawInstanced(mesh.vertexCount, mesh.instanceCount, 0, 0);
+
+        meshIndex++;
     }
 
     // UI

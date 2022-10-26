@@ -42,7 +42,7 @@ public:
 	XMFLOAT3 position{ 0.f, 0.f, 0.f };
 	XMFLOAT4 rotation{ 0.f, 0.f, 0.f, 1.f };
 	XMFLOAT3 scale{ 1.f, 1.f, 1.f };
-	MeshData* mesh;
+	size_t meshIndex;
 };
 
 class Game : public IGame
@@ -62,7 +62,7 @@ public:
 	void StartGame(EngineCore& engine) override;
 	void UpdateGame(EngineCore& engine) override;
 
-	MeshData* LoadMeshFromFile(EngineCore& engine, const std::string& filePath);
+	size_t LoadMeshFromFile(EngineCore& engine, const std::string& filePath);
 
 	EngineInput& GetInput() override;
 

@@ -66,10 +66,9 @@ struct MeshData
     UINT vertexCount = 0;
     UINT indexCount = 0;
     UINT instanceCount = 1;
+    ComPtr<ID3D12Resource> vertexUploadBuffer;
     ComPtr<ID3D12Resource> vertexBuffer;
-    ComPtr<ID3D12Resource> indexBuffer;
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
-    D3D12_INDEX_BUFFER_VIEW indexBufferView = {};
     ComPtr<ID3D12Resource> constantBuffer = nullptr;
     EntityConstantBuffer constantBufferData = {};
     UINT8* mappedConstantBufferData;
@@ -117,7 +116,6 @@ public:
     UINT m_rtvDescriptorSize;
 
     // App resources
-    ComPtr<ID3D12Resource> m_uploadBuffer = nullptr;
     ComPtr<ID3D12Resource> m_constantBuffer = nullptr;
     ComPtr<ID3D12Resource> m_depthStencilBuffer = nullptr;
     SceneConstantBuffer m_constantBufferData;
@@ -169,7 +167,7 @@ public:
     void LoadSizeDependentResources();
     HRESULT CreatePipelineState();
     void LoadAssets();
-    MeshData* CreateMesh(const void* vertexData, const size_t vertexStride, const size_t vertexCount, const size_t instanceCount);
+    size_t CreateMesh(const void* vertexData, const size_t vertexStride, const size_t vertexCount, const size_t instanceCount);
     void PopulateCommandList();
     void ScheduleCommandList(CommandList* newList);
     void MoveToNextFrame();
@@ -186,7 +184,7 @@ public:
     UINT cbcount = 0;
 
     template<typename T>
-    void CreateConstantBuffer(ID3D12Resource* buffer, T* data, UINT8** outMappedData)
+    void CreateConstantBuffer(ComPtr<ID3D12Resource>& buffer, T* data, UINT8** outMappedData)
     {
         const UINT constantBufferSize = sizeof(T);
         assert(constantBufferSize % 256 == 0);
