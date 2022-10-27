@@ -45,6 +45,17 @@ public:
 	size_t meshIndex;
 };
 
+class Camera
+{
+public:
+	XMFLOAT3 position{ 0.f, 0.f, 0.f };
+	XMFLOAT4 rotation{ 0.f, 0.f, 0.f, 1.f };
+	float fovX = 0.f;
+	float fovY = 45.f;
+	float nearClip = .1f;
+	float farClip = 1000.f;
+};
+
 class Game : public IGame
 {
 public:
@@ -55,6 +66,7 @@ public:
 	MemoryArena globalArena{};
 	MemoryArena entityArena{};
 
+	Camera camera{};
 	EngineInput input{ globalArena };
 
 	Game();

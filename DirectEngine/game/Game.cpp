@@ -12,6 +12,12 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "../import/tiny_obj_loader.h"
 
+void CreateWorldMatrix(XMMATRIX& out, const XMFLOAT3& scale, const XMFLOAT4& rotation, const XMFLOAT3& position)
+{
+	out = DirectX::XMMatrixTranspose(DirectX::XMMatrixAffineTransformation(
+		XMLoadFloat3(&scale), XMVECTOR{}, XMLoadFloat4(&rotation), XMLoadFloat3(&position)));
+}
+
 Game::Game()
 {}
 
@@ -23,14 +29,28 @@ void Game::StartGame(EngineCore& engine)
 	Entity* entity2 = NewObject(entityArena, Entity);
 	entity2->meshIndex = LoadMeshFromFile(engine, "cube.obj");
 	entity2->position = XMFLOAT3{ 0.f, 0.f, 5.f };
+
+	camera.position = { 0.f, 0.f, 10.f };
 }
 
 void Game::UpdateGame(EngineCore& engine)
 {
 	engine.BeginProfile("Input Mutex", ImColor::HSV(.5f, 1.f, .5f));
+	if (input.KeyJustPressed(VK_ESCAPE))
+	{
+		// TODO
+	}
 	if (input.KeyJustPressed(VK_KEY_R))
 	{
 		engine.m_startTime = std::chrono::high_resolution_clock::now();
+	}
+	if (input.KeyDown(VK_KEY_A))
+	{
+		camera.position.x -= engine.m_updateDeltaTime * 10.f;
+	}
+	if (input.KeyDown(VK_KEY_D))
+	{
+		camera.position.x += engine.m_updateDeltaTime * 10.f;
 	}
 	input.NextFrame();
 	engine.EndProfile("Input Mutex");
@@ -43,18 +63,18 @@ void Game::UpdateGame(EngineCore& engine)
 		entity->position.x = static_cast<float>(sin(engine.TimeSinceStart()));
 		XMStoreFloat4(&entity->rotation, XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart())));
 
-		mesh.constantBufferData.worldTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixAffineTransformation(
-			XMLoadFloat3(&entity->scale), XMVECTOR{}, XMLoadFloat4(&entity->rotation), XMLoadFloat3(&entity->position)));
+		CreateWorldMatrix(mesh.constantBufferData.worldTransform, entity->scale, entity->rotation, entity->position);
 
 		// TODO: Race condition?
 		memcpy(mesh.mappedConstantBufferData, &mesh.constantBufferData, sizeof(mesh.constantBufferData));
 	}
 
-	XMVECTOR pos{ 0.f, 0.f, -10.f };
-	XMVECTOR lookAt{ 0.f, 0.f, 0.f };
-	XMVECTOR up{ 0.f, 1.f, 0.f };
-	engine.m_constantBufferData.cameraTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixLookAtLH(pos, lookAt, up));
-	engine.m_constantBufferData.clipTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixPerspectiveFovLH(45.f, engine.m_aspectRatio, .1f, 1000.f));
+	XMFLOAT3 cameraScale = XMFLOAT3{ 1.f, 1.f, 1.f };
+
+	CreateWorldMatrix(engine.m_constantBufferData.cameraTransform, cameraScale, camera.rotation, camera.position);
+
+	engine.m_constantBufferData.clipTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(45.f, engine.m_aspectRatio, .1f, 1000.f));
+
 	engine.EndProfile("Game Update");
 
 	engine.BeginProfile("Game UI", ImColor::HSV(.75f, 1.f, .75f));

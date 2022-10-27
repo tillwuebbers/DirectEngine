@@ -4,17 +4,13 @@
 #include <mutex>
 #include <vector>
 
-const size_t MAX_KEYS_PRESSED = 256;
+const size_t MAX_KEY_CODE = 256;
 
 struct KeyBuffer
 {
-    unsigned int pressedKeys[MAX_KEYS_PRESSED];
-    size_t pressedKeyCount;
+    bool keys[MAX_KEY_CODE] = { false };
 
-    void Set(unsigned int keyCode);
-    bool Contains(unsigned int keyCode);
     void Reset();
-    ~KeyBuffer() = delete;
 };
 
 class EngineInput
@@ -22,13 +18,13 @@ class EngineInput
 public:
     std::mutex accessMutex = {};
     KeyBuffer* currentPressedKeys;
-    KeyBuffer* previousPressedKeys;
+    KeyBuffer* currentReleasedKeys;
+    KeyBuffer* keysDown;
 
     EngineInput(MemoryArena& arena);
 
     void NextFrame();
     bool KeyJustPressed(unsigned int keyCode);
     bool KeyDown(unsigned int keyCode);
-    bool KeyDownLastFrame(unsigned int keyCode);
     bool KeyJustReleased(unsigned int keyCode);
 };

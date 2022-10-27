@@ -35,17 +35,6 @@ EngineCore* engineCore;
 EngineUpdate updateData{};
 std::mutex updateDataMutex;
 
-#ifdef _DEBUG
-void* operator new(size_t size)
-{
-	if (engineCore != nullptr && engineCore->m_inUpdate)
-	{
-		//OutputDebugString(L"Allocating in update!!\n");
-	}
-	return malloc(size);
-}
-#endif // _DEBUG
-
 
 // Watch development files for quick reload of shaders
 DWORD WINAPI FileWatcherThread(LPVOID lpParameter)
@@ -172,22 +161,30 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 	case WM_KEYDOWN:
+	{
+		bool repeat = lParam & (1 << 30);
+		if (!blockedInputs.blockKeyboard && !repeat)
+		{
+			EngineInput& input = engineCore->m_game->GetInput();
+			input.accessMutex.lock();
+			input.currentPressedKeys->keys[wParam] = true;
+			input.keysDown->keys[wParam] = true;
+			input.accessMutex.unlock();
+		}
+		return 0;
+	}
+	case WM_KEYUP:
+	{
 		if (!blockedInputs.blockKeyboard)
 		{
 			EngineInput& input = engineCore->m_game->GetInput();
 			input.accessMutex.lock();
-			input.currentPressedKeys->Set(static_cast<unsigned int>(wParam));
+			input.currentReleasedKeys->keys[wParam] = true;
+			input.keysDown->keys[wParam] = false;
 			input.accessMutex.unlock();
 		}
-	case WM_KEYUP:
-		if (!blockedInputs.blockKeyboard)
-		{
-			if (wParam == VK_ESCAPE)
-			{
-				PostQuitMessage(0);
-			}
-		}
 		return 0;
+	}
 	}
 
 	// Handle any messages the switch statement didn't.
