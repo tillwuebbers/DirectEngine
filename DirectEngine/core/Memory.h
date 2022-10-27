@@ -3,15 +3,19 @@
 #include <cstdint>
 
 // Crazy custom memory experiments, dangerous? (and fun)
-// WARNING: Anything allocated inside a memory arena won't get it's desctructor called (intentionally)
+// WARNING: Anything allocated inside a memory arena won't get it's desctructor called (intentionally).
+// Don't store std::string or similar in here!
 class MemoryArena
 {
 public:
-    uint8_t* base;
     const size_t capacity = 0;
-    size_t used = 0;
+    size_t allocationGranularity = 1024 * 64;
 
-    MemoryArena(size_t capacity);
+    uint8_t* base;
+    size_t used = 0;
+    size_t committed = 0;
+
+    MemoryArena(size_t capacity = 1024 * 1024 * 1024);
     void* Allocate(size_t size);
     void Reset();
 

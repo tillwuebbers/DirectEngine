@@ -1,27 +1,52 @@
+#define WIN32_LEAN_AND_MEAN
+#include "Windows.h"
+
 #include "Memory.h"
 #include <assert.h>
 #include <cstdlib>
 
 MemoryArena::MemoryArena(size_t capacity) :
 	capacity(capacity),
-	base(static_cast<uint8_t*>(malloc(capacity)))
-{}
+	base(static_cast<uint8_t*>(VirtualAlloc(NULL, capacity, MEM_RESERVE, PAGE_READWRITE)))
+{
+	SYSTEM_INFO info;
+	GetSystemInfo(&info);
+	allocationGranularity = info.dwAllocationGranularity;
+}
 
 void* MemoryArena::Allocate(size_t size)
 {
-	// TODO: 4-byte align?
-	assert(used + size <= capacity);
+	const size_t newUsed = used + size;
+	assert(newUsed <= capacity);
+
+	if (newUsed > committed)
+	{
+		const size_t required = newUsed - committed;
+		const size_t commitAmount = required / allocationGranularity + allocationGranularity;
+
+		VirtualAlloc(base + committed, commitAmount, MEM_COMMIT, PAGE_READWRITE);
+		committed += commitAmount;
+	}
+
 	uint8_t* result = base + used;
-	used += size;
+	used = newUsed;
 	return result;
 }
 
 void MemoryArena::Reset()
 {
+	if (!VirtualFree(base, committed, MEM_DECOMMIT))
+	{
+		OutputDebugString(L"Failed to reset Memory Arena!!");
+	}
+	committed = 0;
 	used = 0;
 }
 
 MemoryArena::~MemoryArena()
 {
-	free(base);
+	if (!VirtualFree(base, 0, MEM_RELEASE))
+	{
+		OutputDebugString(L"Failed to free Memory Arena!!");
+	}
 }

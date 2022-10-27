@@ -12,7 +12,7 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "../import/tiny_obj_loader.h"
 
-Game::Game(std::wstring name) : name(name)
+Game::Game()
 {}
 
 void Game::StartGame(EngineCore& engine)
@@ -55,7 +55,6 @@ void Game::UpdateGame(EngineCore& engine)
 	XMVECTOR up{ 0.f, 1.f, 0.f };
 	engine.m_constantBufferData.cameraTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixLookAtLH(pos, lookAt, up));
 	engine.m_constantBufferData.clipTransform = DirectX::XMMatrixTranspose(DirectX::XMMatrixPerspectiveFovLH(45.f, engine.m_aspectRatio, .1f, 1000.f));
-
 	engine.EndProfile("Game Update");
 
 	engine.BeginProfile("Game UI", ImColor::HSV(.75f, 1.f, .75f));

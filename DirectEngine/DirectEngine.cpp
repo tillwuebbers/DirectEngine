@@ -176,7 +176,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 			EngineInput& input = engineCore->m_game->GetInput();
 			input.accessMutex.lock();
-			input.currentPressedKeys->Set(wParam);
+			input.currentPressedKeys->Set(static_cast<unsigned int>(wParam));
 			input.accessMutex.unlock();
 		}
 	case WM_KEYUP:
@@ -205,7 +205,7 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 	MSG msg = {};
 	{
 		// Create game and engine on window thread to set up events, then give it to render thread and never touch it again.
-		Game game{ std::wstring(L"cool triangle") };
+		Game game{};
 
 		EngineCore engine(1920, 1080, static_cast<IGame*>(&game));
 		engineCore = &engine;

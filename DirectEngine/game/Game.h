@@ -48,17 +48,16 @@ public:
 class Game : public IGame
 {
 public:
-	std::wstring name = {};
 	bool showLog = true;
 	bool stopLog = false;
 	RingLog debugLog{};
 
-	MemoryArena globalArena{ 1024 * 1024 };
-	MemoryArena entityArena{ 1024 * 1024 };
+	MemoryArena globalArena{};
+	MemoryArena entityArena{};
 
 	EngineInput input{ globalArena };
 
-	Game(std::wstring name);
+	Game();
 	void StartGame(EngineCore& engine) override;
 	void UpdateGame(EngineCore& engine) override;
 
