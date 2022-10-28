@@ -635,17 +635,20 @@ void EngineCore::PopulateCommandList()
     renderList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    int meshIndex = 0;
-    for (auto& mesh : m_meshes)
+    // TODO: instanced rendering, iterate through meshes instead of entities
+    int entityIndex = 0;
+    for (EntityData& entity : m_entities)
     {
+        MeshData& mesh = m_meshes[entity.meshIndex];
+
         CD3DX12_GPU_DESCRIPTOR_HANDLE cbvNext{};
-        cbvNext.InitOffsetted(cbvStart, 1 + meshIndex, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        cbvNext.InitOffsetted(cbvStart, 1 + entityIndex, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
         renderList->SetGraphicsRootDescriptorTable(1, cbvNext);
 
         renderList->IASetVertexBuffers(0, 1, &mesh.vertexBufferView);
         renderList->DrawInstanced(mesh.vertexCount, mesh.instanceCount, 0, 0);
 
-        meshIndex++;
+        entityIndex++;
     }
 
     // UI

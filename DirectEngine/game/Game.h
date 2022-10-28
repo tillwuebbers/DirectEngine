@@ -43,7 +43,7 @@ public:
 	XMFLOAT3 position{ 0.f, 0.f, 0.f };
 	XMFLOAT4 rotation{ 0.f, 0.f, 0.f, 1.f };
 	XMFLOAT3 scale{ 1.f, 1.f, 1.f };
-	size_t meshIndex;
+	size_t dataIndex;
 };
 
 class Camera
@@ -66,7 +66,7 @@ public:
 
 	bool showProfiler = true;
 	bool pauseProfiler = false;
-	ImGuiUtils::ProfilersWindow* profilerWindow;
+	ImGuiUtils::ProfilersWindow profilerWindow{};
 	FrameDebugData lastFrames[256] = {};
 	size_t lastDebugFrameIndex = 0;
 
@@ -86,6 +86,7 @@ public:
 	void DrawUI(EngineCore& engine);
 
 	size_t LoadMeshFromFile(EngineCore& engine, const std::string& filePath);
+	Entity* CreateEntity(EngineCore& engine, size_t meshIndex);
 
 	EngineInput& GetInput() override;
 

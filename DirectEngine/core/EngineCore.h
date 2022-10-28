@@ -61,6 +61,14 @@ struct EntityConstantBuffer
 };
 static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
+struct EntityData
+{
+    ComPtr<ID3D12Resource> constantBuffer = nullptr;
+    EntityConstantBuffer constantBufferData = {};
+    UINT8* mappedConstantBufferData;
+    size_t meshIndex;
+};
+
 struct MeshData
 {
     UINT vertexCount = 0;
@@ -69,9 +77,6 @@ struct MeshData
     ComPtr<ID3D12Resource> vertexUploadBuffer;
     ComPtr<ID3D12Resource> vertexBuffer;
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
-    ComPtr<ID3D12Resource> constantBuffer = nullptr;
-    EntityConstantBuffer constantBufferData = {};
-    UINT8* mappedConstantBufferData;
 };
 
 class EngineCore
@@ -122,6 +127,7 @@ public:
     SceneConstantBuffer m_constantBufferData;
     UINT8* m_pCbvDataBegin = nullptr;
     std::vector<MeshData> m_meshes = {};
+    std::vector<EntityData> m_entities = {};
 
     // Synchronization objects
     UINT m_frameIndex = 0;

@@ -23,16 +23,13 @@ Game::Game()
 
 void Game::StartGame(EngineCore& engine)
 {
-	Entity* entity1 = NewObject(entityArena, Entity);
-	entity1->meshIndex = LoadMeshFromFile(engine, "cube.obj");
+	size_t cubeMeshIndex = LoadMeshFromFile(engine, "cube.obj");
 
-	Entity* entity2 = NewObject(entityArena, Entity);
-	entity2->meshIndex = LoadMeshFromFile(engine, "cube.obj");
+	Entity* entity1 = CreateEntity(engine, cubeMeshIndex);
+	Entity* entity2 = CreateEntity(engine, cubeMeshIndex);
 	entity2->position = XMFLOAT3{ 0.f, 0.f, 5.f };
 
 	camera.position = { 0.f, 0.f, 10.f };
-
-	profilerWindow = new ImGuiUtils::ProfilersWindow();
 }
 
 void Game::UpdateGame(EngineCore& engine)
@@ -72,15 +69,15 @@ void Game::UpdateGame(EngineCore& engine)
 	engine.BeginProfile("Game Update", ImColor::HSV(.75f, 1.f, 1.f));
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 	{
-		MeshData& mesh = engine.m_meshes[entity->meshIndex];
+		EntityData& data = engine.m_entities[entity->dataIndex];
 
 		entity->position.x = static_cast<float>(sin(engine.TimeSinceStart()));
 		XMStoreFloat4(&entity->rotation, XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart())));
 
-		CreateWorldMatrix(mesh.constantBufferData.worldTransform, entity->scale, entity->rotation, entity->position);
+		CreateWorldMatrix(data.constantBufferData.worldTransform, entity->scale, entity->rotation, entity->position);
 
 		// TODO: Race condition?
-		memcpy(mesh.mappedConstantBufferData, &mesh.constantBufferData, sizeof(mesh.constantBufferData));
+		memcpy(data.mappedConstantBufferData, &data.constantBufferData, sizeof(data.constantBufferData));
 	}
 
 	XMFLOAT3 cameraScale = XMFLOAT3{ 1.f, 1.f, 1.f };
@@ -186,11 +183,21 @@ size_t Game::LoadMeshFromFile(EngineCore& engine, const std::string& filePath)
 		}
 	}
 
-	size_t meshIndex = engine.CreateMesh(copiedVertices.data(), sizeof(Vertex), copiedVertices.size(), 100);
+	return engine.CreateMesh(copiedVertices.data(), sizeof(Vertex), copiedVertices.size(), 100);
+}
+
+Entity* Game::CreateEntity(EngineCore& engine, size_t meshIndex)
+{
+	Entity* entity = NewObject(entityArena, Entity);
+	
+	EntityData& data = engine.m_entities.emplace_back();
+	entity->dataIndex = engine.m_entities.size() - 1;
+	data.meshIndex = meshIndex;
+
 	MeshData& mesh = engine.m_meshes[meshIndex];
-	engine.CreateConstantBuffer<EntityConstantBuffer>(mesh.constantBuffer, &mesh.constantBufferData, &mesh.mappedConstantBufferData);
-	mesh.constantBuffer->SetName(std::format(L"Entity Constant Buffer {}", meshIndex).c_str());
-	return meshIndex;
+	engine.CreateConstantBuffer<EntityConstantBuffer>(data.constantBuffer, &data.constantBufferData, &data.mappedConstantBufferData);
+	data.constantBuffer->SetName(std::format(L"Entity Constant Buffer {}", meshIndex).c_str());
+	return entity;
 }
 
 void Game::Log(std::string message)

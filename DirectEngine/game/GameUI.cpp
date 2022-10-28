@@ -171,12 +171,12 @@ void Game::DrawUI(EngineCore& engine)
 	// Profiler
 	if (!pauseProfiler)
 	{
-		profilerWindow->cpuGraph.LoadFrameData(engine.m_profilerTaskData.data(), engine.m_profilerTaskData.size());
+		profilerWindow.cpuGraph.LoadFrameData(engine.m_profilerTaskData.data(), engine.m_profilerTaskData.size());
 		engine.m_profilerTaskData.clear();
 		engine.m_profilerTasks.clear();
 	}
 	if (showProfiler)
 	{
-		profilerWindow->Render(&showProfiler);
+		profilerWindow.Render(&showProfiler);
 	}
 }
