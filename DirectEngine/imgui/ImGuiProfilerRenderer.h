@@ -357,7 +357,7 @@ namespace ImGuiUtils
       fpsFramesCount = 0;
       avgFrameTime = 1.0f;
     }
-    void Render()
+    void Render(bool* keepShowing)
     {
       fpsFramesCount++;
       auto currFrameTime = std::chrono::system_clock::now();
@@ -375,7 +375,7 @@ namespace ImGuiUtils
       title.precision(2);
       title << std::fixed << "Legit profiler [" << 1.0f / avgFrameTime << "fps\t" << avgFrameTime * 1000.0f << "ms]###ProfilerWindow";
       //###AnimatedTitle
-      ImGui::Begin(title.str().c_str(), 0, ImGuiWindowFlags_NoScrollbar);
+      ImGui::Begin(title.str().c_str(), keepShowing, ImGuiWindowFlags_NoScrollbar);
       ImVec2 canvasSize = ImGui::GetContentRegionAvail();
 
       int sizeMargin = int(ImGui::GetStyle().ItemSpacing.y);

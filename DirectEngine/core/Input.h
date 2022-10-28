@@ -19,12 +19,13 @@ public:
     std::mutex accessMutex = {};
     KeyBuffer* currentPressedKeys;
     KeyBuffer* currentReleasedKeys;
+    KeyBuffer* lastKeysDown;
     KeyBuffer* keysDown;
 
     EngineInput(MemoryArena& arena);
 
     void NextFrame();
-    bool KeyJustPressed(unsigned int keyCode);
-    bool KeyDown(unsigned int keyCode);
-    bool KeyJustReleased(unsigned int keyCode);
+    bool KeyJustPressed(unsigned int keyCode, unsigned int modifier1 = 0, unsigned int modifier2 = 0);
+    bool KeyDown(unsigned int keyCode, unsigned int modifier1 = 0, unsigned int modifier2 = 0);
+    bool KeyJustReleased(unsigned int keyCode, unsigned int modifier1 = 0, unsigned int modifier2 = 0);
 };

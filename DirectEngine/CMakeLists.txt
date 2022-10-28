@@ -22,7 +22,7 @@ add_executable (${PROJECT_NAME} WIN32
                 "import/tiny_obj_loader.h"
                 "game/Game.h"
                 "game/Game.cpp"
-                "game/IGame.h" "core/Memory.h" "core/Memory.cpp")
+                "game/IGame.h" "core/Memory.h" "core/Memory.cpp" "game/GameUI.cpp" )
 
 
 # imgui

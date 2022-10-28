@@ -76,8 +76,7 @@ DWORD WINAPI GameRenderThread(LPVOID lpParameter)
 	GameThreadData* data = static_cast<GameThreadData*>(lpParameter);
 	EngineCore& engine = *data->engine;
 
-	bool quit = false;
-	while (!quit)
+	while (!engine.m_quit)
 	{
 		engine.BeginProfile("Mutex Read", ImColor::HSV(.0f, .5f, .5f));
 		updateDataMutex.lock();
@@ -98,7 +97,7 @@ DWORD WINAPI GameRenderThread(LPVOID lpParameter)
 		}
 		if (updateData.quit)
 		{
-			quit = true;
+			engine.m_quit = true;
 		}
 		updateDataMutex.unlock();
 		engine.EndProfile("Mutex Read");
@@ -231,9 +230,18 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 				DispatchMessage(&msg);
 			}
 
+			DWORD renderThreadStatus;
+			GetExitCodeThread(renderThreadHandle, &renderThreadStatus);
 			if (waitingForQuit)
 			{
-				WaitForSingleObject(renderThreadHandle, INFINITE);
+				if (renderThreadStatus == STILL_ACTIVE)
+				{
+					WaitForSingleObject(renderThreadHandle, 10000);
+				}
+				finishedQuit = true;
+			}
+			else if (renderThreadStatus != STILL_ACTIVE)
+			{
 				finishedQuit = true;
 			}
 		}

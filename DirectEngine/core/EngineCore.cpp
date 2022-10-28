@@ -522,12 +522,6 @@ void EngineCore::OnUpdate()
     m_constantBufferData.time = static_cast<float>(secondsSinceStart);
     m_constantBufferData.deltaTime = static_cast<float>(m_updateDeltaTime);
 
-    if (!m_pauseDebugFrames)
-    {
-        m_lastDebugFrameIndex = (m_lastDebugFrameIndex + 1) % _ARRAYSIZE(m_lastFrames);
-        m_lastFrames[m_lastDebugFrameIndex].duration = static_cast<float>(m_updateDeltaTime);
-    }
-
     NewImguiFrame();
     UpdateImgui(this);
 

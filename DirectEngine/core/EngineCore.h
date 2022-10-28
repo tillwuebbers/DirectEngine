@@ -91,6 +91,7 @@ public:
 
     IGame* m_game = nullptr;
     bool m_gameStarted = false;
+    bool m_quit = false;
 
     // Window Handle
     HWND m_hwnd;
@@ -148,9 +149,6 @@ public:
 
     // Debug stuff
     std::string m_shaderError = {};
-    FrameDebugData m_lastFrames[256] = {};
-    size_t m_lastDebugFrameIndex = 0;
-    bool m_pauseDebugFrames = false;
     std::vector<legit::ProfilerTask> m_profilerTaskData{};
     std::unordered_map<std::string, size_t> m_profilerTasks{};
     bool m_inUpdate = false;

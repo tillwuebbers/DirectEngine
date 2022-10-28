@@ -31,14 +31,16 @@ void Game::StartGame(EngineCore& engine)
 	entity2->position = XMFLOAT3{ 0.f, 0.f, 5.f };
 
 	camera.position = { 0.f, 0.f, 10.f };
+
+	profilerWindow = new ImGuiUtils::ProfilersWindow();
 }
 
 void Game::UpdateGame(EngineCore& engine)
 {
-	engine.BeginProfile("Input Mutex", ImColor::HSV(.5f, 1.f, .5f));
+	engine.BeginProfile("Input", ImColor::HSV(.5f, 1.f, .5f));
 	if (input.KeyJustPressed(VK_ESCAPE))
 	{
-		// TODO
+		showEscMenu = !showEscMenu;
 	}
 	if (input.KeyJustPressed(VK_KEY_R))
 	{
@@ -52,8 +54,20 @@ void Game::UpdateGame(EngineCore& engine)
 	{
 		camera.position.x += engine.m_updateDeltaTime * 10.f;
 	}
+	if (input.KeyJustPressed(VK_KEY_D, VK_CONTROL))
+	{
+		showDebugUI = !showDebugUI;
+	}
+	if (input.KeyJustPressed(VK_KEY_L, VK_CONTROL))
+	{
+		showLog = !showLog;
+	}
+	if (input.KeyJustPressed(VK_KEY_P, VK_CONTROL))
+	{
+		showProfiler = !showProfiler;
+	}
 	input.NextFrame();
-	engine.EndProfile("Input Mutex");
+	engine.EndProfile("Input");
 
 	engine.BeginProfile("Game Update", ImColor::HSV(.75f, 1.f, 1.f));
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
@@ -77,36 +91,13 @@ void Game::UpdateGame(EngineCore& engine)
 
 	engine.EndProfile("Game Update");
 
-	engine.BeginProfile("Game UI", ImColor::HSV(.75f, 1.f, .75f));
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2{ 100, 30 });
-	if (showLog)
+	if (!pauseProfiler)
 	{
-		if (ImGui::Begin("Log", &showLog))
-		{
-			if (ImGui::Button(stopLog ? ICON_PLAY_FILL : ICON_STOP_FILL))
-			{
-				if (!stopLog)
-				{
-					Warn("Log paused...");
-				}
-				stopLog = !stopLog;
-				if (!stopLog)
-				{
-					Warn("Log resumed...");
-				}
-			}
-			ImGui::SameLine();
-
-			ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
-			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ 0, 0 });
-			debugLog.DrawText();
-			ImGui::PopStyleVar();
-			ImGui::EndChild();
-		}
-		ImGui::End();
+		lastDebugFrameIndex = (lastDebugFrameIndex + 1) % _countof(lastFrames);
+		lastFrames[lastDebugFrameIndex].duration = static_cast<float>(engine.m_updateDeltaTime);
 	}
-	ImGui::PopStyleVar();
-	engine.EndProfile("Game UI");
+
+	DrawUI(engine);
 }
 
 EngineInput& Game::GetInput()

@@ -2,7 +2,8 @@
 
 #include "IGame.h"
 #include "../core/EngineCore.h"
-#include "../imgui/imgui.h"
+#include "imgui.h"
+#include "ImGuiProfilerRenderer.h"
 
 #include <string>
 #include <vector>
@@ -63,6 +64,16 @@ public:
 	bool stopLog = false;
 	RingLog debugLog{};
 
+	bool showProfiler = true;
+	bool pauseProfiler = false;
+	ImGuiUtils::ProfilersWindow* profilerWindow;
+	FrameDebugData lastFrames[256] = {};
+	size_t lastDebugFrameIndex = 0;
+
+	bool showDemoWindow = false;
+	bool showEscMenu = false;
+	bool showDebugUI = true;
+
 	MemoryArena globalArena{};
 	MemoryArena entityArena{};
 
@@ -72,6 +83,7 @@ public:
 	Game();
 	void StartGame(EngineCore& engine) override;
 	void UpdateGame(EngineCore& engine) override;
+	void DrawUI(EngineCore& engine);
 
 	size_t LoadMeshFromFile(EngineCore& engine, const std::string& filePath);
 
