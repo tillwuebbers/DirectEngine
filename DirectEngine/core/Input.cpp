@@ -1,5 +1,6 @@
 #include "Input.h"
 #include "vkcodes.h"
+#include "imgui.h"
 
 const unsigned int modifiers[] = { VK_SHIFT, VK_CONTROL, VK_MENU };
 
@@ -26,6 +27,15 @@ EngineInput::EngineInput(MemoryArena& arena)
 	currentReleasedKeys = NewObject(arena, KeyBuffer);
 	keysDown = NewObject(arena, KeyBuffer);
 	lastKeysDown = NewObject(arena, KeyBuffer);
+}
+
+void EngineInput::UpdateMousePosition()
+{
+	ImVec2 pos = ImGui::GetIO().MousePos;
+	mouseDeltaX = pos.x - mouseX;
+	mouseDeltaY = pos.y - mouseY;
+	mouseX = pos.x;
+	mouseY = pos.y;
 }
 
 void EngineInput::NextFrame()

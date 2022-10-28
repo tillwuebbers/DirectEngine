@@ -45,6 +45,7 @@ void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
     LoadAssets();
 
     m_startTime = std::chrono::high_resolution_clock::now();
+    m_frameStartTime = m_startTime;
 
     ShowWindow(m_hwnd, nCmdShow);
 }

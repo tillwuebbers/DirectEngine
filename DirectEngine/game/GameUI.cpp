@@ -61,6 +61,10 @@ void Game::DrawUI(EngineCore& engine)
 			}
 
 			ImGui::NewLine();
+			ImGui::Text(std::format("Mouse pos: {},{}", input.mouseX, input.mouseY).c_str());
+			ImGui::Text(std::format("Camera pitch/yaw: {},{}", playerPitch, playerYaw).c_str());
+
+			ImGui::NewLine();
 
 			ImDrawList* drawList = ImGui::GetWindowDrawList();
 

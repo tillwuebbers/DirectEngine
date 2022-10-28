@@ -12,10 +12,10 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "../import/tiny_obj_loader.h"
 
-void CreateWorldMatrix(XMMATRIX& out, const XMFLOAT3& scale, const XMFLOAT4& rotation, const XMFLOAT3& position)
+void CreateWorldMatrix(XMMATRIX& out, const XMFLOAT3& scale, const XMVECTOR& rotation, const XMFLOAT3& position)
 {
 	out = DirectX::XMMatrixTranspose(DirectX::XMMatrixAffineTransformation(
-		XMLoadFloat3(&scale), XMVECTOR{}, XMLoadFloat4(&rotation), XMLoadFloat3(&position)));
+		XMLoadFloat3(&scale), XMVECTOR{}, rotation, XMLoadFloat3(&position)));
 }
 
 Game::Game()
@@ -34,7 +34,11 @@ void Game::StartGame(EngineCore& engine)
 
 void Game::UpdateGame(EngineCore& engine)
 {
+	// Read Inputs
 	engine.BeginProfile("Input", ImColor::HSV(.5f, 1.f, .5f));
+	input.accessMutex.lock();
+	input.UpdateMousePosition();
+
 	if (input.KeyJustPressed(VK_ESCAPE))
 	{
 		showEscMenu = !showEscMenu;
@@ -63,16 +67,19 @@ void Game::UpdateGame(EngineCore& engine)
 	{
 		showProfiler = !showProfiler;
 	}
+
 	input.NextFrame();
+	input.accessMutex.unlock();
 	engine.EndProfile("Input");
 
+	// Update entities
 	engine.BeginProfile("Game Update", ImColor::HSV(.75f, 1.f, 1.f));
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 	{
 		EntityData& data = engine.m_entities[entity->dataIndex];
 
 		entity->position.x = static_cast<float>(sin(engine.TimeSinceStart()));
-		XMStoreFloat4(&entity->rotation, XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart())));
+		entity->rotation = XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart()));
 
 		CreateWorldMatrix(data.constantBufferData.worldTransform, entity->scale, entity->rotation, entity->position);
 
@@ -82,12 +89,19 @@ void Game::UpdateGame(EngineCore& engine)
 
 	XMFLOAT3 cameraScale = XMFLOAT3{ 1.f, 1.f, 1.f };
 
-	CreateWorldMatrix(engine.m_constantBufferData.cameraTransform, cameraScale, camera.rotation, camera.position);
+	if (!showEscMenu)
+	{
+		playerYaw += input.mouseDeltaX * engine.m_updateDeltaTime * 0.3f;
+		playerPitch += input.mouseDeltaY * engine.m_updateDeltaTime * 0.3f;
+	}
+	camera.rotation = XMQuaternionRotationRollPitchYaw(playerPitch, playerYaw, 0.f);
 
-	engine.m_constantBufferData.clipTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(45.f, engine.m_aspectRatio, .1f, 1000.f));
+	CreateWorldMatrix(engine.m_constantBufferData.cameraTransform, cameraScale, camera.rotation, camera.position);
+	engine.m_constantBufferData.clipTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
 
 	engine.EndProfile("Game Update");
 
+	// Draw UI
 	if (!pauseProfiler)
 	{
 		lastDebugFrameIndex = (lastDebugFrameIndex + 1) % _countof(lastFrames);

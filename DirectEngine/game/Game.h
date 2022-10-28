@@ -41,7 +41,7 @@ class Entity
 {
 public:
 	XMFLOAT3 position{ 0.f, 0.f, 0.f };
-	XMFLOAT4 rotation{ 0.f, 0.f, 0.f, 1.f };
+	XMVECTOR rotation{ 0.f, 0.f, 0.f, 1.f };
 	XMFLOAT3 scale{ 1.f, 1.f, 1.f };
 	size_t dataIndex;
 };
@@ -50,7 +50,7 @@ class Camera
 {
 public:
 	XMFLOAT3 position{ 0.f, 0.f, 0.f };
-	XMFLOAT4 rotation{ 0.f, 0.f, 0.f, 1.f };
+	XMVECTOR rotation{ 0.f, 0.f, 0.f, 1.f };
 	float fovX = 0.f;
 	float fovY = 45.f;
 	float nearClip = .1f;
@@ -79,6 +79,9 @@ public:
 
 	Camera camera{};
 	EngineInput input{ globalArena };
+
+	float playerPitch = 0.f;
+	float playerYaw = 0.f;
 
 	Game();
 	void StartGame(EngineCore& engine) override;
