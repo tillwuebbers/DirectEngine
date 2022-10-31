@@ -17,7 +17,7 @@ public:
 
     MemoryArena(size_t capacity = 1024 * 1024 * 1024);
     void* Allocate(size_t size);
-    void Reset();
+    void Reset(bool freePages = false);
 
     MemoryArena(const MemoryArena& other) = delete;
     MemoryArena(MemoryArena&& other) noexcept = delete;
@@ -27,3 +27,4 @@ public:
 };
 
 #define NewObject(arena, type, ...) new(arena.Allocate(sizeof(type))) type(__VA_ARGS__);
+#define NewArray(arena, type, count, ...) new(arena.Allocate(sizeof(type) * count)) type[count](__VA_ARGS__);

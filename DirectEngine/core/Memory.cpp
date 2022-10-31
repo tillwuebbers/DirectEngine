@@ -33,13 +33,16 @@ void* MemoryArena::Allocate(size_t size)
 	return result;
 }
 
-void MemoryArena::Reset()
+void MemoryArena::Reset(bool freePages)
 {
-	if (!VirtualFree(base, committed, MEM_DECOMMIT))
+	if (freePages)
 	{
-		OutputDebugString(L"Failed to reset Memory Arena!!");
+		if (!VirtualFree(base, committed, MEM_DECOMMIT))
+		{
+			OutputDebugString(L"Failed to reset Memory Arena!!");
+		}
+		committed = 0;
 	}
-	committed = 0;
 	used = 0;
 }
 

@@ -21,6 +21,8 @@ public:
     KeyBuffer* currentReleasedKeys;
     KeyBuffer* lastKeysDown;
     KeyBuffer* keysDown;
+    int mouseDeltaAccX = 0;
+    int mouseDeltaAccY = 0;
 
     float mouseX = 0.;
     float mouseY = 0.;

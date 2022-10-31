@@ -32,10 +32,12 @@ EngineInput::EngineInput(MemoryArena& arena)
 void EngineInput::UpdateMousePosition()
 {
 	ImVec2 pos = ImGui::GetIO().MousePos;
-	mouseDeltaX = pos.x - mouseX;
-	mouseDeltaY = pos.y - mouseY;
 	mouseX = pos.x;
 	mouseY = pos.y;
+	mouseDeltaX = mouseDeltaAccX;
+	mouseDeltaY = mouseDeltaAccY;
+	mouseDeltaAccX = 0;
+	mouseDeltaAccY = 0;
 }
 
 void EngineInput::NextFrame()

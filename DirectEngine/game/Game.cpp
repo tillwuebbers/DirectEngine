@@ -29,11 +29,17 @@ void Game::StartGame(EngineCore& engine)
 	Entity* entity2 = CreateEntity(engine, cubeMeshIndex);
 	entity2->position = XMFLOAT3{ 0.f, 0.f, 5.f };
 
-	camera.position = { 0.f, 0.f, 10.f };
+	camera.position = { 0.f, 0.f, -10.f };
 }
 
 void Game::UpdateGame(EngineCore& engine)
 {
+	XMMATRIX camRotation = XMMatrixTranspose(XMMatrixRotationQuaternion(camera.rotation));
+	XMVECTOR right{ -1, 0, 0 };
+	XMVECTOR forward{ 0, 0, -1 };
+	XMVECTOR camForward = XMVector3Transform(forward, camRotation);
+	XMVECTOR camRight = XMVector3Transform(right, camRotation);
+
 	// Read Inputs
 	engine.BeginProfile("Input", ImColor::HSV(.5f, 1.f, .5f));
 	input.accessMutex.lock();
@@ -49,11 +55,19 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 	if (input.KeyDown(VK_KEY_A))
 	{
-		camera.position.x -= engine.m_updateDeltaTime * 10.f;
+		camera.position -= camRight * engine.m_updateDeltaTime * 10.f;
 	}
 	if (input.KeyDown(VK_KEY_D))
 	{
-		camera.position.x += engine.m_updateDeltaTime * 10.f;
+		camera.position += camRight * engine.m_updateDeltaTime * 10.f;
+	}
+	if (input.KeyDown(VK_KEY_S))
+	{
+		camera.position -= camForward * engine.m_updateDeltaTime * 10.f;
+	}
+	if (input.KeyDown(VK_KEY_W))
+	{
+		camera.position += camForward * engine.m_updateDeltaTime * 10.f;
 	}
 	if (input.KeyJustPressed(VK_KEY_D, VK_CONTROL))
 	{
@@ -87,16 +101,14 @@ void Game::UpdateGame(EngineCore& engine)
 		memcpy(data.mappedConstantBufferData, &data.constantBufferData, sizeof(data.constantBufferData));
 	}
 
-	XMFLOAT3 cameraScale = XMFLOAT3{ 1.f, 1.f, 1.f };
-
 	if (!showEscMenu)
 	{
 		playerYaw += input.mouseDeltaX * engine.m_updateDeltaTime * 0.3f;
 		playerPitch += input.mouseDeltaY * engine.m_updateDeltaTime * 0.3f;
 	}
-	camera.rotation = XMQuaternionRotationRollPitchYaw(playerPitch, playerYaw, 0.f);
+	camera.rotation = XMQuaternionMultiply(XMQuaternionRotationRollPitchYaw(0.f, -playerYaw, 0.f), XMQuaternionRotationRollPitchYaw(-playerPitch, 0.f, 0.f));
 
-	CreateWorldMatrix(engine.m_constantBufferData.cameraTransform, cameraScale, camera.rotation, camera.position);
+	engine.m_constantBufferData.cameraTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(camera.position), XMMatrixRotationQuaternion(camera.rotation));
 	engine.m_constantBufferData.clipTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
 
 	engine.EndProfile("Game Update");

@@ -34,7 +34,7 @@ struct EngineUpdate
 EngineCore* engineCore;
 EngineUpdate updateData{};
 std::mutex updateDataMutex;
-
+MemoryArena wndProcArena{};
 
 // Watch development files for quick reload of shaders
 DWORD WINAPI FileWatcherThread(LPVOID lpParameter)
@@ -184,7 +184,46 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		return 0;
 	}
+	case WM_INPUT:
+		UINT dwSize;
+
+		GetRawInputData((HRAWINPUT)lParam, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER));
+		LPBYTE lpb = NewArray(wndProcArena, BYTE, dwSize);
+		if (lpb == NULL)
+		{
+			return 0;
+		}
+
+		if (GetRawInputData((HRAWINPUT)lParam, RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER)) != dwSize)
+		{
+			OutputDebugString(TEXT("GetRawInputData does not return correct size !\n"));
+		}
+
+		RAWINPUT* raw = (RAWINPUT*)lpb;
+		if (raw->header.dwType == RIM_TYPEMOUSE)
+		{
+			std::wstring output = std::format(L"Mouse: usFlags={} ulButtons={} usButtonFlags={} usButtonData={} ulRawButtons={} lLastX={} lLastY={} ulExtraInformation={}\r\n",
+				raw->data.mouse.usFlags,
+				raw->data.mouse.ulButtons,
+				raw->data.mouse.usButtonFlags,
+				raw->data.mouse.usButtonData,
+				raw->data.mouse.ulRawButtons,
+				raw->data.mouse.lLastX,
+				raw->data.mouse.lLastY,
+				raw->data.mouse.ulExtraInformation);
+
+			EngineInput& input = engineCore->m_game->GetInput();
+			input.accessMutex.lock();
+			input.mouseDeltaAccX += raw->data.mouse.lLastX;
+			input.mouseDeltaAccY += raw->data.mouse.lLastY;
+			input.accessMutex.unlock();
+
+			OutputDebugString(output.c_str());
+		}
+		break;
 	}
+
+	wndProcArena.Reset();
 
 	// Handle any messages the switch statement didn't.
 	return DefWindowProc(hwnd, message, wParam, lParam);
@@ -210,6 +249,13 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 		GameThreadData data{&engine};
 		DWORD renderThreadID;
 		HANDLE renderThreadHandle = CreateThread(0, 0, GameRenderThread, &data, 0, &renderThreadID);
+
+		RAWINPUTDEVICE Rid[1];
+		Rid[0].usUsagePage = 0x01;          // HID_USAGE_PAGE_GENERIC
+		Rid[0].usUsage = 0x02;              // HID_USAGE_GENERIC_MOUSE
+		Rid[0].dwFlags = 0x00;// RIDEV_NOLEGACY;    // adds mouse and also ignores legacy mouse messages
+		Rid[0].hwndTarget = 0;
+		RegisterRawInputDevices(Rid, _countof(Rid), sizeof(Rid[0]));
 
 		bool waitingForQuit = false;
 		bool finishedQuit = false;

@@ -49,7 +49,7 @@ public:
 class Camera
 {
 public:
-	XMFLOAT3 position{ 0.f, 0.f, 0.f };
+	XMVECTOR position{ 0.f, 0.f, 0.f };
 	XMVECTOR rotation{ 0.f, 0.f, 0.f, 1.f };
 	float fovX = 0.f;
 	float fovY = 45.f;
