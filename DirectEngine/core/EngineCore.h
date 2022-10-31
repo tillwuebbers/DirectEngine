@@ -58,7 +58,8 @@ struct EntityConstantBuffer
 {
     XMMATRIX worldTransform = {};
     XMVECTOR color;
-    float padding[44];
+    bool isSelected;
+    float padding[43];
 };
 static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
@@ -68,6 +69,7 @@ struct EntityData
     EntityConstantBuffer constantBufferData = {};
     UINT8* mappedConstantBufferData;
     size_t meshIndex;
+    bool visible = true;
 };
 
 struct MeshData

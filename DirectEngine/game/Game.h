@@ -34,11 +34,11 @@ public:
 	XMVECTOR scale{ 1.f, 1.f, 1.f };
 	size_t dataIndex;
 
-	XMVECTOR color{ 1.f, 0.f, 1.f };
-
 	bool isSpinning = false;
 
 	bool hasCubeCollision = false;
+
+	EntityData& GetData(EngineCore& engine);
 };
 
 class Camera

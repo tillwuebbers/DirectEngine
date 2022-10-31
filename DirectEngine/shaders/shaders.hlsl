@@ -10,6 +10,7 @@ cbuffer EntityConstantBuffer : register(b1)
 {
     float4x4 worldTransform;
     float4 color;
+    bool isSelected;
 };
 
 struct PSInput
@@ -29,6 +30,11 @@ PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, uint id : S
     result.position = mul(worldPos, vp);
     
     result.color = color;
+    if (isSelected)
+    {
+        result.color += float4(.1, .1, .1, .1);
+    }
+
     result.id = id;
 
     return result;

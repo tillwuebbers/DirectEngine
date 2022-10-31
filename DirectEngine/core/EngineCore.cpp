@@ -640,6 +640,8 @@ void EngineCore::PopulateCommandList()
     int entityIndex = 0;
     for (EntityData& entity : m_entities)
     {
+        if (!entity.visible) continue;
+
         MeshData& mesh = m_meshes[entity.meshIndex];
 
         CD3DX12_GPU_DESCRIPTOR_HANDLE cbvNext{};

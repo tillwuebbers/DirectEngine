@@ -46,6 +46,11 @@ Entity* CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, 
 	return nullptr;
 }
 
+EntityData& Entity::GetData(EngineCore& engine)
+{
+	return engine.m_entities[dataIndex];
+}
+
 Game::Game()
 {
 	displayedPuzzle = {};
@@ -98,7 +103,7 @@ void Game::StartGame(EngineCore& engine)
 	{
 		PuzzlePiece& piece = displayedPuzzle.pieces[i];
 		Entity* pieceEntity = puzzleEntities[i] = CreateEntity(engine, cubeMeshIndex);
-		pieceEntity->color = { (float)(i % 10) / 10.f, (i / 10.f) / 10.f, 0.f};
+		pieceEntity->GetData(engine).constantBufferData.color = {(float)(i % 10) / 10.f, (i / 10.f) / 10.f, 0.f};
 		pieceEntity->scale = { (float)piece.width + BLOCK_DISPLAY_GAP * (piece.width - 1), 1.f, (float)piece.height + BLOCK_DISPLAY_GAP * (piece.height - 1)};
 		pieceEntity->hasCubeCollision = true;
 
@@ -112,11 +117,11 @@ void Game::StartGame(EngineCore& engine)
 	size_t quadMeshIndex = engine.CreateMesh(quadFile.vertices.data(), sizeof(Vertex), quadFile.vertices.size(), 1);
 	Entity* quadEntity = CreateEntity(engine, quadMeshIndex);
 	quadEntity->position = { -0.5f, -0.5f, -0.5f };
-	quadEntity->color = { 0.f, .5f, 0.f };
+	quadEntity->GetData(engine).constantBufferData.color = { 0.f, .5f, 0.f };
 
 	testCube = CreateEntity(engine, cubeMeshIndex);
-	testCube->color = { 1.f, 1.f, 1.f };
-	testCube->scale = { .1f, .1f, .1f };
+	testCube->GetData(engine).constantBufferData.color = { 1.f, 1.f, 1.f };
+	testCube->scale = { .01f, .01f, .01f };
 
 	camera.position = { 0.f, 10.f, 0.f };
 	playerPitch = XM_PI;
@@ -151,6 +156,13 @@ void Game::UpdateGame(EngineCore& engine)
 	XMVECTOR camForward = XMVector3Transform(forward, camRotation);
 	XMVECTOR camRight = XMVector3Transform(right, camRotation);
 
+	// Reset per frame values
+	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
+	{
+		entity->GetData(engine).constantBufferData.isSelected = false;
+	}
+	testCube->GetData(engine).visible = false;
+
 	// Read Inputs
 	engine.BeginProfile("Input", ImColor::HSV(.5f, 1.f, .5f));
 	input.accessMutex.lock();
@@ -181,14 +193,15 @@ void Game::UpdateGame(EngineCore& engine)
 	{
 		camera.position += camForward * engine.m_updateDeltaTime * 10.f;
 	}
-	if (input.KeyJustPressed(VK_LBUTTON))
+	if (input.KeyDown(VK_LBUTTON))
 	{
 		testCube->position = XMVectorAdd(camera.position, camForward);
+		testCube->GetData(engine).visible = true;
 
 		Entity* collision = CollideWithWorld(camera.position, camForward, *this);
 		if (collision != nullptr)
 		{
-			collision->color = { 1.f, 0.f, 0.f };
+			collision->GetData(engine).constantBufferData.isSelected = true;
 		}
 	}
 	if (input.KeyComboJustPressed(VK_KEY_S, VK_CONTROL))
@@ -240,7 +253,7 @@ void Game::UpdateGame(EngineCore& engine)
 	// Update entities
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 	{
-		EntityData& data = engine.m_entities[entity->dataIndex];
+		EntityData& data = entity->GetData(engine);
 
 		if (entity->isSpinning)
 		{
@@ -248,7 +261,6 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 
 		CreateWorldMatrix(data.constantBufferData.worldTransform, entity->scale, entity->rotation, entity->position);
-		data.constantBufferData.color = entity->color;
 
 		// TODO: Race condition?
 		memcpy(data.mappedConstantBufferData, &data.constantBufferData, sizeof(data.constantBufferData));

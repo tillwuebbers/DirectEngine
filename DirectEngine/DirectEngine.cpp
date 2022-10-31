@@ -193,6 +193,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 		if (!blockedInputs.blockMouse) SetInputDown(VK_LBUTTON);
 		return 0;
 	case WM_LBUTTONUP:
+		// TODO: this blocks sometimes even if cursor is hidden
 		if (!blockedInputs.blockMouse) SetInputUp(VK_LBUTTON);
 		return 0;
 	case WM_RBUTTONDOWN:
