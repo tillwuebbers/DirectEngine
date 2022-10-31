@@ -11,6 +11,8 @@ add_executable (${PROJECT_NAME} WIN32
                 "Helpers.h"
                 "core/EngineCore.cpp"
                 "core/EngineCore.h"
+                "core/Memory.h"
+                "core/Memory.cpp"
                 "core/UI.cpp"
                 "core/UI.h"
                 "core/Input.h"
@@ -20,9 +22,10 @@ add_executable (${PROJECT_NAME} WIN32
                 "imgui/ImGuiProfilerRenderer.h"
                 "imgui/ProfilerTask.h"
                 "import/tiny_obj_loader.h"
+                "game/IGame.h"
                 "game/Game.h"
                 "game/Game.cpp"
-                "game/IGame.h" "core/Memory.h" "core/Memory.cpp" "game/GameUI.cpp" )
+                "game/GameUI.cpp" )
 
 
 # imgui
@@ -63,10 +66,10 @@ add_custom_command(
 
 add_custom_command(
         TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy
-                ${CMAKE_CURRENT_SOURCE_DIR}/models/cube.obj
-                ${CMAKE_CURRENT_BINARY_DIR}/cube.obj)
-
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_CURRENT_SOURCE_DIR}/models
+                ${CMAKE_CURRENT_BINARY_DIR}/models)
+                
 file(COPY "shaders/shaders.hlsl" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
 # idk

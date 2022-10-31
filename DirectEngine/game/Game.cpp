@@ -6,16 +6,12 @@
 #include "../core/vkcodes.h"
 #include "remixicon.h"
 
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "../import/tiny_obj_loader.h"
 
-void CreateWorldMatrix(XMMATRIX& out, const XMFLOAT3& scale, const XMVECTOR& rotation, const XMFLOAT3& position)
+void CreateWorldMatrix(XMMATRIX& out, const XMVECTOR scale, const XMVECTOR rotation, const XMVECTOR position)
 {
-	out = DirectX::XMMatrixTranspose(DirectX::XMMatrixAffineTransformation(
-		XMLoadFloat3(&scale), XMVECTOR{}, rotation, XMLoadFloat3(&position)));
+	out = DirectX::XMMatrixTranspose(DirectX::XMMatrixAffineTransformation(scale, XMVECTOR{}, rotation, position));
 }
 
 Game::Game()
@@ -23,11 +19,15 @@ Game::Game()
 
 void Game::StartGame(EngineCore& engine)
 {
-	size_t cubeMeshIndex = LoadMeshFromFile(engine, "cube.obj");
+	size_t kaijuMeshIndex = LoadMeshFromFile(engine, "models/kaiju.obj", "models/");
+	Entity* entity1 = CreateEntity(engine, kaijuMeshIndex);
+	entity1->scale = XMVECTOR{ .1f, .1f, .1f };
+	Entity* entity2 = CreateEntity(engine, kaijuMeshIndex);
+	entity2->position = XMVECTOR{ 0.f, 0.f, 5.f };
+	entity2->scale = XMVECTOR{ .3f, .3f, .3f };
 
-	Entity* entity1 = CreateEntity(engine, cubeMeshIndex);
-	Entity* entity2 = CreateEntity(engine, cubeMeshIndex);
-	entity2->position = XMFLOAT3{ 0.f, 0.f, 5.f };
+	size_t cubeMeshIndex = LoadMeshFromFile(engine, "models/cube.obj", "models/");
+	Entity* entity3 = CreateEntity(engine, cubeMeshIndex);
 
 	camera.position = { 0.f, 0.f, -10.f };
 
@@ -95,7 +95,6 @@ void Game::UpdateGame(EngineCore& engine)
 	{
 		EntityData& data = engine.m_entities[entity->dataIndex];
 
-		entity->position.x = static_cast<float>(sin(engine.TimeSinceStart()));
 		entity->rotation = XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart()));
 
 		CreateWorldMatrix(data.constantBufferData.worldTransform, entity->scale, entity->rotation, entity->position);
@@ -106,8 +105,8 @@ void Game::UpdateGame(EngineCore& engine)
 
 	if (!showEscMenu)
 	{
-		playerYaw += input.mouseDeltaX * engine.m_updateDeltaTime * 0.3f;
-		playerPitch += input.mouseDeltaY * engine.m_updateDeltaTime * 0.3f;
+		playerYaw += input.mouseDeltaX * 0.003f;
+		playerPitch += input.mouseDeltaY * 0.003f;
 	}
 	camera.rotation = XMQuaternionMultiply(XMQuaternionRotationRollPitchYaw(0.f, -playerYaw, 0.f), XMQuaternionRotationRollPitchYaw(-playerPitch, 0.f, 0.f));
 
@@ -131,10 +130,10 @@ EngineInput& Game::GetInput()
 	return input;
 }
 
-size_t Game::LoadMeshFromFile(EngineCore& engine, const std::string& filePath)
+size_t Game::LoadMeshFromFile(EngineCore& engine, const std::string& filePath, const std::string& materialPath)
 {
 	tinyobj::ObjReaderConfig reader_config;
-	reader_config.mtl_search_path = "./";
+	reader_config.mtl_search_path = materialPath;
 	tinyobj::ObjReader reader;
 
 	if (!reader.ParseFromFile(filePath, reader_config))
@@ -212,7 +211,7 @@ size_t Game::LoadMeshFromFile(EngineCore& engine, const std::string& filePath)
 		}
 	}
 
-	return engine.CreateMesh(copiedVertices.data(), sizeof(Vertex), copiedVertices.size(), 100);
+	return engine.CreateMesh(copiedVertices.data(), sizeof(Vertex), copiedVertices.size(), 1);
 }
 
 Entity* Game::CreateEntity(EngineCore& engine, size_t meshIndex)

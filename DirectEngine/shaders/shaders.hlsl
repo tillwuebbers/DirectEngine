@@ -23,8 +23,6 @@ PSInput VSMain(float4 position : POSITION, float4 color : COLOR, uint id : SV_In
     PSInput result;
 
     float4 worldPos = mul(position, worldTransform);
-    worldPos.x += (id % 10) * 1.5 - 5. * 1.3333;
-    worldPos.y += (id / 10) * 1.5 - 5. * 1.3333;
 
     float4x4 vp = mul(cameraTransform, clipTransform);
     result.position = mul(worldPos, vp);

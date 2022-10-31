@@ -47,9 +47,9 @@ struct Vertex
 class Entity
 {
 public:
-	XMFLOAT3 position{ 0.f, 0.f, 0.f };
+	XMVECTOR position{ 0.f, 0.f, 0.f };
 	XMVECTOR rotation{ 0.f, 0.f, 0.f, 1.f };
-	XMFLOAT3 scale{ 1.f, 1.f, 1.f };
+	XMVECTOR scale{ 1.f, 1.f, 1.f };
 	size_t dataIndex;
 };
 
@@ -98,7 +98,7 @@ public:
 	void UpdateGame(EngineCore& engine) override;
 	void DrawUI(EngineCore& engine);
 
-	size_t LoadMeshFromFile(EngineCore& engine, const std::string& filePath);
+	size_t LoadMeshFromFile(EngineCore& engine, const std::string& filePath, const std::string& materialPath);
 	Entity* CreateEntity(EngineCore& engine, size_t meshIndex);
 	void UpdateCursorState();
 
