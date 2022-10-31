@@ -52,7 +52,7 @@ void Game::UpdateGame(EngineCore& engine)
 		showEscMenu = !showEscMenu;
 		UpdateCursorState();
 	}
-	if (input.KeyJustPressed(VK_KEY_R))
+	if (input.KeyComboJustPressed(VK_KEY_R, VK_CONTROL))
 	{
 		engine.m_startTime = std::chrono::high_resolution_clock::now();
 	}
@@ -72,15 +72,15 @@ void Game::UpdateGame(EngineCore& engine)
 	{
 		camera.position += camForward * engine.m_updateDeltaTime * 10.f;
 	}
-	if (input.KeyJustPressed(VK_KEY_D, VK_CONTROL))
+	if (input.KeyComboJustPressed(VK_KEY_D, VK_CONTROL))
 	{
 		showDebugUI = !showDebugUI;
 	}
-	if (input.KeyJustPressed(VK_KEY_L, VK_CONTROL))
+	if (input.KeyComboJustPressed(VK_KEY_L, VK_CONTROL))
 	{
 		showLog = !showLog;
 	}
-	if (input.KeyJustPressed(VK_KEY_P, VK_CONTROL))
+	if (input.KeyComboJustPressed(VK_KEY_P, VK_CONTROL))
 	{
 		showProfiler = !showProfiler;
 	}

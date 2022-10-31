@@ -288,8 +288,7 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 				{
 					RECT clientRect;
 					GetClientRect(engine.m_hwnd, &clientRect);
-					ClientToScreen(engine.m_hwnd, reinterpret_cast<POINT*>(&clientRect.left));
-					ClientToScreen(engine.m_hwnd, reinterpret_cast<POINT*>(&clientRect.right));
+					MapWindowPoints(engine.m_hwnd, nullptr, reinterpret_cast<POINT*>(&clientRect), 2);
 
 					if (!ClipCursor(&clientRect))
 						OutputDebugString(std::format(L"cursor lock failed: {:x}", GetLastError()).c_str());

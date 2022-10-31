@@ -33,7 +33,10 @@ public:
 
     void UpdateMousePosition();
     void NextFrame();
-    bool KeyJustPressed(unsigned int keyCode, unsigned int modifier1 = 0, unsigned int modifier2 = 0);
-    bool KeyDown(unsigned int keyCode, unsigned int modifier1 = 0, unsigned int modifier2 = 0);
-    bool KeyJustReleased(unsigned int keyCode, unsigned int modifier1 = 0, unsigned int modifier2 = 0);
+    bool KeyJustPressed(unsigned int keyCode);
+    bool KeyComboJustPressed(unsigned int keyCode, unsigned int modifier1 = 0, unsigned int modifier2 = 0);
+    bool KeyDown(unsigned int keyCode);
+    bool KeyComboDown(unsigned int keyCode, unsigned int modifier1 = 0, unsigned int modifier2 = 0);
+    bool KeyJustReleased(unsigned int keyCode);
+    bool KeyComboJustReleased(unsigned int keyCode, unsigned int modifier1 = 0, unsigned int modifier2 = 0);
 };
