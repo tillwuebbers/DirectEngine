@@ -19,17 +19,16 @@ void Game::DrawUI(EngineCore& engine)
 		ImGui::SetNextWindowPos(ImVec2());
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(hAlign, vAlign));
-		ImGui::Begin("Pause Menu", 0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBackground);
+		ImGui::Begin("Pause Menu", 0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBringToFrontOnFocus);
 
 		if (ImGui::Button("Continue", buttonSize))
 		{
 			showEscMenu = false;
 			UpdateCursorState();
 		}
-		if (ImGui::Button("Debug Menu", buttonSize))
+		if (ImGui::Button("Show Debug Menu", buttonSize))
 		{
 			showDebugUI = true;
-			showEscMenu = false;
 		}
 		if (ImGui::Button("Quit", buttonSize))
 		{

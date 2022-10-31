@@ -120,6 +120,24 @@ DWORD WINAPI GameRenderThread(LPVOID lpParameter)
 	return 0;
 }
 
+void SetInputDown(size_t button)
+{
+	EngineInput& input = engineCore->m_game->GetInput();
+	input.accessMutex.lock();
+	input.currentPressedKeys->keys[button] = true;
+	input.keysDown->keys[button] = true;
+	input.accessMutex.unlock();
+}
+
+void SetInputUp(size_t button)
+{
+	EngineInput& input = engineCore->m_game->GetInput();
+	input.accessMutex.lock();
+	input.currentReleasedKeys->keys[button] = true;
+	input.keysDown->keys[button] = false;
+	input.accessMutex.unlock();
+}
+
 // Window event callback (runs on window thread, be careful with accessing game engine data that might be in use in render thread!)
 LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -153,6 +171,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 		return 0;
 	}
 	case WM_SYSKEYDOWN:
+		// Alt+Enter
 		if ((wParam == VK_RETURN) && (lParam & (1 << 29)))
 		{
 			updateDataMutex.lock();
@@ -164,27 +183,41 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_KEYDOWN:
 	{
 		bool repeat = lParam & (1 << 30);
-		if (!blockedInputs.blockKeyboard && !repeat)
-		{
-			EngineInput& input = engineCore->m_game->GetInput();
-			input.accessMutex.lock();
-			input.currentPressedKeys->keys[wParam] = true;
-			input.keysDown->keys[wParam] = true;
-			input.accessMutex.unlock();
-		}
+		if (!blockedInputs.blockKeyboard && !repeat) SetInputDown(wParam);
 		return 0;
 	}
 	case WM_KEYUP:
-	{
-		if (!blockedInputs.blockKeyboard)
-		{
-			EngineInput& input = engineCore->m_game->GetInput();
-			input.accessMutex.lock();
-			input.currentReleasedKeys->keys[wParam] = true;
-			input.keysDown->keys[wParam] = false;
-			input.accessMutex.unlock();
-		}
+		if (!blockedInputs.blockKeyboard) SetInputUp(wParam);
 		return 0;
+	case WM_LBUTTONDOWN:
+		if (!blockedInputs.blockMouse) SetInputDown(VK_LBUTTON);
+		return 0;
+	case WM_LBUTTONUP:
+		if (!blockedInputs.blockMouse) SetInputUp(VK_LBUTTON);
+		return 0;
+	case WM_RBUTTONDOWN:
+		if (!blockedInputs.blockMouse) SetInputDown(VK_RBUTTON);
+		return 0;
+	case WM_RBUTTONUP:
+		if (!blockedInputs.blockMouse) SetInputUp(VK_RBUTTON);
+		return 0;
+	case WM_MBUTTONDOWN:
+		if (!blockedInputs.blockMouse) SetInputDown(VK_MBUTTON);
+		return 0;
+	case WM_MBUTTONUP:
+		if (!blockedInputs.blockMouse) SetInputUp(VK_MBUTTON);
+		return 0;
+	case WM_XBUTTONDOWN:
+	{
+		WORD buttonType = HIWORD(wParam) == XBUTTON1 ? VK_XBUTTON1 : VK_XBUTTON2;
+		if (!blockedInputs.blockMouse) SetInputDown(buttonType);
+		return true;
+	}
+	case WM_XBUTTONUP:
+	{
+		WORD buttonType = HIWORD(wParam) == XBUTTON1 ? VK_XBUTTON1 : VK_XBUTTON2;
+		if (!blockedInputs.blockMouse) SetInputUp(buttonType);
+		return true;
 	}
 	case WM_INPUT:
 		UINT dwSize;

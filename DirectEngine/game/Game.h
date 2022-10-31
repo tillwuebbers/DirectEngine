@@ -37,6 +37,8 @@ public:
 	XMVECTOR color{ 1.f, 0.f, 1.f };
 
 	bool isSpinning = false;
+
+	bool hasCubeCollision = false;
 };
 
 class Camera
@@ -81,6 +83,7 @@ public:
 
 	PuzzleSolver* solver;
 	Entity* puzzleEntities[MAX_PIECE_COUNT];
+	Entity* testCube;
 
 	MemoryArena puzzleArena{};
 	SlidingPuzzle displayedPuzzle;

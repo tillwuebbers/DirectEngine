@@ -29,7 +29,7 @@ void RingLog::Error(const std::string& message)
 
 void RingLog::DrawLogText()
 {
-	for (int i = 0; i < LOG_SIZE; i++)
+	for (int i = 0; i < debugLogCount; i++)
 	{
 		int realIndex = (debugLogIndex - debugLogCount + i + LOG_SIZE) % LOG_SIZE;
 		LogMessage& message = messages[realIndex];

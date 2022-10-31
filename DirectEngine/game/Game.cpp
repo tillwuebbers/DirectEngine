@@ -18,6 +18,34 @@ void UpdatePiecePosition(Entity* entity, const PuzzlePiece& piece)
 	entity->position = { (float)piece.x * (1.f + BLOCK_DISPLAY_GAP) + scale.x / 2.f - 0.5f, 0.f, (float)piece.y * (1.f + BLOCK_DISPLAY_GAP) + scale.z / 2.f - 0.5f };
 }
 
+Entity* CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, const Game& game)
+{
+	for (Entity* entity = (Entity*)game.entityArena.base; entity != (Entity*)(game.entityArena.base + game.entityArena.used); entity++)
+	{
+		if (entity->hasCubeCollision)
+		{
+			XMVECTOR boxMin = entity->position - entity->scale / 2.f;
+			XMVECTOR boxMax = entity->position + entity->scale / 2.f;
+
+			XMVECTOR t0 = XMVectorDivide(XMVectorSubtract(boxMin, rayOrigin), rayDirection);
+			XMVECTOR t1 = XMVectorDivide(XMVectorSubtract(boxMax, rayOrigin), rayDirection);
+			XMVECTOR tmin = XMVectorMin(t0, t1);
+			XMVECTOR tmax = XMVectorMax(t0, t1);
+
+			XMFLOAT3 tMinValues;
+			XMFLOAT3 tMaxValues;
+			XMStoreFloat3(&tMinValues, tmin);
+			XMStoreFloat3(&tMaxValues, tmax);
+			if (std::max(std::max(tMinValues.x, tMinValues.y), tMinValues.z) <= std::min(std::min(tMaxValues.x, tMaxValues.y), tMaxValues.z))
+			{
+				return entity;
+			}
+		}
+	}
+
+	return nullptr;
+}
+
 Game::Game()
 {
 	displayedPuzzle = {};
@@ -72,6 +100,7 @@ void Game::StartGame(EngineCore& engine)
 		Entity* pieceEntity = puzzleEntities[i] = CreateEntity(engine, cubeMeshIndex);
 		pieceEntity->color = { (float)(i % 10) / 10.f, (i / 10.f) / 10.f, 0.f};
 		pieceEntity->scale = { (float)piece.width + BLOCK_DISPLAY_GAP * (piece.width - 1), 1.f, (float)piece.height + BLOCK_DISPLAY_GAP * (piece.height - 1)};
+		pieceEntity->hasCubeCollision = true;
 
 		UpdatePiecePosition(puzzleEntities[i], piece);
 	}
@@ -85,7 +114,11 @@ void Game::StartGame(EngineCore& engine)
 	quadEntity->position = { -0.5f, -0.5f, -0.5f };
 	quadEntity->color = { 0.f, .5f, 0.f };
 
-	camera.position = { 0.f, -10.f, 0.f };
+	testCube = CreateEntity(engine, cubeMeshIndex);
+	testCube->color = { 1.f, 1.f, 1.f };
+	testCube->scale = { .1f, .1f, .1f };
+
+	camera.position = { 0.f, 10.f, 0.f };
 	playerPitch = XM_PI;
 
 	UpdateCursorState();
@@ -112,9 +145,9 @@ CoroutineReturn DisplayPuzzleSolution(MemoryArena& arena, std::coroutine_handle<
 
 void Game::UpdateGame(EngineCore& engine)
 {
-	XMMATRIX camRotation = XMMatrixTranspose(XMMatrixRotationQuaternion(camera.rotation));
-	XMVECTOR right{ -1, 0, 0 };
-	XMVECTOR forward{ 0, 0, -1 };
+	XMMATRIX camRotation = XMMatrixRotationQuaternion(camera.rotation);
+	XMVECTOR right{ 1, 0, 0 };
+	XMVECTOR forward{ 0, 0, 1 };
 	XMVECTOR camForward = XMVector3Transform(forward, camRotation);
 	XMVECTOR camRight = XMVector3Transform(right, camRotation);
 
@@ -147,6 +180,16 @@ void Game::UpdateGame(EngineCore& engine)
 	if (input.KeyDown(VK_KEY_W))
 	{
 		camera.position += camForward * engine.m_updateDeltaTime * 10.f;
+	}
+	if (input.KeyJustPressed(VK_LBUTTON))
+	{
+		testCube->position = XMVectorAdd(camera.position, camForward);
+
+		Entity* collision = CollideWithWorld(camera.position, camForward, *this);
+		if (collision != nullptr)
+		{
+			collision->color = { 1.f, 0.f, 0.f };
+		}
 	}
 	if (input.KeyComboJustPressed(VK_KEY_S, VK_CONTROL))
 	{
@@ -220,9 +263,9 @@ void Game::UpdateGame(EngineCore& engine)
 		if (playerPitch > maxPitch) playerPitch = maxPitch;
 		if (playerPitch < -maxPitch) playerPitch = -maxPitch;
 	}
-	camera.rotation = XMQuaternionMultiply(XMQuaternionRotationRollPitchYaw(0.f, -playerYaw, 0.f), XMQuaternionRotationRollPitchYaw(-playerPitch, 0.f, 0.f));
+	camera.rotation = XMQuaternionMultiply(XMQuaternionRotationRollPitchYaw(playerPitch, 0.f, 0.f), XMQuaternionRotationRollPitchYaw(0.f, playerYaw, 0.f));
 
-	engine.m_constantBufferData.cameraTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(camera.position), XMMatrixRotationQuaternion(camera.rotation));
+	engine.m_constantBufferData.cameraTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
 	engine.m_constantBufferData.clipTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
 
 	engine.EndProfile("Game Update");
@@ -270,6 +313,16 @@ void Game::UpdateCursorState()
 	windowUpdateData.cursorClipped = !showEscMenu;
 	windowUpdateData.cursorVisible = showEscMenu;
 	windowUdpateDataMutex.unlock();
+
+	ImGuiConfigFlags& flags = ImGui::GetIO().ConfigFlags;
+	if (showEscMenu)
+	{
+		flags &= ~(ImGuiConfigFlags_NoMouse);
+	}
+	else
+	{
+		flags |= ImGuiConfigFlags_NoMouse;
+	}
 }
 
 void Game::Log(const std::string& message)
