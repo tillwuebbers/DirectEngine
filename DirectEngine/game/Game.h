@@ -2,6 +2,9 @@
 
 #include "IGame.h"
 #include "../core/EngineCore.h"
+#include "Puzzle.h"
+#include "Log.h"
+
 #include "imgui.h"
 #include "ImGuiProfilerRenderer.h"
 
@@ -11,31 +14,11 @@
 #include <DirectXMath.h>
 using namespace DirectX;
 
-const int LOG_SIZE = 1024;
-
 struct WindowUpdate
 {
 	bool updateCursor;
 	bool cursorVisible;
 	bool cursorClipped;
-};
-
-struct LogMessage
-{
-	ImColor color;
-	std::string message;
-};
-
-class RingLog
-{
-public:
-	void DrawText();
-	void AppendToLog(std::string message, ImU32 color);
-
-private:
-	LogMessage messages[LOG_SIZE] = {};
-	int debugLogIndex = 0;
-	int debugLogCount = 0;
 };
 
 struct Vertex
@@ -93,6 +76,8 @@ public:
 	float playerPitch = 0.f;
 	float playerYaw = 0.f;
 
+	PuzzleSolver* solver;
+
 	Game();
 	void StartGame(EngineCore& engine) override;
 	void UpdateGame(EngineCore& engine) override;
@@ -104,7 +89,7 @@ public:
 
 	EngineInput& GetInput() override;
 
-	void Log(std::string message) override;
-	void Warn(std::string message) override;
-	void Error(std::string message) override;
+	void Log(const std::string& message) override;
+	void Warn(const std::string& message) override;
+	void Error(const std::string& message) override;
 };

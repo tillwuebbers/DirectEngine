@@ -163,7 +163,7 @@ void Game::DrawUI(EngineCore& engine)
 
 			ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ 0, 0 });
-			debugLog.DrawText();
+			debugLog.DrawLogText();
 			ImGui::PopStyleVar();
 			ImGui::EndChild();
 		}

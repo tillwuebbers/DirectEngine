@@ -25,7 +25,11 @@ add_executable (${PROJECT_NAME} WIN32
                 "game/IGame.h"
                 "game/Game.h"
                 "game/Game.cpp"
-                "game/GameUI.cpp" )
+                "game/GameUI.cpp"
+                "game/Puzzle.cpp"
+                "game/Puzzle.h"
+                "game/Log.h"
+                "game/Log.cpp")
 
 
 # imgui

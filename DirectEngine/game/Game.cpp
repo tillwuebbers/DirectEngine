@@ -15,7 +15,42 @@ void CreateWorldMatrix(XMMATRIX& out, const XMVECTOR scale, const XMVECTOR rotat
 }
 
 Game::Game()
-{}
+{
+	SlidingPuzzle puzzle{};
+	puzzle.width = 2;
+	puzzle.height = 2;
+	puzzle.pieceCount = 2;
+
+	PuzzlePiece& p = puzzle.pieces[0];
+	p.width = 1;
+	p.height = 1;
+	p.startX = 0;
+	p.startY = 0;
+	p.targetX = 1;
+	p.targetY = 1;
+	p.canMoveHorizontal = true;
+	p.canMoveVertical = true;
+	p.hasTarget = true;
+	p.typeHash = 0;
+	p.x = p.startX;
+	p.y = p.startY;
+
+	PuzzlePiece& p2 = puzzle.pieces[1];
+	p2.width = 1;
+	p2.height = 1;
+	p2.startX = 1;
+	p2.startY = 1;
+	p2.targetX = 0;
+	p2.targetY = 0;
+	p2.canMoveHorizontal = true;
+	p2.canMoveVertical = true;
+	p2.hasTarget = false;
+	p2.typeHash = 0;
+	p2.x = p2.startX;
+	p2.y = p2.startY;
+
+	solver = NewObject(globalArena, PuzzleSolver, puzzle, debugLog);
+}
 
 void Game::StartGame(EngineCore& engine)
 {
@@ -71,6 +106,10 @@ void Game::UpdateGame(EngineCore& engine)
 	if (input.KeyDown(VK_KEY_W))
 	{
 		camera.position += camForward * engine.m_updateDeltaTime * 10.f;
+	}
+	if (input.KeyComboJustPressed(VK_KEY_S, VK_CONTROL))
+	{
+		solver->Solve();
 	}
 	if (input.KeyComboJustPressed(VK_KEY_D, VK_CONTROL))
 	{
@@ -237,41 +276,17 @@ void Game::UpdateCursorState()
 	windowUdpateDataMutex.unlock();
 }
 
-void Game::Log(std::string message)
+void Game::Log(const std::string& message)
 {
-	if (!stopLog) debugLog.AppendToLog(message, IM_COL32_WHITE);
+	if (!stopLog) debugLog.Log(message);
 }
 
-void Game::Warn(std::string message)
+void Game::Warn(const std::string& message)
 {
-	if (!stopLog) debugLog.AppendToLog(message, ImColor::HSV(.09f, .9f, 1.f));
+	if (!stopLog) debugLog.Warn(message);
 }
 
-void Game::Error(std::string message)
+void Game::Error(const std::string& message)
 {
-	if (!stopLog) debugLog.AppendToLog(message, ImColor::HSV(.0f, .9f, 1.f));
-}
-
-void RingLog::AppendToLog(std::string message, ImU32 color)
-{
-	messages[debugLogIndex].color = color;
-	messages[debugLogIndex].message = message;
-	debugLogIndex = (debugLogIndex + 1) % LOG_SIZE;
-
-	if (debugLogCount < LOG_SIZE)
-	{
-		debugLogCount++;
-	}
-}
-
-void RingLog::DrawText()
-{
-	for (int i = 0; i < LOG_SIZE; i++)
-	{
-		int realIndex = (debugLogIndex - debugLogCount + i + LOG_SIZE) % LOG_SIZE;
-		LogMessage& message = messages[realIndex];
-		ImGui::PushStyleColor(ImGuiCol_Text, message.color.Value);
-		ImGui::Text(message.message.c_str());
-		ImGui::PopStyleColor();
-	}
+	if (!stopLog) debugLog.Error(message);
 }

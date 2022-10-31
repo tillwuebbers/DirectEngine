@@ -13,7 +13,7 @@ public:
 
 	virtual EngineInput& GetInput() = 0;
 
-	virtual void Log(std::string message) = 0;
-	virtual void Warn(std::string message) = 0;
-	virtual void Error(std::string message) = 0;
+	virtual void Log(const std::string& message) = 0;
+	virtual void Warn(const std::string& message) = 0;
+	virtual void Error(const std::string& message) = 0;
 };
