@@ -13,19 +13,21 @@ void CreateWorldMatrix(XMMATRIX& out, const XMVECTOR scale, const XMVECTOR rotat
 
 void UpdatePiecePosition(Entity* entity, const PuzzlePiece& piece)
 {
-	entity->position = { (float)piece.x * (1.f + BLOCK_DISPLAY_GAP), 0.f, (float)piece.y * (1.f + BLOCK_DISPLAY_GAP) };
+	XMFLOAT3 scale;
+	XMStoreFloat3(&scale, entity->scale);
+	entity->position = { (float)piece.x * (1.f + BLOCK_DISPLAY_GAP) + scale.x / 2.f - 0.5f, 0.f, (float)piece.y * (1.f + BLOCK_DISPLAY_GAP) + scale.z / 2.f - 0.5f };
 }
 
 Game::Game()
 {
 	displayedPuzzle = {};
-	displayedPuzzle.width = 2;
-	displayedPuzzle.height = 2;
+	displayedPuzzle.width = 3;
+	displayedPuzzle.height = 3;
 	displayedPuzzle.pieceCount = 2;
 
 	PuzzlePiece& p = displayedPuzzle.pieces[0];
-	p.width = 1;
-	p.height = 1;
+	p.width = 2;
+	p.height = 2;
 	p.startX = 0;
 	p.startY = 0;
 	p.targetX = 1;
@@ -40,13 +42,13 @@ Game::Game()
 	PuzzlePiece& p2 = displayedPuzzle.pieces[1];
 	p2.width = 1;
 	p2.height = 1;
-	p2.startX = 1;
-	p2.startY = 1;
+	p2.startX = 2;
+	p2.startY = 2;
 	p2.targetX = 0;
 	p2.targetY = 0;
 	p2.canMoveHorizontal = true;
 	p2.canMoveVertical = true;
-	p2.hasTarget = false;
+	p2.hasTarget = true;
 	p2.typeHash = 0;
 	p2.x = p2.startX;
 	p2.y = p2.startY;
@@ -67,8 +69,9 @@ void Game::StartGame(EngineCore& engine)
 	for (int i = 0; i < displayedPuzzle.pieceCount; i++)
 	{
 		PuzzlePiece& piece = displayedPuzzle.pieces[i];
-		puzzleEntities[i] = CreateEntity(engine, cubeMeshIndex);
-		puzzleEntities[i]->color = { (float)(i % 10) / 10.f, (i / 10.f) / 10.f, 0.f};
+		Entity* pieceEntity = puzzleEntities[i] = CreateEntity(engine, cubeMeshIndex);
+		pieceEntity->color = { (float)(i % 10) / 10.f, (i / 10.f) / 10.f, 0.f};
+		pieceEntity->scale = { (float)piece.width + BLOCK_DISPLAY_GAP * (piece.width - 1), 1.f, (float)piece.height + BLOCK_DISPLAY_GAP * (piece.height - 1)};
 
 		UpdatePiecePosition(puzzleEntities[i], piece);
 	}
@@ -82,7 +85,8 @@ void Game::StartGame(EngineCore& engine)
 	quadEntity->position = { -0.5f, -0.5f, -0.5f };
 	quadEntity->color = { 0.f, .5f, 0.f };
 
-	camera.position = { 0.f, -2.f, 10.f };
+	camera.position = { 0.f, -10.f, 0.f };
+	playerPitch = XM_PI;
 
 	UpdateCursorState();
 }
