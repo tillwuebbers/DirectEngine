@@ -3,6 +3,7 @@
 #include "IGame.h"
 #include "Puzzle.h"
 #include "Log.h"
+#include "Mesh.h"
 #include "../core/EngineCore.h"
 #include "../core/Coroutine.h"
 
@@ -20,12 +21,6 @@ struct WindowUpdate
 	bool updateCursor;
 	bool cursorVisible;
 	bool cursorClipped;
-};
-
-struct Vertex
-{
-	XMFLOAT3 position;
-	XMFLOAT4 color;
 };
 
 class Entity
@@ -91,7 +86,7 @@ public:
 	void UpdateGame(EngineCore& engine) override;
 	void DrawUI(EngineCore& engine);
 
-	size_t LoadMeshFromFile(EngineCore& engine, const std::string& filePath, const std::string& materialPath);
+	size_t CreateMeshFromFile(EngineCore& engine, const std::string& filePath, const std::string& materialPath);
 	Entity* CreateEntity(EngineCore& engine, size_t meshIndex);
 	void UpdateCursorState();
 
