@@ -22,10 +22,11 @@ void* MemoryArena::Allocate(size_t size)
 	if (newUsed > committed)
 	{
 		const size_t required = newUsed - committed;
-		const size_t commitAmount = required / allocationGranularity + allocationGranularity;
+		// TODO: round committed bytes to page boundaries automatically?
+		//const size_t commitAmount = ...;
 
-		VirtualAlloc(base + committed, commitAmount, MEM_COMMIT, PAGE_READWRITE);
-		committed += commitAmount;
+		VirtualAlloc(base + committed, required, MEM_COMMIT, PAGE_READWRITE);
+		committed += required;
 	}
 
 	uint8_t* result = base + used;

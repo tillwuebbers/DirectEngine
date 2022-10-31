@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-// Crazy custom memory experiments, dangerous? (and fun)
+// Custom allocation, still figuring out how to use this best.
 // WARNING: Anything allocated inside a memory arena won't get it's desctructor called (intentionally).
 // Don't store std::string or similar in here!
 class MemoryArena
@@ -19,6 +19,7 @@ public:
     void* Allocate(size_t size);
     void Reset(bool freePages = false);
 
+    // Copying this thing is probably a very bad idea (and moving it shouldn't be necessary).
     MemoryArena(const MemoryArena& other) = delete;
     MemoryArena(MemoryArena&& other) noexcept = delete;
     MemoryArena& operator=(const MemoryArena& other) = delete;
