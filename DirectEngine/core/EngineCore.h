@@ -57,7 +57,8 @@ static_assert((sizeof(SceneConstantBuffer) % 256) == 0, "Constant Buffer size mu
 struct EntityConstantBuffer
 {
     XMMATRIX worldTransform = {};
-    float padding[48];
+    XMVECTOR color;
+    float padding[44];
 };
 static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 

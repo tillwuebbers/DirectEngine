@@ -13,7 +13,7 @@ void CreateWorldMatrix(XMMATRIX& out, const XMVECTOR scale, const XMVECTOR rotat
 
 void UpdatePiecePosition(Entity* entity, const PuzzlePiece& piece)
 {
-	entity->position = { (float)piece.x * 1.1f, 0.f, (float)piece.y * 1.1f };
+	entity->position = { (float)piece.x * (1.f + BLOCK_DISPLAY_GAP), 0.f, (float)piece.y * (1.f + BLOCK_DISPLAY_GAP) };
 }
 
 Game::Game()
@@ -64,19 +64,23 @@ void Game::StartGame(EngineCore& engine)
 	entity2->scale = XMVECTOR{ .3f, .3f, .3f };*/
 
 	size_t cubeMeshIndex = CreateMeshFromFile(engine, "models/cube.obj", "models/");
-	for (int i = 0; i < solver->puzzle.pieceCount; i++)
+	for (int i = 0; i < displayedPuzzle.pieceCount; i++)
 	{
-		PuzzlePiece& piece = solver->puzzle.pieces[i];
+		PuzzlePiece& piece = displayedPuzzle.pieces[i];
 		puzzleEntities[i] = CreateEntity(engine, cubeMeshIndex);
+		puzzleEntities[i]->color = { (float)(i % 10) / 10.f, (i / 10.f) / 10.f, 0.f};
 
 		UpdatePiecePosition(puzzleEntities[i], piece);
 	}
 
+	float floorWidth = displayedPuzzle.width + BLOCK_DISPLAY_GAP * (displayedPuzzle.width - 1);
+	float floorHeight = displayedPuzzle.height + BLOCK_DISPLAY_GAP * (displayedPuzzle.height - 1);
 	MeshFile quadFile{};
-	CreateQuad(quadFile, 3.f, 3.f);
+	CreateQuad(quadFile, floorWidth, floorHeight);
 	size_t quadMeshIndex = engine.CreateMesh(quadFile.vertices.data(), sizeof(Vertex), quadFile.vertices.size(), 1);
 	Entity* quadEntity = CreateEntity(engine, quadMeshIndex);
-	quadEntity->position = { 0.f, -0.5f, 0.f };
+	quadEntity->position = { -0.5f, -0.5f, -0.5f };
+	quadEntity->color = { 0.f, .5f, 0.f };
 
 	camera.position = { 0.f, -2.f, 10.f };
 
@@ -91,8 +95,8 @@ CoroutineReturn DisplayPuzzleSolution(MemoryArena& arena, std::coroutine_handle<
 
 	for (int i = 0; i < game->solver->solvedPosition.path.moveCount; i++)
 	{
-		while (engine.TimeSinceStart() < moveStartTime + 1.f) co_await awaiter;
-		moveStartTime += 1.f;
+		while (engine.TimeSinceStart() < moveStartTime + SOLUTION_PLAYBACK_SPEED) co_await awaiter;
+		moveStartTime += SOLUTION_PLAYBACK_SPEED;
 
 		PuzzleMove& move = game->solver->solvedPosition.path.moves[i];
 		PuzzlePiece& piece = game->displayedPuzzle.pieces[move.pieceIndex];
@@ -147,6 +151,10 @@ void Game::UpdateGame(EngineCore& engine)
 		if (solver->solved)
 		{
 			displayedPuzzle = solver->puzzle;
+			for (int i = 0; i < displayedPuzzle.pieceCount; i++)
+			{
+				UpdatePiecePosition(puzzleEntities[i], displayedPuzzle.pieces[i]);
+			}
 			DisplayPuzzleSolution(puzzleArena, &displayCoroutine, this, engine);
 		}
 	}
@@ -193,6 +201,7 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 
 		CreateWorldMatrix(data.constantBufferData.worldTransform, entity->scale, entity->rotation, entity->position);
+		data.constantBufferData.color = entity->color;
 
 		// TODO: Race condition?
 		memcpy(data.mappedConstantBufferData, &data.constantBufferData, sizeof(data.constantBufferData));

@@ -16,6 +16,9 @@
 #include <DirectXMath.h>
 using namespace DirectX;
 
+const float BLOCK_DISPLAY_GAP = 0.1f;
+const float SOLUTION_PLAYBACK_SPEED = 0.5f;
+
 struct WindowUpdate
 {
 	bool updateCursor;
@@ -30,6 +33,8 @@ public:
 	XMVECTOR rotation{ 0.f, 0.f, 0.f, 1.f };
 	XMVECTOR scale{ 1.f, 1.f, 1.f };
 	size_t dataIndex;
+
+	XMVECTOR color{ 1.f, 0.f, 1.f };
 
 	bool isSpinning = false;
 };

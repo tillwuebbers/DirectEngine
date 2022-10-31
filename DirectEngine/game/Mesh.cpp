@@ -7,15 +7,13 @@
 
 void CreateQuad(MeshFile& meshFileOut, float width, float height)
 {
-	float halfW = width / 2.f;
-	float halfH = height / 2.f;
 	meshFileOut.vertices = {
-		Vertex{ { -halfW, 0.f, -halfH }, {} },
-		Vertex{ {  halfW, 0.f,  halfH }, {} },
-		Vertex{ {  halfW, 0.f, -halfH }, {} },
-		Vertex{ { -halfW, 0.f, -halfH }, {} },
-		Vertex{ { -halfW, 0.f,  halfH }, {} },
-		Vertex{ {  halfW, 0.f,  halfH }, {} },
+		Vertex{ { 0.f  , 0.f, 0.f    }, {} },
+		Vertex{ { width, 0.f, height }, {} },
+		Vertex{ { width, 0.f, 0.f    }, {} },
+		Vertex{ { 0.f  , 0.f, 0.f    }, {} },
+		Vertex{ { 0.f  , 0.f, height }, {} },
+		Vertex{ { width, 0.f, height }, {} },
 	};
 }
 

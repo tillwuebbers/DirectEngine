@@ -9,6 +9,7 @@ cbuffer SceneConstantBuffer : register(b0)
 cbuffer EntityConstantBuffer : register(b1)
 {
     float4x4 worldTransform;
+    float4 color;
 };
 
 struct PSInput
@@ -18,7 +19,7 @@ struct PSInput
     uint id : SV_InstanceID;
 };
 
-PSInput VSMain(float4 position : POSITION, float4 color : COLOR, uint id : SV_InstanceID)
+PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, uint id : SV_InstanceID)
 {
     PSInput result;
 
@@ -35,6 +36,5 @@ PSInput VSMain(float4 position : POSITION, float4 color : COLOR, uint id : SV_In
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    uint totalCount = 100;
-    return float4(input.id / (float)totalCount, .3, 0.1, 1);
+    return input.color;
 }
