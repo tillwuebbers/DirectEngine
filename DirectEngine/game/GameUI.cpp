@@ -24,6 +24,7 @@ void Game::DrawUI(EngineCore& engine)
 		if (ImGui::Button("Continue", buttonSize))
 		{
 			showEscMenu = false;
+			UpdateCursorState();
 		}
 		if (ImGui::Button("Debug Menu", buttonSize))
 		{

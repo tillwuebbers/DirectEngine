@@ -30,6 +30,8 @@ void Game::StartGame(EngineCore& engine)
 	entity2->position = XMFLOAT3{ 0.f, 0.f, 5.f };
 
 	camera.position = { 0.f, 0.f, -10.f };
+
+	UpdateCursorState();
 }
 
 void Game::UpdateGame(EngineCore& engine)
@@ -48,6 +50,7 @@ void Game::UpdateGame(EngineCore& engine)
 	if (input.KeyJustPressed(VK_ESCAPE))
 	{
 		showEscMenu = !showEscMenu;
+		UpdateCursorState();
 	}
 	if (input.KeyJustPressed(VK_KEY_R))
 	{
@@ -224,6 +227,15 @@ Entity* Game::CreateEntity(EngineCore& engine, size_t meshIndex)
 	engine.CreateConstantBuffer<EntityConstantBuffer>(data.constantBuffer, &data.constantBufferData, &data.mappedConstantBufferData);
 	data.constantBuffer->SetName(std::format(L"Entity Constant Buffer {}", meshIndex).c_str());
 	return entity;
+}
+
+void Game::UpdateCursorState()
+{
+	windowUdpateDataMutex.lock();
+	windowUpdateData.updateCursor = true;
+	windowUpdateData.cursorClipped = !showEscMenu;
+	windowUpdateData.cursorVisible = showEscMenu;
+	windowUdpateDataMutex.unlock();
 }
 
 void Game::Log(std::string message)

@@ -13,6 +13,13 @@ using namespace DirectX;
 
 const int LOG_SIZE = 1024;
 
+struct WindowUpdate
+{
+	bool updateCursor;
+	bool cursorVisible;
+	bool cursorClipped;
+};
+
 struct LogMessage
 {
 	ImColor color;
@@ -74,6 +81,9 @@ public:
 	bool showEscMenu = false;
 	bool showDebugUI = true;
 
+	WindowUpdate windowUpdateData{};
+	std::mutex windowUdpateDataMutex;
+
 	MemoryArena globalArena{};
 	MemoryArena entityArena{};
 
@@ -90,6 +100,7 @@ public:
 
 	size_t LoadMeshFromFile(EngineCore& engine, const std::string& filePath);
 	Entity* CreateEntity(EngineCore& engine, size_t meshIndex);
+	void UpdateCursorState();
 
 	EngineInput& GetInput() override;
 

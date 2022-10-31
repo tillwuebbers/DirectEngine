@@ -32,8 +32,10 @@ struct EngineUpdate
 };
 
 EngineCore* engineCore;
+
 EngineUpdate updateData{};
 std::mutex updateDataMutex;
+
 MemoryArena wndProcArena{};
 
 // Watch development files for quick reload of shaders
@@ -202,7 +204,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 		RAWINPUT* raw = (RAWINPUT*)lpb;
 		if (raw->header.dwType == RIM_TYPEMOUSE)
 		{
-			std::wstring output = std::format(L"Mouse: usFlags={} ulButtons={} usButtonFlags={} usButtonData={} ulRawButtons={} lLastX={} lLastY={} ulExtraInformation={}\r\n",
+			/*std::wstring output = std::format(L"Mouse: usFlags={} ulButtons={} usButtonFlags={} usButtonData={} ulRawButtons={} lLastX={} lLastY={} ulExtraInformation={}\r\n",
 				raw->data.mouse.usFlags,
 				raw->data.mouse.ulButtons,
 				raw->data.mouse.usButtonFlags,
@@ -210,7 +212,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 				raw->data.mouse.ulRawButtons,
 				raw->data.mouse.lLastX,
 				raw->data.mouse.lLastY,
-				raw->data.mouse.ulExtraInformation);
+				raw->data.mouse.ulExtraInformation);*/
 
 			EngineInput& input = engineCore->m_game->GetInput();
 			input.accessMutex.lock();
@@ -218,7 +220,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 			input.mouseDeltaAccY += raw->data.mouse.lLastY;
 			input.accessMutex.unlock();
 
-			OutputDebugString(output.c_str());
+			//OutputDebugString(output.c_str());
 		}
 		break;
 	}
@@ -246,7 +248,7 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 		engineCore = &engine;
 		engine.OnInit(hInstance, nCmdShow, WndProc);
 
-		GameThreadData data{&engine};
+		GameThreadData data{ &engine };
 		DWORD renderThreadID;
 		HANDLE renderThreadHandle = CreateThread(0, 0, GameRenderThread, &data, 0, &renderThreadID);
 
@@ -261,6 +263,7 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 		bool finishedQuit = false;
 		while (!finishedQuit)
 		{
+			// Handle pending window messages
 			while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 			{
 				if (msg.message == WM_QUIT)
@@ -276,6 +279,43 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 				DispatchMessage(&msg);
 			}
 
+			// Handle game messages
+			game.windowUdpateDataMutex.lock();
+			if (game.windowUpdateData.updateCursor)
+			{
+				game.windowUpdateData.updateCursor = false;
+				if (game.windowUpdateData.cursorClipped)
+				{
+					RECT clientRect;
+					GetClientRect(engine.m_hwnd, &clientRect);
+					ClientToScreen(engine.m_hwnd, reinterpret_cast<POINT*>(&clientRect.left));
+					ClientToScreen(engine.m_hwnd, reinterpret_cast<POINT*>(&clientRect.right));
+
+					if (!ClipCursor(&clientRect))
+						OutputDebugString(std::format(L"cursor lock failed: {:x}", GetLastError()).c_str());
+				}
+				else
+				{
+					if (!ClipCursor(NULL))
+						OutputDebugString(std::format(L"cursor unlock failed: {:x}", GetLastError()).c_str());
+				}
+				
+				CURSORINFO info{ sizeof(CURSORINFO) };
+				if (!GetCursorInfo(&info))
+					OutputDebugString(std::format(L"failed to GetCursorInfo: {:x}", GetLastError()).c_str());
+
+				if (info.flags == 0 && game.windowUpdateData.cursorVisible)
+				{
+					ShowCursor(true);
+				}
+				else if (info.flags != 0 && !game.windowUpdateData.cursorVisible)
+				{
+					ShowCursor(false);
+				}
+			}
+			game.windowUdpateDataMutex.unlock();
+
+			// Quit if wanted
 			DWORD renderThreadStatus;
 			GetExitCodeThread(renderThreadHandle, &renderThreadStatus);
 			if (waitingForQuit)
