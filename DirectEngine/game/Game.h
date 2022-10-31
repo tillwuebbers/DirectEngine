@@ -1,9 +1,10 @@
 #pragma once
 
 #include "IGame.h"
-#include "../core/EngineCore.h"
 #include "Puzzle.h"
 #include "Log.h"
+#include "../core/EngineCore.h"
+#include "../core/Coroutine.h"
 
 #include "imgui.h"
 #include "ImGuiProfilerRenderer.h"
@@ -34,6 +35,8 @@ public:
 	XMVECTOR rotation{ 0.f, 0.f, 0.f, 1.f };
 	XMVECTOR scale{ 1.f, 1.f, 1.f };
 	size_t dataIndex;
+
+	bool isSpinning = false;
 };
 
 class Camera
@@ -77,6 +80,11 @@ public:
 	float playerYaw = 0.f;
 
 	PuzzleSolver* solver;
+	Entity* puzzleEntities[MAX_PIECE_COUNT];
+
+	MemoryArena puzzleArena{};
+	SlidingPuzzle displayedPuzzle;
+	std::coroutine_handle<> displayCoroutine = nullptr;
 
 	Game();
 	void StartGame(EngineCore& engine) override;

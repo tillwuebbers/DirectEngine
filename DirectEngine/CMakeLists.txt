@@ -29,7 +29,7 @@ add_executable (${PROJECT_NAME} WIN32
                 "game/Puzzle.cpp"
                 "game/Puzzle.h"
                 "game/Log.h"
-                "game/Log.cpp")
+                "game/Log.cpp" "core/Coroutine.h" )
 
 
 # imgui

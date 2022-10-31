@@ -64,6 +64,7 @@ class PuzzleSolver
 public:
 	SlidingPuzzle puzzle;
 	SlidingPuzzle solvedPosition;
+	bool solved = false;
 
 	RingLog& debugLog;
 	MemoryArena solverArena{};

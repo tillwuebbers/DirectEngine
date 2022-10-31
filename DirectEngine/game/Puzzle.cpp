@@ -85,6 +85,7 @@ PuzzleSolver::PuzzleSolver(SlidingPuzzle puzzle, RingLog& debugLog) : puzzle(puz
 void PuzzleSolver::Solve()
 {
 	debugLog.Log("Starting solve...");
+	solved = false;
 
 	size_t currentPendingIndex = 0;
 	while (currentPendingIndex < pendingPositionCount)
@@ -101,6 +102,7 @@ void PuzzleSolver::Solve()
 				PuzzleMove& move = solvedPosition.path.moves[i];
 				debugLog.Log(std::format("{} > ({},{})", move.pieceIndex, move.x, move.y));
 			}
+			solved = true;
 			break;
 		}
 

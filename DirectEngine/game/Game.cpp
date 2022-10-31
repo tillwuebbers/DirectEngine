@@ -14,14 +14,19 @@ void CreateWorldMatrix(XMMATRIX& out, const XMVECTOR scale, const XMVECTOR rotat
 	out = DirectX::XMMatrixTranspose(DirectX::XMMatrixAffineTransformation(scale, XMVECTOR{}, rotation, position));
 }
 
+void UpdatePiecePosition(Entity* entity, const PuzzlePiece& piece)
+{
+	entity->position = { (float)piece.x * 1.1f, 0.f, (float)piece.y * 1.1f };
+}
+
 Game::Game()
 {
-	SlidingPuzzle puzzle{};
-	puzzle.width = 2;
-	puzzle.height = 2;
-	puzzle.pieceCount = 2;
+	displayedPuzzle = {};
+	displayedPuzzle.width = 2;
+	displayedPuzzle.height = 2;
+	displayedPuzzle.pieceCount = 2;
 
-	PuzzlePiece& p = puzzle.pieces[0];
+	PuzzlePiece& p = displayedPuzzle.pieces[0];
 	p.width = 1;
 	p.height = 1;
 	p.startX = 0;
@@ -35,7 +40,7 @@ Game::Game()
 	p.x = p.startX;
 	p.y = p.startY;
 
-	PuzzlePiece& p2 = puzzle.pieces[1];
+	PuzzlePiece& p2 = displayedPuzzle.pieces[1];
 	p2.width = 1;
 	p2.height = 1;
 	p2.startX = 1;
@@ -49,24 +54,49 @@ Game::Game()
 	p2.x = p2.startX;
 	p2.y = p2.startY;
 
-	solver = NewObject(globalArena, PuzzleSolver, puzzle, debugLog);
+	solver = NewObject(globalArena, PuzzleSolver, displayedPuzzle, debugLog);
 }
 
 void Game::StartGame(EngineCore& engine)
 {
-	size_t kaijuMeshIndex = LoadMeshFromFile(engine, "models/kaiju.obj", "models/");
+	/*size_t kaijuMeshIndex = LoadMeshFromFile(engine, "models/kaiju.obj", "models/");
 	Entity* entity1 = CreateEntity(engine, kaijuMeshIndex);
 	entity1->scale = XMVECTOR{ .1f, .1f, .1f };
 	Entity* entity2 = CreateEntity(engine, kaijuMeshIndex);
 	entity2->position = XMVECTOR{ 0.f, 0.f, 5.f };
-	entity2->scale = XMVECTOR{ .3f, .3f, .3f };
+	entity2->scale = XMVECTOR{ .3f, .3f, .3f };*/
 
 	size_t cubeMeshIndex = LoadMeshFromFile(engine, "models/cube.obj", "models/");
-	Entity* entity3 = CreateEntity(engine, cubeMeshIndex);
+	for (int i = 0; i < solver->puzzle.pieceCount; i++)
+	{
+		PuzzlePiece& piece = solver->puzzle.pieces[i];
+		puzzleEntities[i] = CreateEntity(engine, cubeMeshIndex);
 
-	camera.position = { 0.f, 0.f, -10.f };
+		UpdatePiecePosition(puzzleEntities[i], piece);
+	}
+
+	camera.position = { 0.f, -2.f, 10.f };
 
 	UpdateCursorState();
+}
+
+CoroutineReturn DisplayPuzzleSolution(MemoryArena& arena, std::coroutine_handle<>* handle, Game* game, EngineCore& engine)
+{
+	CoroutineAwaiter awaiter{ handle };
+
+	float moveStartTime = engine.TimeSinceStart();
+
+	for (int i = 0; i < game->solver->solvedPosition.path.moveCount; i++)
+	{
+		while (engine.TimeSinceStart() < moveStartTime + 1.f) co_await awaiter;
+		moveStartTime += 1.f;
+
+		PuzzleMove& move = game->solver->solvedPosition.path.moves[i];
+		PuzzlePiece& piece = game->displayedPuzzle.pieces[move.pieceIndex];
+		piece.x += move.x;
+		piece.y += move.y;
+		UpdatePiecePosition(game->puzzleEntities[move.pieceIndex], piece);
+	}
 }
 
 void Game::UpdateGame(EngineCore& engine)
@@ -89,7 +119,7 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 	if (input.KeyComboJustPressed(VK_KEY_R, VK_CONTROL))
 	{
-		engine.m_startTime = std::chrono::high_resolution_clock::now();
+		camera.position = { 0.f, 0.f, 0.f };
 	}
 	if (input.KeyDown(VK_KEY_A))
 	{
@@ -109,7 +139,13 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 	if (input.KeyComboJustPressed(VK_KEY_S, VK_CONTROL))
 	{
+		puzzleArena.Reset();
 		solver->Solve();
+		if (solver->solved)
+		{
+			displayedPuzzle = solver->puzzle;
+			DisplayPuzzleSolution(puzzleArena, &displayCoroutine, this, engine);
+		}
 	}
 	if (input.KeyComboJustPressed(VK_KEY_D, VK_CONTROL))
 	{
@@ -127,14 +163,31 @@ void Game::UpdateGame(EngineCore& engine)
 	input.NextFrame();
 	input.accessMutex.unlock();
 	engine.EndProfile("Input");
+	
+	// Update game
+	engine.BeginProfile("Game Update", ImColor::HSV(.75f, 1.f, 1.f));
+	if (displayCoroutine != nullptr)
+	{
+		if (displayCoroutine.done())
+		{
+			displayCoroutine.destroy();
+			displayCoroutine = nullptr;
+		}
+		else
+		{
+			displayCoroutine();
+		}
+	}
 
 	// Update entities
-	engine.BeginProfile("Game Update", ImColor::HSV(.75f, 1.f, 1.f));
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 	{
 		EntityData& data = engine.m_entities[entity->dataIndex];
 
-		entity->rotation = XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart()));
+		if (entity->isSpinning)
+		{
+			entity->rotation = XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart()));
+		}
 
 		CreateWorldMatrix(data.constantBufferData.worldTransform, entity->scale, entity->rotation, entity->position);
 
@@ -144,8 +197,12 @@ void Game::UpdateGame(EngineCore& engine)
 
 	if (!showEscMenu)
 	{
+		const float maxPitch = XM_PI * 0.5;
+
 		playerYaw += input.mouseDeltaX * 0.003f;
 		playerPitch += input.mouseDeltaY * 0.003f;
+		if (playerPitch > maxPitch) playerPitch = maxPitch;
+		if (playerPitch < -maxPitch) playerPitch = -maxPitch;
 	}
 	camera.rotation = XMQuaternionMultiply(XMQuaternionRotationRollPitchYaw(0.f, -playerYaw, 0.f), XMQuaternionRotationRollPitchYaw(-playerPitch, 0.f, 0.f));
 
