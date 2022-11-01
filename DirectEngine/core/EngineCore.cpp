@@ -303,7 +303,7 @@ void EngineCore::LoadSizeDependentResources()
         CD3DX12_HEAP_PROPERTIES heapType(D3D12_HEAP_TYPE_DEFAULT);
         CD3DX12_RESOURCE_DESC depthTexture = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, m_width, m_height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 
-        m_device->CreateCommittedResource(&heapType, D3D12_HEAP_FLAG_NONE, &depthTexture, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, IID_PPV_ARGS(&m_depthStencilBuffer));
+        ThrowIfFailed(m_device->CreateCommittedResource(&heapType, D3D12_HEAP_FLAG_NONE, &depthTexture, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, IID_PPV_ARGS(&m_depthStencilBuffer)));
         m_depthStencilBuffer->SetName(L"Depth/Stencil Buffer");
         m_device->CreateDepthStencilView(m_depthStencilBuffer.Get(), &depthStencilDesc, m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
     }
@@ -554,7 +554,7 @@ void EngineCore::OnRender()
 
     if (m_wantedWindowMode != m_windowMode)
     {
-        ApplyWindowMode(m_wantedWindowMode);
+        ApplyWindowMode();
     }
 
     PopulateCommandList();
@@ -584,6 +584,8 @@ void EngineCore::OnRender()
 void EngineCore::OnDestroy()
 {
     WaitForGpu();
+    m_wantedWindowMode = WindowMode::Windowed;
+    ApplyWindowMode();
     CloseHandle(m_fenceEvent);
 }
 
@@ -792,8 +794,9 @@ void EngineCore::ToggleWindowMode()
     }
 }
 
-void EngineCore::ApplyWindowMode(WindowMode newMode)
+void EngineCore::ApplyWindowMode()
 {
+    if (m_windowMode == m_wantedWindowMode) return;
     m_windowMode = m_wantedWindowMode;
 
     BOOL isInFullscreen = false;

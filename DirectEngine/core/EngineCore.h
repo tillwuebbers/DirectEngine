@@ -181,7 +181,7 @@ public:
     void WaitForGpu();
     void CheckTearingSupport();
     void ToggleWindowMode();
-    void ApplyWindowMode(WindowMode newMode);
+    void ApplyWindowMode();
     void BeginProfile(std::string name, ImColor color);
     void EndProfile(std::string name);
     double TimeSinceStart();
