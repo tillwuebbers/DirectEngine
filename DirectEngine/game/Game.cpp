@@ -11,11 +11,11 @@ void CreateWorldMatrix(XMMATRIX& out, const XMVECTOR scale, const XMVECTOR rotat
 	out = DirectX::XMMatrixTranspose(DirectX::XMMatrixAffineTransformation(scale, XMVECTOR{}, rotation, position));
 }
 
-void UpdatePiecePosition(Entity* entity, const PuzzlePiece& piece)
+XMVECTOR GetPiecePosition(Entity* entity, const PuzzlePiece& piece)
 {
 	XMFLOAT3 scale;
 	XMStoreFloat3(&scale, entity->scale);
-	entity->position = { (float)piece.x * (1.f + BLOCK_DISPLAY_GAP) + scale.x / 2.f - 0.5f, 0.f, (float)piece.y * (1.f + BLOCK_DISPLAY_GAP) + scale.z / 2.f - 0.5f };
+	return { (float)piece.x * (1.f + BLOCK_DISPLAY_GAP) + scale.x / 2.f - 0.5f, 0.f, (float)piece.y * (1.f + BLOCK_DISPLAY_GAP) + scale.z / 2.f - 0.5f };
 }
 
 Entity* CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, const Game& game)
@@ -107,7 +107,7 @@ void Game::StartGame(EngineCore& engine)
 		pieceEntity->scale = { (float)piece.width + BLOCK_DISPLAY_GAP * (piece.width - 1), 1.f, (float)piece.height + BLOCK_DISPLAY_GAP * (piece.height - 1)};
 		pieceEntity->hasCubeCollision = true;
 
-		UpdatePiecePosition(puzzleEntities[i], piece);
+		puzzleEntities[i]->position = GetPiecePosition(puzzleEntities[i], piece);
 	}
 
 	float floorWidth = displayedPuzzle.width + BLOCK_DISPLAY_GAP * (displayedPuzzle.width - 1);
@@ -133,18 +133,32 @@ CoroutineReturn DisplayPuzzleSolution(MemoryArena& arena, std::coroutine_handle<
 {
 	CoroutineAwaiter awaiter{ handle };
 
-	float moveStartTime = engine->TimeSinceStart();
 
 	for (int i = 0; i < game->solver->solvedPosition.path.moveCount; i++)
 	{
-		while (engine->TimeSinceStart() < moveStartTime + SOLUTION_PLAYBACK_SPEED) co_await awaiter;
-		moveStartTime += SOLUTION_PLAYBACK_SPEED;
-
+		float moveStartTime = engine->TimeSinceStart();
 		PuzzleMove& move = game->solver->solvedPosition.path.moves[i];
 		PuzzlePiece& piece = game->displayedPuzzle.pieces[move.pieceIndex];
+
+		XMVECTOR startPos = GetPiecePosition(game->puzzleEntities[move.pieceIndex], piece);
 		piece.x += move.x;
 		piece.y += move.y;
-		UpdatePiecePosition(game->puzzleEntities[move.pieceIndex], piece);
+		XMVECTOR endPos = GetPiecePosition(game->puzzleEntities[move.pieceIndex], piece);
+		
+		float timeInStep = 0.f;
+		do
+		{
+			co_await awaiter;
+			timeInStep = engine->TimeSinceStart() - moveStartTime;
+			if (timeInStep > SOLUTION_PLAYBACK_SPEED) timeInStep = SOLUTION_PLAYBACK_SPEED;
+
+			float progress = timeInStep / SOLUTION_PLAYBACK_SPEED;
+			float progressSq = progress * progress;
+			float progressCb = progressSq * progress;
+			float smoothProgress = 3.f * progressSq - 2.f * progressCb;
+			game->puzzleEntities[move.pieceIndex]->position = XMVectorLerp(startPos, endPos, smoothProgress);
+
+		} while (timeInStep < SOLUTION_PLAYBACK_SPEED);
 	}
 }
 
@@ -216,7 +230,7 @@ void Game::UpdateGame(EngineCore& engine)
 			displayedPuzzle = solver->puzzle;
 			for (int i = 0; i < displayedPuzzle.pieceCount; i++)
 			{
-				UpdatePiecePosition(puzzleEntities[i], displayedPuzzle.pieces[i]);
+				puzzleEntities[i]->position = GetPiecePosition(puzzleEntities[i], displayedPuzzle.pieces[i]);
 			}
 			DisplayPuzzleSolution(puzzleArena, &displayCoroutine, this, &engine);
 		}
