@@ -63,23 +63,24 @@ struct EntityConstantBuffer
 };
 static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
-struct EntityData
+struct DrawCallData
 {
-    std::vector<ComPtr<ID3D12Resource>> constantBuffers = {};
-    EntityConstantBuffer constantBufferData = {};
-    std::vector<UINT8*> mappedConstantBufferData = {};
-    size_t meshIndex;
-    bool visible = true;
-};
-
-struct MeshData
-{
-    UINT vertexCount = 0;
-    UINT indexCount = 0;
-    UINT instanceCount = 1;
+    size_t vertexCount = 0;
+    size_t maxVertexCount = 0;
+    size_t vertexStride = 0;
+    int descriptorOffset = 0;
     ComPtr<ID3D12Resource> vertexUploadBuffer;
     ComPtr<ID3D12Resource> vertexBuffer;
-    D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
+    std::vector<D3D12_VERTEX_BUFFER_VIEW> vertexBufferViews = {};
+    std::vector<ComPtr<ID3D12Resource>> constantBuffers = {};
+    std::vector<UINT8*> mappedConstantBufferData = {};
+};
+
+struct EntityData
+{
+    EntityConstantBuffer constantBufferData = {};
+    bool visible = true;
+    size_t drawCallIndex;
 };
 
 class EngineCore
@@ -127,11 +128,11 @@ public:
     UINT m_rtvDescriptorSize;
 
     // App resources
-    std::vector<ComPtr<ID3D12Resource>> m_constantBuffers = {};
+    std::vector<ComPtr<ID3D12Resource>> m_sceneConstantBuffers = {};
     ComPtr<ID3D12Resource> m_depthStencilBuffer = nullptr;
-    SceneConstantBuffer m_constantBufferData;
-    std::vector<UINT8*> m_mappedConstantBufferData = {};
-    std::vector<MeshData> m_meshes = {};
+    SceneConstantBuffer m_sceneData;
+    std::vector<UINT8*> m_mappedSceneData = {};
+    std::vector<DrawCallData> m_drawCalls = {};
     std::vector<EntityData> m_entities = {};
 
     // Synchronization objects
@@ -176,7 +177,9 @@ public:
     void LoadSizeDependentResources();
     HRESULT CreatePipelineState();
     void LoadAssets();
-    size_t CreateMesh(const void* vertexData, const size_t vertexStride, const size_t vertexCount, const size_t instanceCount);
+    size_t CreateDrawCall(const size_t maxVertices, const size_t vertexStride);
+    void UploadMesh(const size_t drawCallIndex, const void* vertexData, const size_t vertexCount);
+    size_t CreateEntity(const size_t drawCallIndex);
     CD3DX12_GPU_DESCRIPTOR_HANDLE* GetConstantBufferHandle(int offset);
     void PopulateCommandList();
     void ScheduleCommandList(CommandList* newList);
@@ -194,7 +197,7 @@ public:
     UINT cbcount = 0;
 
     template<typename T>
-    void CreateConstantBuffers(std::vector<ComPtr<ID3D12Resource>>& buffers, T* data, std::vector<UINT8*>& outMappedData)
+    void CreateConstantBuffers(std::vector<ComPtr<ID3D12Resource>>& buffers, std::vector<UINT8*>& outMappedData)
     {
         const UINT constantBufferSize = sizeof(T);
         assert(constantBufferSize % 256 == 0);
@@ -220,7 +223,6 @@ public:
             // app closes. Keeping things mapped for the lifetime of the resource is okay.
             CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
             ThrowIfFailed(buffers[i]->Map(0, &readRange, reinterpret_cast<void**>(&outMappedData[i])));
-            memcpy(outMappedData[i], data, sizeof(T));
 
             cbcount++;
         }

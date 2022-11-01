@@ -446,11 +446,12 @@ void EngineCore::LoadAssets()
     ThrowIfFailed(m_uploadCommandList.list->Close());
     m_uploadCommandList.list->SetName(L"Upload Command List");
 
-    // Create the constant buffer.
-    CreateConstantBuffers<SceneConstantBuffer>(m_constantBuffers, & m_constantBufferData, m_mappedConstantBufferData);
+    // Shader values for scene
+    CreateConstantBuffers<SceneConstantBuffer>(m_sceneConstantBuffers, m_mappedSceneData);
     for (int i = 0; i < FrameCount; i++)
     {
-        m_constantBuffers[i]->SetName(std::format(L"Scene Constant Buffer {}", i).c_str());
+        memcpy(m_mappedSceneData[i], &m_sceneData, sizeof(SceneConstantBuffer));
+        m_sceneConstantBuffers[i]->SetName(std::format(L"Scene Constant Buffer {}", i).c_str());
     }
 
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
@@ -474,46 +475,71 @@ void EngineCore::LoadAssets()
     }
 }
 
-size_t EngineCore::CreateMesh(const void* vertexData, const size_t vertexStride, const size_t vertexCount, const size_t instanceCount)
+size_t EngineCore::CreateDrawCall(const size_t maxVertices, const size_t vertexStride)
 {
-    size_t vertexByteCount = vertexStride * vertexCount;
-   
-    MeshData& mesh = m_meshes.emplace_back();
-    mesh.vertexCount = vertexCount;
-    mesh.instanceCount = instanceCount;
+    const size_t maxByteCount = vertexStride * maxVertices;
 
-    // Create temporary buffer for upload
+    DrawCallData& data = m_drawCalls.emplace_back();
+    data.maxVertexCount = maxVertices;
+    size_t dataIndex = m_drawCalls.size() - 1;
+    data.descriptorOffset = (dataIndex + 1) * FrameCount; // Offset by 1 for scene constant buffer
+    data.vertexStride = vertexStride;
+
+    // Create buffer for upload
     CD3DX12_HEAP_PROPERTIES tempHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    CD3DX12_RESOURCE_DESC tempBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexByteCount);
-    ThrowIfFailed(m_device->CreateCommittedResource(&tempHeapProperties, D3D12_HEAP_FLAG_NONE, &tempBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&mesh.vertexUploadBuffer)));
-    mesh.vertexUploadBuffer->SetName(L"Temp Vertex Upload Buffer");
+    CD3DX12_RESOURCE_DESC tempBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(maxByteCount);
+    ThrowIfFailed(m_device->CreateCommittedResource(&tempHeapProperties, D3D12_HEAP_FLAG_NONE, &tempBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&data.vertexUploadBuffer)));
+    data.vertexUploadBuffer->SetName(L"Vertex Upload Buffer");
+
+    // Create real vertex buffer on gpu memory
+    CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+    CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(maxByteCount);
+    ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&data.vertexBuffer)));
+    data.vertexBuffer->SetName(L"Vertex Buffer");
+
+    CreateConstantBuffers<EntityConstantBuffer>(data.constantBuffers, data.mappedConstantBufferData);
+
+    return dataIndex;
+}
+
+void EngineCore::UploadMesh(const size_t drawCallIndex, const void* vertexData, const size_t vertexCount)
+{
+    DrawCallData& data = m_drawCalls[drawCallIndex];
+    assert(data.vertexCount + vertexCount <= data.maxVertexCount);
+    data.vertexCount += vertexCount;
+    const size_t addedByteCount = data.vertexStride * vertexCount;
 
     // Upload to temp buffer
     UINT8* pVertexDataBegin = nullptr;
     CD3DX12_RANGE readRange(0, 0);
-    ThrowIfFailed(mesh.vertexUploadBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)));
-    memcpy(pVertexDataBegin, vertexData, vertexByteCount);
-    mesh.vertexUploadBuffer->Unmap(0, nullptr);
+    ThrowIfFailed(data.vertexUploadBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)));
+    memcpy(pVertexDataBegin, vertexData, addedByteCount);
+    data.vertexUploadBuffer->Unmap(0, nullptr);
 
-    // Create real vertex buffer on gpu memory
-    CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexByteCount);
-    ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&mesh.vertexBuffer)));
-    mesh.vertexBuffer->SetName(L"Vertex Buffer");
-
-    // Copy the data to the vertex buffer.
-    m_uploadCommandList.list->CopyResource(mesh.vertexBuffer.Get(), mesh.vertexUploadBuffer.Get());
-    CD3DX12_RESOURCE_BARRIER transition = CD3DX12_RESOURCE_BARRIER::Transition(mesh.vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+    // TODO: account for offsets from multiple uploads
+    // Copy data to vertex buffer
+    m_uploadCommandList.list->CopyResource(data.vertexBuffer.Get(), data.vertexUploadBuffer.Get());
+    CD3DX12_RESOURCE_BARRIER transition = CD3DX12_RESOURCE_BARRIER::Transition(data.vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
     m_uploadCommandList.list->ResourceBarrier(1, &transition);
 
-    // Initialize the vertex buffer view.
-    mesh.vertexBufferView.BufferLocation = mesh.vertexBuffer->GetGPUVirtualAddress();
-    mesh.vertexBufferView.StrideInBytes = vertexStride;
-    mesh.vertexBufferView.SizeInBytes = vertexByteCount;
+    // Create view
+    D3D12_VERTEX_BUFFER_VIEW& view = data.vertexBufferViews.emplace_back();
+    view.BufferLocation = data.vertexBuffer->GetGPUVirtualAddress();
+    view.StrideInBytes = data.vertexStride;
+    view.SizeInBytes = addedByteCount;
 
     ScheduleCommandList(&m_uploadCommandList);
+}
 
-    return m_meshes.size() - 1;
+size_t EngineCore::CreateEntity(const size_t drawCallIndex)
+{
+    DrawCallData& data = m_drawCalls[drawCallIndex];
+    EntityData& entity = m_entities.emplace_back();
+    size_t entityIndex = m_entities.size() - 1;
+
+    entity.drawCallIndex = drawCallIndex;
+
+    return entityIndex;
 }
 
 void EngineCore::OnUpdate()
@@ -523,8 +549,8 @@ void EngineCore::OnUpdate()
     m_updateDeltaTime = NanosecondsToSeconds(now - m_frameStartTime);
     m_frameStartTime = now;
 
-    m_constantBufferData.time = static_cast<float>(secondsSinceStart);
-    m_constantBufferData.deltaTime = static_cast<float>(m_updateDeltaTime);
+    m_sceneData.time = static_cast<float>(secondsSinceStart);
+    m_sceneData.deltaTime = static_cast<float>(m_updateDeltaTime);
 
     NewImguiFrame();
     UpdateImgui(this);
@@ -546,7 +572,7 @@ void EngineCore::OnUpdate()
 
     BeginProfile("Finish Update", ImColor::HSV(.2f, .33f, 1.f));
     ThrowIfFailed(m_uploadCommandList.list->Close());
-    memcpy(m_mappedConstantBufferData[m_frameIndex], &m_constantBufferData, sizeof(m_constantBufferData));
+    memcpy(m_mappedSceneData[m_frameIndex], &m_sceneData, sizeof(m_sceneData));
     EndProfile("Finish Update");
 }
 
@@ -634,7 +660,7 @@ void EngineCore::PopulateCommandList()
     ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap.Get() };
     renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
-    auto* cbvStart = GetConstantBufferHandle(0 * 3 + m_frameIndex);
+    auto* cbvStart = GetConstantBufferHandle(0 * FrameCount + m_frameIndex);
     renderList->SetGraphicsRootDescriptorTable(0, *cbvStart);
 
     // Indicate that the back buffer will be used as a render target.
@@ -651,21 +677,23 @@ void EngineCore::PopulateCommandList()
     renderList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    // TODO: instanced rendering, iterate through meshes instead of entities
-    int entityIndex = 0;
-    for (EntityData& entity : m_entities)
+    for (int drawIdx = 0; drawIdx < m_drawCalls.size(); drawIdx++)
     {
-        if (!entity.visible) continue;
+        DrawCallData& data = m_drawCalls[drawIdx];
 
-        MeshData& mesh = m_meshes[entity.meshIndex];
+        int activeEntityCount = 0;
+        for (int entityIdx = 0; entityIdx < m_entities.size(); entityIdx++)
+        {
+            EntityData& entity = m_entities[entityIdx];
+            if (!entity.visible || entity.drawCallIndex != drawIdx) continue;
 
-        auto* cbvEntityHandle = GetConstantBufferHandle((entityIndex + 1) * 3 + m_frameIndex);
-        renderList->SetGraphicsRootDescriptorTable(1, *cbvEntityHandle);
+            memcpy(data.mappedConstantBufferData[m_frameIndex] + activeEntityCount, &entity.constantBufferData, sizeof(EntityConstantBuffer));
+            activeEntityCount++;
+        }
 
-        renderList->IASetVertexBuffers(0, 1, &mesh.vertexBufferView);
-        renderList->DrawInstanced(mesh.vertexCount, mesh.instanceCount, 0, 0);
-
-        entityIndex++;
+        renderList->IASetVertexBuffers(0, data.vertexBufferViews.size(), data.vertexBufferViews.data());
+        renderList->SetGraphicsRootDescriptorTable(1, *GetConstantBufferHandle(data.descriptorOffset + m_frameIndex));
+        renderList->DrawInstanced(data.vertexCount, 1, 0, 0);
     }
 
     // UI

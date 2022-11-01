@@ -94,8 +94,7 @@ public:
 	void UpdateGame(EngineCore& engine) override;
 	void DrawUI(EngineCore& engine);
 
-	size_t CreateMeshFromFile(EngineCore& engine, const std::string& filePath, const std::string& materialPath);
-	Entity* CreateEntity(EngineCore& engine, size_t meshIndex);
+	Entity* CreateEntity(EngineCore& engine, size_t drawCallIndex);
 	void UpdateCursorState();
 
 	EngineInput& GetInput() override;

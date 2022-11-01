@@ -98,7 +98,12 @@ void Game::StartGame(EngineCore& engine)
 	entity2->position = XMVECTOR{ 0.f, 0.f, 5.f };
 	entity2->scale = XMVECTOR{ .3f, .3f, .3f };*/
 
-	size_t cubeMeshIndex = CreateMeshFromFile(engine, "models/cube.obj", "models/");
+	size_t drawCallIndex = engine.CreateDrawCall(1024, sizeof(Vertex));
+
+	/*MeshFile cubeMeshFile{};
+	LoadMeshFromFile(cubeMeshFile, "models/cube.obj", "models/", debugLog);
+	engine.UploadMesh(drawCallIndex, cubeMeshFile.vertices.data(), cubeMeshFile.vertices.size());
+
 	for (int i = 0; i < displayedPuzzle.pieceCount; i++)
 	{
 		PuzzlePiece& piece = displayedPuzzle.pieces[i];
@@ -108,20 +113,21 @@ void Game::StartGame(EngineCore& engine)
 		pieceEntity->hasCubeCollision = true;
 
 		puzzleEntities[i]->position = GetPiecePosition(puzzleEntities[i], piece);
-	}
+	}*/
 
 	float floorWidth = displayedPuzzle.width + BLOCK_DISPLAY_GAP * (displayedPuzzle.width - 1);
 	float floorHeight = displayedPuzzle.height + BLOCK_DISPLAY_GAP * (displayedPuzzle.height - 1);
 	MeshFile quadFile{};
 	CreateQuad(quadFile, floorWidth, floorHeight);
-	size_t quadMeshIndex = engine.CreateMesh(quadFile.vertices.data(), sizeof(Vertex), quadFile.vertices.size(), 1);
-	Entity* quadEntity = CreateEntity(engine, quadMeshIndex);
+	engine.UploadMesh(drawCallIndex, quadFile.vertices.data(), quadFile.vertices.size());
+
+	Entity* quadEntity = CreateEntity(engine, drawCallIndex);
 	quadEntity->position = { -0.5f, -0.5f, -0.5f };
 	quadEntity->GetData(engine).constantBufferData.color = { 0.f, .5f, 0.f };
 
-	testCube = CreateEntity(engine, cubeMeshIndex);
+	/*testCube = CreateEntity(engine, cubeMeshIndex);
 	testCube->GetData(engine).constantBufferData.color = { 1.f, 1.f, 1.f };
-	testCube->scale = { .01f, .01f, .01f };
+	testCube->scale = { .01f, .01f, .01f };*/
 
 	camera.position = { 0.f, 10.f, 0.f };
 	playerPitch = XM_PI;
@@ -281,11 +287,11 @@ void Game::UpdateGame(EngineCore& engine)
 	camera.rotation = XMQuaternionMultiply(XMQuaternionRotationRollPitchYaw(playerPitch, 0.f, 0.f), XMQuaternionRotationRollPitchYaw(0.f, playerYaw, 0.f));
 	CalculateDirectionVectors(camForward, camRight, camera.rotation);
 
-	engine.m_constantBufferData.cameraTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
-	engine.m_constantBufferData.clipTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
+	engine.m_sceneData.cameraTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
+	engine.m_sceneData.clipTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
 
 	// Test
-	testCube->position = XMVectorAdd(camera.position, camForward);
+	//testCube->position = XMVectorAdd(camera.position, camForward);
 
 	// Update entities
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
@@ -298,8 +304,6 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 
 		CreateWorldMatrix(data.constantBufferData.worldTransform, entity->scale, entity->rotation, entity->position);
-
-		memcpy(data.mappedConstantBufferData[engine.m_frameIndex], &data.constantBufferData, sizeof(data.constantBufferData));
 	}
 
 	engine.EndProfile("Game Update");
@@ -319,27 +323,10 @@ EngineInput& Game::GetInput()
 	return input;
 }
 
-size_t Game::CreateMeshFromFile(EngineCore& engine, const std::string& filePath, const std::string& materialPath)
-{
-	MeshFile mesh{};
-	LoadMeshFromFile(mesh, filePath, materialPath, debugLog);
-	return engine.CreateMesh(mesh.vertices.data(), sizeof(Vertex), mesh.vertices.size(), 1);
-}
-
-Entity* Game::CreateEntity(EngineCore& engine, size_t meshIndex)
+Entity* Game::CreateEntity(EngineCore& engine, size_t drawCallIndex)
 {
 	Entity* entity = NewObject(entityArena, Entity);
-	
-	EntityData& data = engine.m_entities.emplace_back();
-	entity->dataIndex = engine.m_entities.size() - 1;
-	data.meshIndex = meshIndex;
-
-	MeshData& mesh = engine.m_meshes[meshIndex];
-	engine.CreateConstantBuffers<EntityConstantBuffer>(data.constantBuffers, &data.constantBufferData, data.mappedConstantBufferData);
-	for (int i = 0; i < engine.FrameCount; i++)
-	{
-		data.constantBuffers[i]->SetName(std::format(L"Entity Constant Buffer {}/{}", meshIndex, i).c_str());
-	}
+	entity->dataIndex = engine.CreateEntity(drawCallIndex);
 	return entity;
 }
 
