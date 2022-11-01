@@ -129,15 +129,15 @@ void Game::StartGame(EngineCore& engine)
 	UpdateCursorState();
 }
 
-CoroutineReturn DisplayPuzzleSolution(MemoryArena& arena, std::coroutine_handle<>* handle, Game* game, EngineCore& engine)
+CoroutineReturn DisplayPuzzleSolution(MemoryArena& arena, std::coroutine_handle<>* handle, Game* game, EngineCore* engine)
 {
 	CoroutineAwaiter awaiter{ handle };
 
-	float moveStartTime = engine.TimeSinceStart();
+	float moveStartTime = engine->TimeSinceStart();
 
 	for (int i = 0; i < game->solver->solvedPosition.path.moveCount; i++)
 	{
-		while (engine.TimeSinceStart() < moveStartTime + SOLUTION_PLAYBACK_SPEED) co_await awaiter;
+		while (engine->TimeSinceStart() < moveStartTime + SOLUTION_PLAYBACK_SPEED) co_await awaiter;
 		moveStartTime += SOLUTION_PLAYBACK_SPEED;
 
 		PuzzleMove& move = game->solver->solvedPosition.path.moves[i];
@@ -148,20 +148,26 @@ CoroutineReturn DisplayPuzzleSolution(MemoryArena& arena, std::coroutine_handle<
 	}
 }
 
-void Game::UpdateGame(EngineCore& engine)
+void CalculateDirectionVectors(XMVECTOR& outForward, XMVECTOR& outRight, XMVECTOR inRotation)
 {
-	XMMATRIX camRotation = XMMatrixRotationQuaternion(camera.rotation);
+	XMMATRIX camRotation = XMMatrixRotationQuaternion(inRotation);
 	XMVECTOR right{ 1, 0, 0 };
 	XMVECTOR forward{ 0, 0, 1 };
-	XMVECTOR camForward = XMVector3Transform(forward, camRotation);
-	XMVECTOR camRight = XMVector3Transform(right, camRotation);
+	outForward = XMVector3Transform(forward, camRotation);
+	outRight = XMVector3Transform(right, camRotation);
+}
+
+void Game::UpdateGame(EngineCore& engine)
+{
+	XMVECTOR camForward;
+	XMVECTOR camRight;
+	CalculateDirectionVectors(camForward, camRight, camera.rotation);
 
 	// Reset per frame values
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 	{
 		entity->GetData(engine).constantBufferData.isSelected = false;
 	}
-	testCube->GetData(engine).visible = false;
 
 	// Read Inputs
 	engine.BeginProfile("Input", ImColor::HSV(.5f, 1.f, .5f));
@@ -195,9 +201,6 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 	if (input.KeyDown(VK_LBUTTON))
 	{
-		testCube->position = XMVectorAdd(camera.position, camForward);
-		testCube->GetData(engine).visible = true;
-
 		Entity* collision = CollideWithWorld(camera.position, camForward, *this);
 		if (collision != nullptr)
 		{
@@ -215,7 +218,7 @@ void Game::UpdateGame(EngineCore& engine)
 			{
 				UpdatePiecePosition(puzzleEntities[i], displayedPuzzle.pieces[i]);
 			}
-			DisplayPuzzleSolution(puzzleArena, &displayCoroutine, this, engine);
+			DisplayPuzzleSolution(puzzleArena, &displayCoroutine, this, &engine);
 		}
 	}
 	if (input.KeyComboJustPressed(VK_KEY_D, VK_CONTROL))
@@ -229,6 +232,16 @@ void Game::UpdateGame(EngineCore& engine)
 	if (input.KeyComboJustPressed(VK_KEY_P, VK_CONTROL))
 	{
 		showProfiler = !showProfiler;
+	}
+
+	if (!showEscMenu)
+	{
+		const float maxPitch = XM_PI * 0.5;
+
+		playerYaw += input.mouseDeltaX * 0.003f;
+		playerPitch += input.mouseDeltaY * 0.003f;
+		if (playerPitch > maxPitch) playerPitch = maxPitch;
+		if (playerPitch < -maxPitch) playerPitch = -maxPitch;
 	}
 
 	input.NextFrame();
@@ -250,6 +263,16 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 	}
 
+	// Update Camera
+	camera.rotation = XMQuaternionMultiply(XMQuaternionRotationRollPitchYaw(playerPitch, 0.f, 0.f), XMQuaternionRotationRollPitchYaw(0.f, playerYaw, 0.f));
+	CalculateDirectionVectors(camForward, camRight, camera.rotation);
+
+	engine.m_constantBufferData.cameraTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
+	engine.m_constantBufferData.clipTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
+
+	// Test
+	testCube->position = XMVectorAdd(camera.position, camForward);
+
 	// Update entities
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 	{
@@ -262,23 +285,8 @@ void Game::UpdateGame(EngineCore& engine)
 
 		CreateWorldMatrix(data.constantBufferData.worldTransform, entity->scale, entity->rotation, entity->position);
 
-		// TODO: Race condition?
-		memcpy(data.mappedConstantBufferData, &data.constantBufferData, sizeof(data.constantBufferData));
+		memcpy(data.mappedConstantBufferData[engine.m_frameIndex], &data.constantBufferData, sizeof(data.constantBufferData));
 	}
-
-	if (!showEscMenu)
-	{
-		const float maxPitch = XM_PI * 0.5;
-
-		playerYaw += input.mouseDeltaX * 0.003f;
-		playerPitch += input.mouseDeltaY * 0.003f;
-		if (playerPitch > maxPitch) playerPitch = maxPitch;
-		if (playerPitch < -maxPitch) playerPitch = -maxPitch;
-	}
-	camera.rotation = XMQuaternionMultiply(XMQuaternionRotationRollPitchYaw(playerPitch, 0.f, 0.f), XMQuaternionRotationRollPitchYaw(0.f, playerYaw, 0.f));
-
-	engine.m_constantBufferData.cameraTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
-	engine.m_constantBufferData.clipTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
 
 	engine.EndProfile("Game Update");
 
@@ -313,8 +321,11 @@ Entity* Game::CreateEntity(EngineCore& engine, size_t meshIndex)
 	data.meshIndex = meshIndex;
 
 	MeshData& mesh = engine.m_meshes[meshIndex];
-	engine.CreateConstantBuffer<EntityConstantBuffer>(data.constantBuffer, &data.constantBufferData, &data.mappedConstantBufferData);
-	data.constantBuffer->SetName(std::format(L"Entity Constant Buffer {}", meshIndex).c_str());
+	engine.CreateConstantBuffers<EntityConstantBuffer>(data.constantBuffers, &data.constantBufferData, data.mappedConstantBufferData);
+	for (int i = 0; i < engine.FrameCount; i++)
+	{
+		data.constantBuffers[i]->SetName(std::format(L"Entity Constant Buffer {}/{}", meshIndex, i).c_str());
+	}
 	return entity;
 }
 

@@ -20,6 +20,7 @@ void SetupImgui(HWND hwnd, EngineCore* engine, int framesInFlight)
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	ImGuiStyle& style = ImGui::GetStyle();
 	ImGui::StyleColorsDark();
 
 	// DX12 descriptor heap
@@ -42,6 +43,10 @@ void SetupImgui(HWND hwnd, EngineCore* engine, int framesInFlight)
 	iconsConfig.PixelSnapH = true;
 	iconsConfig.GlyphOffset = ImVec2{ 0, 4 };
 	io.Fonts->AddFontFromFileTTF("remixicon.ttf", 16.0f, &iconsConfig, icons_ranges);
+
+	// Set flags
+	io.ConfigWindowsMoveFromTitleBarOnly = true;
+	style.FrameRounding = 2.f;
 
 	initialized = true;
 }

@@ -447,8 +447,11 @@ void EngineCore::LoadAssets()
     m_uploadCommandList.list->SetName(L"Upload Command List");
 
     // Create the constant buffer.
-    CreateConstantBuffer<SceneConstantBuffer>(m_constantBuffer, & m_constantBufferData, &m_pCbvDataBegin);
-    m_constantBuffer->SetName(L"Scene Constant Buffer");
+    CreateConstantBuffers<SceneConstantBuffer>(m_constantBuffers, & m_constantBufferData, m_mappedConstantBufferData);
+    for (int i = 0; i < FrameCount; i++)
+    {
+        m_constantBuffers[i]->SetName(std::format(L"Scene Constant Buffer {}", i).c_str());
+    }
 
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
     {
@@ -543,7 +546,7 @@ void EngineCore::OnUpdate()
 
     BeginProfile("Finish Update", ImColor::HSV(.2f, .33f, 1.f));
     ThrowIfFailed(m_uploadCommandList.list->Close());
-    memcpy(m_pCbvDataBegin, &m_constantBufferData, sizeof(m_constantBufferData));
+    memcpy(m_mappedConstantBufferData[m_frameIndex], &m_constantBufferData, sizeof(m_constantBufferData));
     EndProfile("Finish Update");
 }
 
@@ -579,6 +582,8 @@ void EngineCore::OnRender()
     BeginProfile("Frame Fence", ImColor::HSV(.4f, .5f, 1.f));
     MoveToNextFrame();
     EndProfile("Frame Fence");
+
+    frameArena.Reset();
 }
 
 void EngineCore::OnDestroy()
@@ -597,6 +602,14 @@ void EngineCore::ScheduleCommandList(CommandList* newList)
         if (newList == list) return;
     }
     m_scheduledCommandLists.push_back(newList);
+}
+
+CD3DX12_GPU_DESCRIPTOR_HANDLE* EngineCore::GetConstantBufferHandle(int offset)
+{
+    CD3DX12_GPU_DESCRIPTOR_HANDLE* descriptor = NewObject(frameArena, CD3DX12_GPU_DESCRIPTOR_HANDLE);
+    D3D12_GPU_DESCRIPTOR_HANDLE start = m_cbvHeap->GetGPUDescriptorHandleForHeapStart();
+    descriptor->InitOffsetted(start, offset, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+    return descriptor;
 }
 
 void EngineCore::PopulateCommandList()
@@ -621,8 +634,8 @@ void EngineCore::PopulateCommandList()
     ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap.Get() };
     renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
-    D3D12_GPU_DESCRIPTOR_HANDLE cbvStart = m_cbvHeap->GetGPUDescriptorHandleForHeapStart();
-    renderList->SetGraphicsRootDescriptorTable(0, cbvStart);
+    auto* cbvStart = GetConstantBufferHandle(0 * 3 + m_frameIndex);
+    renderList->SetGraphicsRootDescriptorTable(0, *cbvStart);
 
     // Indicate that the back buffer will be used as a render target.
     CD3DX12_RESOURCE_BARRIER barrierToRender = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -646,9 +659,8 @@ void EngineCore::PopulateCommandList()
 
         MeshData& mesh = m_meshes[entity.meshIndex];
 
-        CD3DX12_GPU_DESCRIPTOR_HANDLE cbvNext{};
-        cbvNext.InitOffsetted(cbvStart, 1 + entityIndex, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
-        renderList->SetGraphicsRootDescriptorTable(1, cbvNext);
+        auto* cbvEntityHandle = GetConstantBufferHandle((entityIndex + 1) * 3 + m_frameIndex);
+        renderList->SetGraphicsRootDescriptorTable(1, *cbvEntityHandle);
 
         renderList->IASetVertexBuffers(0, 1, &mesh.vertexBufferView);
         renderList->DrawInstanced(mesh.vertexCount, mesh.instanceCount, 0, 0);

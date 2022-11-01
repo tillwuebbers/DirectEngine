@@ -65,9 +65,9 @@ static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size m
 
 struct EntityData
 {
-    ComPtr<ID3D12Resource> constantBuffer = nullptr;
+    std::vector<ComPtr<ID3D12Resource>> constantBuffers = {};
     EntityConstantBuffer constantBufferData = {};
-    UINT8* mappedConstantBufferData;
+    std::vector<UINT8*> mappedConstantBufferData = {};
     size_t meshIndex;
     bool visible = true;
 };
@@ -101,6 +101,8 @@ public:
     bool m_gameStarted = false;
     bool m_quit = false;
 
+    MemoryArena frameArena = {};
+
     // Window Handle
     HWND m_hwnd;
     std::wstring m_windowName = L"DirectEngine";
@@ -125,10 +127,10 @@ public:
     UINT m_rtvDescriptorSize;
 
     // App resources
-    ComPtr<ID3D12Resource> m_constantBuffer = nullptr;
+    std::vector<ComPtr<ID3D12Resource>> m_constantBuffers = {};
     ComPtr<ID3D12Resource> m_depthStencilBuffer = nullptr;
     SceneConstantBuffer m_constantBufferData;
-    UINT8* m_pCbvDataBegin = nullptr;
+    std::vector<UINT8*> m_mappedConstantBufferData = {};
     std::vector<MeshData> m_meshes = {};
     std::vector<EntityData> m_entities = {};
 
@@ -175,6 +177,7 @@ public:
     HRESULT CreatePipelineState();
     void LoadAssets();
     size_t CreateMesh(const void* vertexData, const size_t vertexStride, const size_t vertexCount, const size_t instanceCount);
+    CD3DX12_GPU_DESCRIPTOR_HANDLE* GetConstantBufferHandle(int offset);
     void PopulateCommandList();
     void ScheduleCommandList(CommandList* newList);
     void MoveToNextFrame();
@@ -191,31 +194,36 @@ public:
     UINT cbcount = 0;
 
     template<typename T>
-    void CreateConstantBuffer(ComPtr<ID3D12Resource>& buffer, T* data, UINT8** outMappedData)
+    void CreateConstantBuffers(std::vector<ComPtr<ID3D12Resource>>& buffers, T* data, std::vector<UINT8*>& outMappedData)
     {
         const UINT constantBufferSize = sizeof(T);
         assert(constantBufferSize % 256 == 0);
+        buffers.resize(FrameCount);
+        outMappedData.resize(FrameCount);
 
-        CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-        CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(constantBufferSize);
-        ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&buffer)));
+        for (int i = 0; i < FrameCount; i++)
+        {
+            CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+            CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(constantBufferSize);
+            ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&buffers[i])));
 
-        // Describe and create a constant buffer view.
-        D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-        cbvDesc.BufferLocation = buffer->GetGPUVirtualAddress();
-        cbvDesc.SizeInBytes = constantBufferSize;
-        D3D12_CPU_DESCRIPTOR_HANDLE heapStart = m_cbvHeap->GetCPUDescriptorHandleForHeapStart();
-        CD3DX12_CPU_DESCRIPTOR_HANDLE heapEntry{};
-        heapEntry.InitOffsetted(heapStart, cbcount * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
-        m_device->CreateConstantBufferView(&cbvDesc, heapEntry);
+            // Describe and create a constant buffer view.
+            D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+            cbvDesc.BufferLocation = buffers[i]->GetGPUVirtualAddress();
+            cbvDesc.SizeInBytes = constantBufferSize;
+            D3D12_CPU_DESCRIPTOR_HANDLE heapStart = m_cbvHeap->GetCPUDescriptorHandleForHeapStart();
+            CD3DX12_CPU_DESCRIPTOR_HANDLE heapEntry{};
+            heapEntry.InitOffsetted(heapStart, cbcount * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+            m_device->CreateConstantBufferView(&cbvDesc, heapEntry);
 
-        // Map and initialize the constant buffer. We don't unmap this until the
-        // app closes. Keeping things mapped for the lifetime of the resource is okay.
-        CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
-        ThrowIfFailed(buffer->Map(0, &readRange, reinterpret_cast<void**>(outMappedData)));
-        memcpy(*outMappedData, data, sizeof(T));
+            // Map and initialize the constant buffer. We don't unmap this until the
+            // app closes. Keeping things mapped for the lifetime of the resource is okay.
+            CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
+            ThrowIfFailed(buffers[i]->Map(0, &readRange, reinterpret_cast<void**>(&outMappedData[i])));
+            memcpy(outMappedData[i], data, sizeof(T));
 
-        cbcount++;
+            cbcount++;
+        }
     }
 };
 
