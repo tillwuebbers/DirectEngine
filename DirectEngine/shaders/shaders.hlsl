@@ -8,9 +8,9 @@ cbuffer SceneConstantBuffer : register(b0)
 
 cbuffer EntityConstantBuffer : register(b1)
 {
-    float4x4 worldTransform[8];
-    float4 color[8];
-    bool isSelected[8];
+    float4x4 worldTransform;
+    float4 color;
+    bool isSelected;
 };
 
 struct PSInput
@@ -19,19 +19,19 @@ struct PSInput
     float4 color : COLOR;
 };
 
-PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, uint entityID : ENTITY_ID)
+PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR)
 {
     PSInput result;
 
-    float4 worldPos = mul(position, worldTransform[entityID]);
+    float4 worldPos = mul(position, worldTransform);
 
     float4x4 vp = mul(cameraTransform, clipTransform);
     result.position = mul(worldPos, vp);
     
-    result.color = color[entityID];
-    if (isSelected[entityID])
+    result.color = color;
+    if (isSelected)
     {
-        result.color = float4(1., 0., 1., 1.);// += float4(.1, .1, .1, .1);
+        result.color = float4(1., 0., 1., 1.);
     }
 
     return result;

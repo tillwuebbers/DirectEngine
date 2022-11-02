@@ -57,10 +57,10 @@ static_assert((sizeof(SceneConstantBuffer) % 256) == 0, "Constant Buffer size mu
 
 struct EntityConstantBuffer
 {
-    XMMATRIX worldTransform[8] = {};
-    XMVECTOR color[8];
-    XMVECTOR isSelected[8];
-    //float padding[0];
+    XMMATRIX worldTransform = {};
+    XMVECTOR color;
+    bool isSelected;
+    float padding[(256 - 96) / 4];
 };
 const int debugbuffersize = sizeof(EntityConstantBuffer) % 256;
 static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
@@ -70,20 +70,20 @@ struct DrawCallData
     size_t vertexCount = 0;
     size_t maxVertexCount = 0;
     size_t vertexStride = 0;
-    int descriptorOffset = 0;
     ComPtr<ID3D12Resource> vertexUploadBuffer;
     ComPtr<ID3D12Resource> vertexBuffer;
-    D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
-    std::vector<ComPtr<ID3D12Resource>> constantBuffers = {};
-    std::vector<UINT8*> mappedConstantBufferData = {};
-    EntityConstantBuffer constantBufferData = {};
 };
 
 struct EntityData
 {
     bool visible = true;
-    size_t entityIndex;
-    size_t drawCallIndex;
+    size_t entityIndex = 0;
+    size_t drawCallIndex = 0;
+    size_t descriptorOffset = 0;
+    EntityConstantBuffer constantBufferData = {};
+    std::vector<UINT8*> mappedConstantBufferData = {};
+    std::vector<ComPtr<ID3D12Resource>> constantBuffers = {};
+    D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
 };
 
 class EngineCore
@@ -181,7 +181,8 @@ public:
     HRESULT CreatePipelineState();
     void LoadAssets();
     size_t CreateDrawCall(const size_t maxVertices, const size_t vertexStride);
-    size_t CreateEntity(const size_t drawCallIndex, Vertex* vertexData, const size_t vertexCount);
+    D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t drawCallIndex, const void* vertexData, const size_t vertexCount);
+    size_t CreateEntity(const size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
     void FinishDrawCallSetup(size_t drawCallIndex);
     CD3DX12_GPU_DESCRIPTOR_HANDLE* GetConstantBufferHandle(int offset);
     void PopulateCommandList();

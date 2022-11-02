@@ -39,7 +39,6 @@ public:
 	bool hasCubeCollision = false;
 
 	EntityConstantBuffer& GetBuffer(EngineCore& engine);
-	size_t GetEntityIndex(EngineCore& engine);
 };
 
 class Camera
@@ -95,7 +94,7 @@ public:
 	void UpdateGame(EngineCore& engine) override;
 	void DrawUI(EngineCore& engine);
 
-	Entity* CreateEntity(EngineCore& engine, size_t drawCallIndex, MeshFile& mesh);
+	Entity* CreateEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView);
 	void UpdateCursorState();
 
 	EngineInput& GetInput() override;
