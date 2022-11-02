@@ -367,7 +367,8 @@ HRESULT EngineCore::CreatePipelineState()
     D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
     {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+        { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "ENTITY_ID", 0, DXGI_FORMAT_R32_UINT, 0, 28, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
     };
 
     // Describe and create the graphics pipeline state object (PSO).
@@ -499,47 +500,61 @@ size_t EngineCore::CreateDrawCall(const size_t maxVertices, const size_t vertexS
 
     CreateConstantBuffers<EntityConstantBuffer>(data.constantBuffers, data.mappedConstantBufferData);
 
+    // Create view
+    data.vertexBufferView.BufferLocation = data.vertexBuffer->GetGPUVirtualAddress();
+    data.vertexBufferView.StrideInBytes = data.vertexStride;
+    data.vertexBufferView.SizeInBytes = 0;
+
     return dataIndex;
 }
 
-void EngineCore::UploadMesh(const size_t drawCallIndex, const void* vertexData, const size_t vertexCount)
+size_t EngineCore::CreateEntity(const size_t drawCallIndex, Vertex* vertexData, const size_t vertexCount)
 {
+    // Create entity
+    EntityData& entity = m_entities.emplace_back();
+    entity.entityIndex = m_entities.size() - 1;
+    entity.drawCallIndex = drawCallIndex;
+
+    for (int i = 0; i < vertexCount; i++)
+    {
+        vertexData[i].entityID = entity.entityIndex;
+    }
+
+    // Update draw call
     DrawCallData& data = m_drawCalls[drawCallIndex];
-    assert(data.vertexCount + vertexCount <= data.maxVertexCount);
-    data.vertexCount += vertexCount;
     const size_t addedByteCount = data.vertexStride * vertexCount;
+    const size_t offsetInBuffer = data.vertexCount * data.vertexStride;
+    assert(data.vertexCount + vertexCount <= data.maxVertexCount);
 
     // Upload to temp buffer
     UINT8* pVertexDataBegin = nullptr;
     CD3DX12_RANGE readRange(0, 0);
     ThrowIfFailed(data.vertexUploadBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)));
-    memcpy(pVertexDataBegin, vertexData, addedByteCount);
+    memcpy(pVertexDataBegin + offsetInBuffer, vertexData, addedByteCount);
     data.vertexUploadBuffer->Unmap(0, nullptr);
 
-    // TODO: account for offsets from multiple uploads
+    data.vertexCount += vertexCount;
+    data.vertexBufferView.SizeInBytes += addedByteCount;
+    return entity.entityIndex;
+}
+
+void EngineCore::FinishDrawCallSetup(size_t drawCallIndex)
+{
+    DrawCallData& data = m_drawCalls[drawCallIndex];
+
+    /*D3D12_SUBRESOURCE_DATA vertexDataSubresource = {};
+    vertexDataSubresource.pData = vertexData;
+    vertexDataSubresource.RowPitch = data.vertexStride;
+    vertexDataSubresource.SlicePitch = vertexDataSubresource.RowPitch;*/
+
+    //UpdateSubresources(m_uploadCommandList.list.Get(), data.vertexBuffer.Get(), data.vertexUploadBuffer.Get(), 0, 0, 1, &vertexDataSubresource);
+
     // Copy data to vertex buffer
     m_uploadCommandList.list->CopyResource(data.vertexBuffer.Get(), data.vertexUploadBuffer.Get());
     CD3DX12_RESOURCE_BARRIER transition = CD3DX12_RESOURCE_BARRIER::Transition(data.vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
     m_uploadCommandList.list->ResourceBarrier(1, &transition);
 
-    // Create view
-    D3D12_VERTEX_BUFFER_VIEW& view = data.vertexBufferViews.emplace_back();
-    view.BufferLocation = data.vertexBuffer->GetGPUVirtualAddress();
-    view.StrideInBytes = data.vertexStride;
-    view.SizeInBytes = addedByteCount;
-
     ScheduleCommandList(&m_uploadCommandList);
-}
-
-size_t EngineCore::CreateEntity(const size_t drawCallIndex)
-{
-    DrawCallData& data = m_drawCalls[drawCallIndex];
-    EntityData& entity = m_entities.emplace_back();
-    size_t entityIndex = m_entities.size() - 1;
-
-    entity.drawCallIndex = drawCallIndex;
-
-    return entityIndex;
 }
 
 void EngineCore::OnUpdate()
@@ -681,17 +696,9 @@ void EngineCore::PopulateCommandList()
     {
         DrawCallData& data = m_drawCalls[drawIdx];
 
-        int activeEntityCount = 0;
-        for (int entityIdx = 0; entityIdx < m_entities.size(); entityIdx++)
-        {
-            EntityData& entity = m_entities[entityIdx];
-            if (!entity.visible || entity.drawCallIndex != drawIdx) continue;
+        memcpy(data.mappedConstantBufferData[m_frameIndex], &data.constantBufferData, sizeof(EntityConstantBuffer));
 
-            memcpy(data.mappedConstantBufferData[m_frameIndex] + activeEntityCount, &entity.constantBufferData, sizeof(EntityConstantBuffer));
-            activeEntityCount++;
-        }
-
-        renderList->IASetVertexBuffers(0, data.vertexBufferViews.size(), data.vertexBufferViews.data());
+        renderList->IASetVertexBuffers(0, 1, &data.vertexBufferView);
         renderList->SetGraphicsRootDescriptorTable(1, *GetConstantBufferHandle(data.descriptorOffset + m_frameIndex));
         renderList->DrawInstanced(data.vertexCount, 1, 0, 0);
     }

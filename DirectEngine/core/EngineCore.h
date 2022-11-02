@@ -15,6 +15,7 @@
 #include "Input.h"
 
 #include "../game/IGame.h"
+#include "../game/Mesh.h"
 
 #include "../imgui/imgui.h"
 #include "../imgui/ProfilerTask.h"
@@ -56,11 +57,12 @@ static_assert((sizeof(SceneConstantBuffer) % 256) == 0, "Constant Buffer size mu
 
 struct EntityConstantBuffer
 {
-    XMMATRIX worldTransform = {};
-    XMVECTOR color;
-    bool isSelected;
-    float padding[43];
+    XMMATRIX worldTransform[8] = {};
+    XMVECTOR color[8];
+    XMVECTOR isSelected[8];
+    //float padding[0];
 };
+const int debugbuffersize = sizeof(EntityConstantBuffer) % 256;
 static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
 struct DrawCallData
@@ -71,15 +73,16 @@ struct DrawCallData
     int descriptorOffset = 0;
     ComPtr<ID3D12Resource> vertexUploadBuffer;
     ComPtr<ID3D12Resource> vertexBuffer;
-    std::vector<D3D12_VERTEX_BUFFER_VIEW> vertexBufferViews = {};
+    D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
     std::vector<ComPtr<ID3D12Resource>> constantBuffers = {};
     std::vector<UINT8*> mappedConstantBufferData = {};
+    EntityConstantBuffer constantBufferData = {};
 };
 
 struct EntityData
 {
-    EntityConstantBuffer constantBufferData = {};
     bool visible = true;
+    size_t entityIndex;
     size_t drawCallIndex;
 };
 
@@ -178,8 +181,8 @@ public:
     HRESULT CreatePipelineState();
     void LoadAssets();
     size_t CreateDrawCall(const size_t maxVertices, const size_t vertexStride);
-    void UploadMesh(const size_t drawCallIndex, const void* vertexData, const size_t vertexCount);
-    size_t CreateEntity(const size_t drawCallIndex);
+    size_t CreateEntity(const size_t drawCallIndex, Vertex* vertexData, const size_t vertexCount);
+    void FinishDrawCallSetup(size_t drawCallIndex);
     CD3DX12_GPU_DESCRIPTOR_HANDLE* GetConstantBufferHandle(int offset);
     void PopulateCommandList();
     void ScheduleCommandList(CommandList* newList);

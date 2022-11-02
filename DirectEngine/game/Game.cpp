@@ -46,9 +46,14 @@ Entity* CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, 
 	return nullptr;
 }
 
-EntityData& Entity::GetData(EngineCore& engine)
+EntityConstantBuffer& Entity::GetBuffer(EngineCore& engine)
 {
-	return engine.m_entities[dataIndex];
+	return engine.m_drawCalls[engine.m_entities[dataIndex].drawCallIndex].constantBufferData;
+}
+
+size_t Entity::GetEntityIndex(EngineCore& engine)
+{
+	return engine.m_entities[dataIndex].entityIndex;
 }
 
 Game::Game()
@@ -100,34 +105,32 @@ void Game::StartGame(EngineCore& engine)
 
 	size_t drawCallIndex = engine.CreateDrawCall(1024, sizeof(Vertex));
 
-	/*MeshFile cubeMeshFile{};
+	MeshFile cubeMeshFile{};
 	LoadMeshFromFile(cubeMeshFile, "models/cube.obj", "models/", debugLog);
-	engine.UploadMesh(drawCallIndex, cubeMeshFile.vertices.data(), cubeMeshFile.vertices.size());
+	testCube = CreateEntity(engine, drawCallIndex, cubeMeshFile);
+	testCube->GetBuffer(engine).color[testCube->GetEntityIndex(engine)] = {1.f, 1.f, 1.f};
+	testCube->scale = { .01f, .01f, .01f };
+
 
 	for (int i = 0; i < displayedPuzzle.pieceCount; i++)
 	{
 		PuzzlePiece& piece = displayedPuzzle.pieces[i];
-		Entity* pieceEntity = puzzleEntities[i] = CreateEntity(engine, cubeMeshIndex);
-		pieceEntity->GetData(engine).constantBufferData.color = {(float)(i % 10) / 10.f, (i / 10.f) / 10.f, 0.f};
+		Entity* pieceEntity = puzzleEntities[i] = CreateEntity(engine, drawCallIndex, cubeMeshFile);
+		pieceEntity->GetBuffer(engine).color[pieceEntity->GetEntityIndex(engine)] = {(float)(i % 10) / 10.f, (i / 10.f) / 10.f, 0.f};
 		pieceEntity->scale = { (float)piece.width + BLOCK_DISPLAY_GAP * (piece.width - 1), 1.f, (float)piece.height + BLOCK_DISPLAY_GAP * (piece.height - 1)};
 		pieceEntity->hasCubeCollision = true;
-
-		puzzleEntities[i]->position = GetPiecePosition(puzzleEntities[i], piece);
-	}*/
+		pieceEntity->position = GetPiecePosition(puzzleEntities[i], piece);
+	}
 
 	float floorWidth = displayedPuzzle.width + BLOCK_DISPLAY_GAP * (displayedPuzzle.width - 1);
 	float floorHeight = displayedPuzzle.height + BLOCK_DISPLAY_GAP * (displayedPuzzle.height - 1);
 	MeshFile quadFile{};
 	CreateQuad(quadFile, floorWidth, floorHeight);
-	engine.UploadMesh(drawCallIndex, quadFile.vertices.data(), quadFile.vertices.size());
-
-	Entity* quadEntity = CreateEntity(engine, drawCallIndex);
+	Entity* quadEntity = CreateEntity(engine, drawCallIndex, quadFile);
 	quadEntity->position = { -0.5f, -0.5f, -0.5f };
-	quadEntity->GetData(engine).constantBufferData.color = { 0.f, .5f, 0.f };
+	quadEntity->GetBuffer(engine).color[quadEntity->GetEntityIndex(engine)] = {0.f, .5f, 0.f};
 
-	/*testCube = CreateEntity(engine, cubeMeshIndex);
-	testCube->GetData(engine).constantBufferData.color = { 1.f, 1.f, 1.f };
-	testCube->scale = { .01f, .01f, .01f };*/
+	engine.FinishDrawCallSetup(drawCallIndex);
 
 	camera.position = { 0.f, 10.f, 0.f };
 	playerPitch = XM_PI;
@@ -186,7 +189,7 @@ void Game::UpdateGame(EngineCore& engine)
 	// Reset per frame values
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 	{
-		entity->GetData(engine).constantBufferData.isSelected = false;
+		entity->GetBuffer(engine).isSelected[entity->GetEntityIndex(engine)] = { 0 };
 	}
 
 	// Read Inputs
@@ -224,7 +227,7 @@ void Game::UpdateGame(EngineCore& engine)
 		Entity* collision = CollideWithWorld(camera.position, camForward, *this);
 		if (collision != nullptr)
 		{
-			collision->GetData(engine).constantBufferData.isSelected = true;
+			collision->GetBuffer(engine).isSelected[collision->GetEntityIndex(engine)] = { 1 };
 		}
 	}
 	if (input.KeyComboJustPressed(VK_KEY_S, VK_CONTROL))
@@ -291,19 +294,19 @@ void Game::UpdateGame(EngineCore& engine)
 	engine.m_sceneData.clipTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
 
 	// Test
-	//testCube->position = XMVectorAdd(camera.position, camForward);
+	testCube->position = XMVectorAdd(camera.position, camForward);
 
 	// Update entities
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 	{
-		EntityData& data = entity->GetData(engine);
+		EntityConstantBuffer& entityBuffer = entity->GetBuffer(engine);
 
 		if (entity->isSpinning)
 		{
 			entity->rotation = XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart()));
 		}
 
-		CreateWorldMatrix(data.constantBufferData.worldTransform, entity->scale, entity->rotation, entity->position);
+		CreateWorldMatrix(entityBuffer.worldTransform[entity->GetEntityIndex(engine)], entity->scale, entity->rotation, entity->position);
 	}
 
 	engine.EndProfile("Game Update");
@@ -323,10 +326,10 @@ EngineInput& Game::GetInput()
 	return input;
 }
 
-Entity* Game::CreateEntity(EngineCore& engine, size_t drawCallIndex)
+Entity* Game::CreateEntity(EngineCore& engine, size_t drawCallIndex, MeshFile& mesh)
 {
 	Entity* entity = NewObject(entityArena, Entity);
-	entity->dataIndex = engine.CreateEntity(drawCallIndex);
+	entity->dataIndex = engine.CreateEntity(drawCallIndex, mesh.vertices.data(), mesh.vertices.size());
 	return entity;
 }
 

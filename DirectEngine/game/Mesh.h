@@ -11,6 +11,7 @@ struct Vertex
 {
 	XMFLOAT3 position;
 	XMFLOAT4 color;
+	int entityID;
 };
 
 struct MeshFile
