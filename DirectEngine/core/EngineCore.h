@@ -65,7 +65,7 @@ struct EntityConstantBuffer
 const int debugbuffersize = sizeof(EntityConstantBuffer) % 256;
 static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
-struct DrawCallData
+struct MaterialData
 {
     size_t vertexCount = 0;
     size_t maxVertexCount = 0;
@@ -78,7 +78,7 @@ struct EntityData
 {
     bool visible = true;
     size_t entityIndex = 0;
-    size_t drawCallIndex = 0;
+    size_t materialIndex = 0;
     size_t descriptorOffset = 0;
     EntityConstantBuffer constantBufferData = {};
     std::vector<UINT8*> mappedConstantBufferData = {};
@@ -90,6 +90,7 @@ class EngineCore
 {
 public:
     static const UINT FrameCount = 3;
+    static const size_t MAX_DESCRIPTORS = 4096;
     static const DXGI_FORMAT DisplayFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
     EngineCore(UINT width, UINT height, IGame* game);
@@ -135,7 +136,7 @@ public:
     ComPtr<ID3D12Resource> m_depthStencilBuffer = nullptr;
     SceneConstantBuffer m_sceneData;
     std::vector<UINT8*> m_mappedSceneData = {};
-    std::vector<DrawCallData> m_drawCalls = {};
+    std::vector<MaterialData> m_materials = {};
     std::vector<EntityData> m_entities = {};
 
     // Synchronization objects
@@ -180,10 +181,10 @@ public:
     void LoadSizeDependentResources();
     HRESULT CreatePipelineState();
     void LoadAssets();
-    size_t CreateDrawCall(const size_t maxVertices, const size_t vertexStride);
-    D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t drawCallIndex, const void* vertexData, const size_t vertexCount);
-    size_t CreateEntity(const size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
-    void FinishDrawCallSetup(size_t drawCallIndex);
+    size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride);
+    D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount);
+    size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
+    void FinishMaterialSetup(size_t materialIndex);
     CD3DX12_GPU_DESCRIPTOR_HANDLE* GetConstantBufferHandle(int offset);
     void PopulateCommandList();
     void ScheduleCommandList(CommandList* newList);

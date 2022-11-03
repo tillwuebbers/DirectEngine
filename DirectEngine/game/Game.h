@@ -84,6 +84,7 @@ public:
 	PuzzleSolver* solver;
 	Entity* puzzleEntities[MAX_PIECE_COUNT];
 	Entity* testCube;
+	Entity* graphDisplayEntities[1024];
 
 	MemoryArena puzzleArena{};
 	SlidingPuzzle displayedPuzzle;

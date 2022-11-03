@@ -98,37 +98,49 @@ void Game::StartGame(EngineCore& engine)
 	entity2->position = XMVECTOR{ 0.f, 0.f, 5.f };
 	entity2->scale = XMVECTOR{ .3f, .3f, .3f };*/
 
-	size_t drawCallIndex = engine.CreateDrawCall(1024, sizeof(Vertex));
+	size_t materialIndex = engine.CreateMaterial(1024, sizeof(Vertex));
 
 	MeshFile cubeMeshFile{};
 	LoadMeshFromFile(cubeMeshFile, "models/cube.obj", "models/", debugLog);
-	auto cubeMeshView = engine.CreateMesh(drawCallIndex, cubeMeshFile.vertices.data(), cubeMeshFile.vertices.size());
+	auto cubeMeshView = engine.CreateMesh(materialIndex, cubeMeshFile.vertices.data(), cubeMeshFile.vertices.size());
 
-	testCube = CreateEntity(engine, drawCallIndex, cubeMeshView);
+	testCube = CreateEntity(engine, materialIndex, cubeMeshView);
 	testCube->GetBuffer(engine).color = {1.f, 1.f, 1.f};
 	testCube->scale = { .01f, .01f, .01f };
 
+	for (int i = 0; i < _countof(graphDisplayEntities); i++)
+	{
+		Entity* graphEntity = graphDisplayEntities[i] = CreateEntity(engine, materialIndex, cubeMeshView);
+		engine.m_entities[graphEntity->dataIndex].visible = false;
+	}
 
 	for (int i = 0; i < displayedPuzzle.pieceCount; i++)
 	{
 		PuzzlePiece& piece = displayedPuzzle.pieces[i];
-		Entity* pieceEntity = puzzleEntities[i] = CreateEntity(engine, drawCallIndex, cubeMeshView);
+		Entity* pieceEntity = puzzleEntities[i] = CreateEntity(engine, materialIndex, cubeMeshView);
 		pieceEntity->GetBuffer(engine).color = {(float)(i % 10) / 10.f, (i / 10.f) / 10.f, 0.f};
 		pieceEntity->scale = { (float)piece.width + BLOCK_DISPLAY_GAP * (piece.width - 1), 1.f, (float)piece.height + BLOCK_DISPLAY_GAP * (piece.height - 1)};
 		pieceEntity->hasCubeCollision = true;
 		pieceEntity->position = GetPiecePosition(puzzleEntities[i], piece);
 	}
 
-	float floorWidth = displayedPuzzle.width + BLOCK_DISPLAY_GAP * (displayedPuzzle.width - 1);
-	float floorHeight = displayedPuzzle.height + BLOCK_DISPLAY_GAP * (displayedPuzzle.height - 1);
+	float boardWidth = displayedPuzzle.width + BLOCK_DISPLAY_GAP * (displayedPuzzle.width - 1);
+	float boardHeight = displayedPuzzle.height + BLOCK_DISPLAY_GAP * (displayedPuzzle.height - 1);
 	MeshFile quadFile{};
-	CreateQuad(quadFile, floorWidth, floorHeight);
-	auto quadMeshView = engine.CreateMesh(drawCallIndex, quadFile.vertices.data(), quadFile.vertices.size());
-	Entity* quadEntity = CreateEntity(engine, drawCallIndex, quadMeshView);
+	CreateQuad(quadFile, boardWidth, boardHeight);
+	auto quadMeshView = engine.CreateMesh(materialIndex, quadFile.vertices.data(), quadFile.vertices.size());
+	Entity* quadEntity = CreateEntity(engine, materialIndex, quadMeshView);
 	quadEntity->position = { -0.5f, -0.5f, -0.5f };
 	quadEntity->GetBuffer(engine).color = {0.f, .5f, 0.f};
 
-	engine.FinishDrawCallSetup(drawCallIndex);
+	MeshFile groundFile{};
+	CreateQuad(groundFile, 100, 100);
+	auto groundMeshView = engine.CreateMesh(materialIndex, groundFile.vertices.data(), groundFile.vertices.size());
+	Entity* groundEntity = CreateEntity(engine, materialIndex, groundMeshView);
+	groundEntity->position = { -50.f, -0.51f, -50.f };
+	groundEntity->GetBuffer(engine).color = { 51.f / 255.f, 27.f / 255.f, 18.f / 255.f };
+
+	engine.FinishMaterialSetup(materialIndex);
 
 	camera.position = { 0.f, 10.f, 0.f };
 	playerPitch = XM_PI;
@@ -136,10 +148,10 @@ void Game::StartGame(EngineCore& engine)
 	UpdateCursorState();
 }
 
-CoroutineReturn DisplayPuzzleSolution(MemoryArena& arena, std::coroutine_handle<>* handle, Game* game, EngineCore* engine)
+//CoroutineReturn DisplayPuzzleSolution(MemoryArena& arena, std::coroutine_handle<>* handle, Game* game, EngineCore* engine)
+CoroutineReturn DisplayPuzzleSolution(std::coroutine_handle<>* handle, Game* game, EngineCore* engine)
 {
 	CoroutineAwaiter awaiter{ handle };
-
 
 	for (int i = 0; i < game->solver->solvedPosition.path.moveCount; i++)
 	{
@@ -239,7 +251,27 @@ void Game::UpdateGame(EngineCore& engine)
 			{
 				puzzleEntities[i]->position = GetPiecePosition(puzzleEntities[i], displayedPuzzle.pieces[i]);
 			}
-			DisplayPuzzleSolution(puzzleArena, &displayCoroutine, this, &engine);
+			DisplayPuzzleSolution(&displayCoroutine, this, &engine);
+			//DisplayPuzzleSolution(puzzleArena, &displayCoroutine, this, &engine);
+
+			int depthOffsets[1024]{ 0 };
+			for (int i = 0; i < solver->currentPendingIndex; i++)
+			{
+				SlidingPuzzle& puzzle = solver->pendingPositions[i];
+				int depth = puzzle.path.moveCount;
+				Entity* entity = graphDisplayEntities[i];
+				entity->position = { (float)depth * 1.1f, 0.f, 3.5f + depthOffsets[depth]++ * 1.1f };
+				entity->scale = { .5f, .5f, .5f };
+				engine.m_entities[entity->dataIndex].visible = true;
+				if (puzzle.distance == 0)
+				{
+					entity->GetBuffer(engine).color = { 207.f / 256.f, 159.f / 256.f, 27.f / 256.f };
+				}
+				else
+				{
+					entity->GetBuffer(engine).color = { .5f, .5f, .5f };
+				}
+			}
 		}
 	}
 	if (input.KeyComboJustPressed(VK_KEY_D, VK_CONTROL))
@@ -324,10 +356,10 @@ EngineInput& Game::GetInput()
 	return input;
 }
 
-Entity* Game::CreateEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView)
+Entity* Game::CreateEntity(EngineCore& engine, size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView)
 {
 	Entity* entity = NewObject(entityArena, Entity);
-	entity->dataIndex = engine.CreateEntity(drawCallIndex, meshView);
+	entity->dataIndex = engine.CreateEntity(materialIndex, meshView);
 	return entity;
 }
 

@@ -70,6 +70,7 @@ public:
 	MemoryArena solverArena{};
 	SlidingPuzzle pendingPositions[MAX_PENDING_COUNT];
 	size_t pendingPositionCount = 0;
+	size_t currentPendingIndex = 0;
 	uint64_t knownPositionHashes[MAX_KNOWN_POSITIONS];
 	size_t knownPositionCount = 0;
 

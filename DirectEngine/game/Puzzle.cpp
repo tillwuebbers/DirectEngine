@@ -1,6 +1,7 @@
 #include "Puzzle.h"
 
 #include <format>
+#include <algorithm>
 
 void SetBitShape(uint64_t& bitboard, const PuzzlePiece& piece)
 {
@@ -87,7 +88,7 @@ void PuzzleSolver::Solve()
 	debugLog.Log("Starting solve...");
 	solved = false;
 
-	size_t currentPendingIndex = 0;
+	currentPendingIndex = 0;
 	while (currentPendingIndex < pendingPositionCount)
 	{
 		SlidingPuzzle& currentPosition = pendingPositions[currentPendingIndex];
@@ -95,15 +96,21 @@ void PuzzleSolver::Solve()
 		// Is this a solution?
 		if (currentPosition.distance == 0)
 		{
-			solvedPosition = currentPosition;
-			debugLog.Log(std::format("Solved puzzle in {} steps!", solvedPosition.path.moveCount));
-			for (int i = 0; i < solvedPosition.path.moveCount; i++)
+			if (!solved || currentPosition.path.moveCount < solvedPosition.path.moveCount)
 			{
-				PuzzleMove& move = solvedPosition.path.moves[i];
-				debugLog.Log(std::format("{} > ({},{})", move.pieceIndex, move.x, move.y));
+				solvedPosition = currentPosition;
+				debugLog.Log(std::format("Solved puzzle in {} steps!", solvedPosition.path.moveCount));
+				for (int i = 0; i < solvedPosition.path.moveCount; i++)
+				{
+					PuzzleMove& move = solvedPosition.path.moves[i];
+					debugLog.Log(std::format("{} > ({},{})", move.pieceIndex, move.x, move.y));
+				}
+				solved = true;
 			}
-			solved = true;
-			break;
+			else
+			{
+				debugLog.Log(std::format("Found worse solution with {} steps.", currentPosition.path.moveCount));
+			}
 		}
 
 		// Check if position is already evaluated, abort if so
@@ -174,6 +181,17 @@ void PuzzleSolver::Solve()
 	}
 
 	debugLog.Log("Finished solve...");
+
+	std::sort(pendingPositions, pendingPositions + currentPendingIndex, [](const SlidingPuzzle& a, const SlidingPuzzle& b) {
+		return a.path.moveCount < b.path.moveCount;
+		});
+
+	debugLog.Log("Finished sort.");
+
+	for (int i = 0; i < currentPendingIndex; i++)
+	{
+		debugLog.Log(std::format("Depth: {}", pendingPositions[i].path.moveCount));
+	}
 }
 
 void PuzzleSolver::AddToQueue(const SlidingPuzzle* currentPosition, size_t pieceIndex, int16_t x, int16_t y)

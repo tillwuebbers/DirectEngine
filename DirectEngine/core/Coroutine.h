@@ -4,7 +4,7 @@
 
 struct CoroutineReturn {
     struct promise_type {
-        template<class... Types>
+        /*template<class... Types>
         void* operator new(std::size_t size, MemoryArena& arena, Types... args)
         {
             return arena.Allocate(size);
@@ -13,7 +13,7 @@ struct CoroutineReturn {
         {
             // We allocated in an arena, no need to do anything
             return;
-        }
+        }*/
         CoroutineReturn get_return_object() { return {}; }
         std::suspend_never initial_suspend() { return {}; }
         std::suspend_always final_suspend() noexcept { return {}; }

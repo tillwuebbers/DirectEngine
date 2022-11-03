@@ -244,7 +244,7 @@ void EngineCore::LoadPipeline()
         // Flags indicate that this descriptor heap can be bound to the pipeline 
         // and that descriptors contained in it can be referenced by a root table.
         D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc = {};
-        cbvHeapDesc.NumDescriptors = 64;
+        cbvHeapDesc.NumDescriptors = MAX_DESCRIPTORS;
         cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
         cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
         ThrowIfFailed(m_device->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&m_cbvHeap)));
@@ -475,13 +475,13 @@ void EngineCore::LoadAssets()
     }
 }
 
-size_t EngineCore::CreateDrawCall(const size_t maxVertices, const size_t vertexStride)
+size_t EngineCore::CreateMaterial(const size_t maxVertices, const size_t vertexStride)
 {
     const size_t maxByteCount = vertexStride * maxVertices;
 
-    DrawCallData& data = m_drawCalls.emplace_back();
+    MaterialData& data = m_materials.emplace_back();
     data.maxVertexCount = maxVertices;
-    size_t dataIndex = m_drawCalls.size() - 1;
+    size_t dataIndex = m_materials.size() - 1;
     data.vertexStride = vertexStride;
 
     // Create buffer for upload
@@ -499,10 +499,10 @@ size_t EngineCore::CreateDrawCall(const size_t maxVertices, const size_t vertexS
     return dataIndex;
 }
 
-D3D12_VERTEX_BUFFER_VIEW EngineCore::CreateMesh(const size_t drawCallIndex, const void* vertexData, const size_t vertexCount)
+D3D12_VERTEX_BUFFER_VIEW EngineCore::CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount)
 {
     // Update draw call
-    DrawCallData& data = m_drawCalls[drawCallIndex];
+    MaterialData& data = m_materials[materialIndex];
     const size_t sizeInBytes = data.vertexStride * vertexCount;
     const size_t offsetInBuffer = data.vertexCount * data.vertexStride;
 
@@ -524,11 +524,11 @@ D3D12_VERTEX_BUFFER_VIEW EngineCore::CreateMesh(const size_t drawCallIndex, cons
     return view;
 }
 
-size_t EngineCore::CreateEntity(const size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView)
+size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView)
 {
     EntityData& entity = m_entities.emplace_back();
     entity.entityIndex = m_entities.size() - 1;
-    entity.drawCallIndex = drawCallIndex;
+    entity.materialIndex = materialIndex;
     entity.vertexBufferView = meshView;
     entity.descriptorOffset = (entity.entityIndex + 1) * FrameCount; // Offset by one for scene descriptor
 
@@ -537,9 +537,9 @@ size_t EngineCore::CreateEntity(const size_t drawCallIndex, D3D12_VERTEX_BUFFER_
     return entity.entityIndex;
 }
 
-void EngineCore::FinishDrawCallSetup(size_t drawCallIndex)
+void EngineCore::FinishMaterialSetup(size_t materialIndex)
 {
-    DrawCallData& data = m_drawCalls[drawCallIndex];
+    MaterialData& data = m_materials[materialIndex];
 
     // Copy data to vertex buffer
     m_uploadCommandList.list->CopyResource(data.vertexBuffer.Get(), data.vertexUploadBuffer.Get());
@@ -684,13 +684,15 @@ void EngineCore::PopulateCommandList()
     renderList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    for (int drawIdx = 0; drawIdx < m_drawCalls.size(); drawIdx++)
+    BeginProfile("DrawLoop", ImColor{ 1.f, 1.f, .1f });
+    for (int drawIdx = 0; drawIdx < m_materials.size(); drawIdx++)
     {
-        DrawCallData& data = m_drawCalls[drawIdx];
+        MaterialData& data = m_materials[drawIdx];
 
         int entityIndex = 0;
         for (EntityData& entity : m_entities)
         {
+            if (!entity.visible) continue;
             memcpy(entity.mappedConstantBufferData[m_frameIndex], &entity.constantBufferData, sizeof(EntityConstantBuffer));
 
             renderList->IASetVertexBuffers(0, 1, &entity.vertexBufferView);
@@ -700,6 +702,7 @@ void EngineCore::PopulateCommandList()
             entityIndex++;
         }
     }
+    EndProfile("DrawLoop");
 
     // UI
     DrawImgui(renderList, &rtvHandle);
