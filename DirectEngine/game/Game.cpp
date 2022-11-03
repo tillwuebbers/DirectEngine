@@ -322,6 +322,8 @@ void Game::UpdateGame(EngineCore& engine)
 
 	engine.m_sceneData.cameraTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
 	engine.m_sceneData.clipTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
+	engine.m_sceneData.worldCameraPos = camera.position;
+	engine.m_sceneData.sunDirection = XMVector3Normalize({ 1.f, -1.f, 1.f });
 
 	// Test
 	testCube->position = XMVectorAdd(camera.position, camForward);
