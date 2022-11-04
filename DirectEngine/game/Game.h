@@ -41,9 +41,15 @@ public:
 	EntityConstantBuffer& GetBuffer(EngineCore& engine);
 };
 
-class Camera
+struct DirectionalLight
 {
-public:
+	XMVECTOR position{ 0.f, 0.f, 0.f };
+	XMVECTOR rotation{ 0.f, 0.f, 0.f, 1.f };
+	float shadowmapCameraSize;
+};
+
+struct Camera
+{
 	XMVECTOR position{ 0.f, 0.f, 0.f };
 	XMVECTOR rotation{ 0.f, 0.f, 0.f, 1.f };
 	float fovX = 0.f;
@@ -75,6 +81,7 @@ public:
 	MemoryArena globalArena{};
 	MemoryArena entityArena{};
 
+	DirectionalLight light{};
 	Camera camera{};
 	EngineInput input{ globalArena };
 

@@ -32,6 +32,13 @@ enum class WindowMode
     Windowed
 };
 
+enum RootSigBufferOffset : UINT
+{
+    SCENE = 0,
+    LIGHT = 1,
+    ENTITY = 2,
+};
+
 struct FrameDebugData
 {
     float duration;
@@ -48,14 +55,23 @@ struct CommandList
 struct SceneConstantBuffer
 {
     XMMATRIX cameraTransform = {};
-    XMMATRIX clipTransform = {};
-    XMVECTOR sunDirection = {};
+    XMMATRIX perspectiveTransform = {};
     XMVECTOR worldCameraPos = {};
     float time;
     float deltaTime;
-    float padding[22];
+    float padding[26];
 };
 static_assert((sizeof(SceneConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
+
+struct LightConstantBuffer
+{
+    XMMATRIX lightTransform = {};
+    XMMATRIX lightPerspective = {};
+    XMFLOAT3 sunDirection = {};
+    int shadowPassActive;
+    float padding[26];
+};
+static_assert((sizeof(LightConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
 struct EntityConstantBuffer
 {
@@ -81,7 +97,6 @@ struct EntityData
     bool visible = true;
     size_t entityIndex = 0;
     size_t materialIndex = 0;
-    size_t descriptorOffset = 0;
     EntityConstantBuffer constantBufferData = {};
     std::vector<UINT8*> mappedConstantBufferData = {};
     std::vector<ComPtr<ID3D12Resource>> constantBuffers = {};
@@ -127,7 +142,9 @@ public:
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap = nullptr;
     ComPtr<ID3D12DescriptorHeap> m_cbvHeap = nullptr;
     ComPtr<ID3D12DescriptorHeap> m_depthStencilHeap = nullptr;
+    ComPtr<ID3D12DescriptorHeap> m_shadowmapHeap = nullptr;
     ComPtr<ID3D12PipelineState> m_pipelineState = nullptr;
+    ComPtr<ID3D12PipelineState> m_shadowPipelineState = nullptr;
     CommandList m_uploadCommandList = {};
     CommandList m_renderCommandList = {};
     std::vector<CommandList*> m_scheduledCommandLists = {};
@@ -135,9 +152,13 @@ public:
 
     // App resources
     std::vector<ComPtr<ID3D12Resource>> m_sceneConstantBuffers = {};
+    std::vector<ComPtr<ID3D12Resource>> m_lightConstantBuffers = {};
     ComPtr<ID3D12Resource> m_depthStencilBuffer = nullptr;
+    ComPtr<ID3D12Resource> m_shadowmapBuffer = nullptr;
     SceneConstantBuffer m_sceneData;
+    LightConstantBuffer m_lightData;
     std::vector<UINT8*> m_mappedSceneData = {};
+    std::vector<UINT8*> m_mappedLightData = {};
     std::vector<MaterialData> m_materials = {};
     std::vector<EntityData> m_entities = {};
 
@@ -181,13 +202,15 @@ public:
     void GetHardwareAdapter(IDXGIFactory1* pFactory, IDXGIAdapter1** ppAdapter, bool requestHighPerformanceAdapter);
     void LoadPipeline();
     void LoadSizeDependentResources();
-    HRESULT CreatePipelineState();
+    HRESULT CreatePipelineState(const char* vsEntryName, const char* psEntryName, const wchar_t* debugName, ID3D12PipelineState** outState);
     void LoadAssets();
     size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride);
     D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount);
     size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
     void FinishMaterialSetup(size_t materialIndex);
     CD3DX12_GPU_DESCRIPTOR_HANDLE* GetConstantBufferHandle(int offset);
+    void RenderShadows(ID3D12GraphicsCommandList* renderList);
+    void RenderScene(ID3D12GraphicsCommandList* renderList);
     void PopulateCommandList();
     void ScheduleCommandList(CommandList* newList);
     void MoveToNextFrame();

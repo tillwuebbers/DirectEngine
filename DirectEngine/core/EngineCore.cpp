@@ -257,6 +257,14 @@ void EngineCore::LoadPipeline()
         dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         ThrowIfFailed(m_device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&m_depthStencilHeap)));
         m_depthStencilHeap->SetName(L"Depth/Stencil Descriptor Heap");
+
+        // Shadowmap heap
+        D3D12_DESCRIPTOR_HEAP_DESC shadowHeapDesc = {};
+        shadowHeapDesc.NumDescriptors = 1;
+        shadowHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+        shadowHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+        ThrowIfFailed(m_device->CreateDescriptorHeap(&shadowHeapDesc, IID_PPV_ARGS(&m_shadowmapHeap)));
+        m_shadowmapHeap->SetName(L"Shadowmap Descriptor Heap");
     }
 
     for (UINT n = 0; n < FrameCount; n++)
@@ -288,7 +296,7 @@ void EngineCore::LoadSizeDependentResources()
         }
     }
 
-    // depth/stencil buffer
+    // depth/stencil view
     {
         D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
         depthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
@@ -307,9 +315,29 @@ void EngineCore::LoadSizeDependentResources()
         m_depthStencilBuffer->SetName(L"Depth/Stencil Buffer");
         m_device->CreateDepthStencilView(m_depthStencilBuffer.Get(), &depthStencilDesc, m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
     }
+
+    // Shadowmap view
+    {
+        D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
+        depthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
+        depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+        depthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
+
+        D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
+        depthOptimizedClearValue.Format = DXGI_FORMAT_D32_FLOAT;
+        depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
+        depthOptimizedClearValue.DepthStencil.Stencil = 0;
+
+        CD3DX12_HEAP_PROPERTIES heapType(D3D12_HEAP_TYPE_DEFAULT);
+        CD3DX12_RESOURCE_DESC shadowTexture = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, m_width, m_height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
+
+        ThrowIfFailed(m_device->CreateCommittedResource(&heapType, D3D12_HEAP_FLAG_NONE, &shadowTexture, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, IID_PPV_ARGS(&m_shadowmapBuffer)));
+        m_shadowmapBuffer->SetName(L"Shadowmap Buffer");
+        m_device->CreateDepthStencilView(m_shadowmapBuffer.Get(), &depthStencilDesc, m_shadowmapHeap->GetCPUDescriptorHandleForHeapStart());
+    }
 }
 
-HRESULT EngineCore::CreatePipelineState()
+HRESULT EngineCore::CreatePipelineState(const char* vsEntryName, const char* psEntryName, const wchar_t* debugName, ID3D12PipelineState** outState)
 {
     ComPtr<ID3DBlob> vertexShader;
     ComPtr<ID3DBlob> pixelShader;
@@ -341,7 +369,7 @@ HRESULT EngineCore::CreatePipelineState()
     HRESULT hr;
 
     m_shaderError.clear();
-    hr = D3DCompileFromFile(shaderPath, nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, &vsErrors);
+    hr = D3DCompileFromFile(shaderPath, nullptr, nullptr, vsEntryName, "vs_5_0", compileFlags, 0, &vertexShader, &vsErrors);
     if (vsErrors)
     {
         m_shaderError = std::format("Vertex Shader Errors:\n{}\n", (LPCSTR)vsErrors->GetBufferPointer());
@@ -352,7 +380,7 @@ HRESULT EngineCore::CreatePipelineState()
         return hr;
     }
 
-    hr = D3DCompileFromFile(shaderPath, nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, &psErrors);
+    hr = D3DCompileFromFile(shaderPath, nullptr, nullptr, psEntryName, "ps_5_0", compileFlags, 0, &pixelShader, &psErrors);
     if (psErrors)
     {
         m_shaderError = std::format("Pixel Shader Errors:\n{}\n", (LPCSTR)psErrors->GetBufferPointer());
@@ -380,6 +408,7 @@ HRESULT EngineCore::CreatePipelineState()
     psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+    psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     psoDesc.NumRenderTargets = 1;
@@ -387,8 +416,8 @@ HRESULT EngineCore::CreatePipelineState()
     psoDesc.SampleDesc.Count = 1;
     psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 
-    hr = m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState));
-    m_pipelineState->SetName(L"Engine Pipeline State");
+    hr = m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(outState));
+    m_pipelineState->SetName(debugName);
     return hr;
 }
 
@@ -406,13 +435,15 @@ void EngineCore::LoadAssets()
             featureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
         }
 
-        CD3DX12_DESCRIPTOR_RANGE1 ranges[2];
-        CD3DX12_ROOT_PARAMETER1 rootParameters[2];
+        CD3DX12_DESCRIPTOR_RANGE1 ranges[3];
+        CD3DX12_ROOT_PARAMETER1 rootParameters[3];
 
         ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // scene CBV
-        ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // entity CBV
-        rootParameters[0].InitAsDescriptorTable(1, &ranges[0], (D3D12_SHADER_VISIBILITY)(D3D12_SHADER_VISIBILITY_ALL));
-        rootParameters[1].InitAsDescriptorTable(1, &ranges[1], D3D12_SHADER_VISIBILITY_VERTEX);
+        ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // light CBV
+        ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 2, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // entity CBV
+        rootParameters[0].InitAsDescriptorTable(1, &ranges[0], D3D12_SHADER_VISIBILITY_ALL);
+        rootParameters[1].InitAsDescriptorTable(1, &ranges[1], D3D12_SHADER_VISIBILITY_ALL);
+        rootParameters[2].InitAsDescriptorTable(1, &ranges[2], D3D12_SHADER_VISIBILITY_VERTEX);
 
         // Allow input layout and deny uneccessary access to certain pipeline stages.
         D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags =
@@ -435,7 +466,8 @@ void EngineCore::LoadAssets()
     }
 
     // Create the pipeline state, which includes compiling and loading shaders.
-    ThrowIfFailed(CreatePipelineState());
+    ThrowIfFailed(CreatePipelineState("VSMain", "PSMain", L"Main Material Pipeline", &m_pipelineState));
+    ThrowIfFailed(CreatePipelineState("VSShadow", "PSShadow", L"Shadow Pipeline", &m_shadowPipelineState));
 
     // Create the render command list
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_renderCommandAllocators[m_frameIndex].Get(), nullptr, IID_PPV_ARGS(&m_renderCommandList.list)));
@@ -449,10 +481,14 @@ void EngineCore::LoadAssets()
 
     // Shader values for scene
     CreateConstantBuffers<SceneConstantBuffer>(m_sceneConstantBuffers, m_mappedSceneData);
+    CreateConstantBuffers<LightConstantBuffer>(m_lightConstantBuffers, m_mappedLightData);
     for (int i = 0; i < FrameCount; i++)
     {
-        memcpy(m_mappedSceneData[i], &m_sceneData, sizeof(SceneConstantBuffer));
+        memcpy(m_mappedSceneData[i], &m_sceneData, sizeof(m_sceneData));
         m_sceneConstantBuffers[i]->SetName(std::format(L"Scene Constant Buffer {}", i).c_str());
+
+        memcpy(m_mappedLightData[i], &m_lightData, sizeof(m_lightData));
+        m_lightConstantBuffers[i]->SetName(std::format(L"Light Constant Buffer {}", i).c_str());
     }
 
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
@@ -531,9 +567,12 @@ size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_
     entity.entityIndex = m_entities.size() - 1;
     entity.materialIndex = materialIndex;
     entity.vertexBufferView = meshView;
-    entity.descriptorOffset = (entity.entityIndex + 1) * FrameCount; // Offset by one for scene descriptor
 
     CreateConstantBuffers<EntityConstantBuffer>(entity.constantBuffers, entity.mappedConstantBufferData);
+    for (int i = 0; i < FrameCount; i++)
+    {
+        entity.constantBuffers[i]->SetName(std::format(L"Entity {} Constant Buffer {}", entity.entityIndex, i).c_str());
+    }
 
     return entity.entityIndex;
 }
@@ -580,7 +619,6 @@ void EngineCore::OnUpdate()
 
     BeginProfile("Finish Update", ImColor::HSV(.2f, .33f, 1.f));
     ThrowIfFailed(m_uploadCommandList.list->Close());
-    memcpy(m_mappedSceneData[m_frameIndex], &m_sceneData, sizeof(m_sceneData));
     EndProfile("Finish Update");
 }
 
@@ -638,28 +676,23 @@ void EngineCore::ScheduleCommandList(CommandList* newList)
     m_scheduledCommandLists.push_back(newList);
 }
 
-CD3DX12_GPU_DESCRIPTOR_HANDLE* EngineCore::GetConstantBufferHandle(int offset)
+CD3DX12_GPU_DESCRIPTOR_HANDLE* EngineCore::GetConstantBufferHandle(int rootSigDescriptorOffset)
 {
+    UINT offset = rootSigDescriptorOffset * FrameCount + m_frameIndex;
     CD3DX12_GPU_DESCRIPTOR_HANDLE* descriptor = NewObject(frameArena, CD3DX12_GPU_DESCRIPTOR_HANDLE);
     D3D12_GPU_DESCRIPTOR_HANDLE start = m_cbvHeap->GetGPUDescriptorHandleForHeapStart();
     descriptor->InitOffsetted(start, offset, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
     return descriptor;
 }
 
-void EngineCore::PopulateCommandList()
+void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
 {
-    // Command list allocators can only be reset when the associated 
-    // command lists have finished execution on the GPU; apps should use 
-    // fences to determine GPU execution progress.
-    ThrowIfFailed(m_renderCommandAllocators[m_frameIndex]->Reset());
-
-    // However, when ExecuteCommandList() is called on a particular command 
-    // list, that command list can then be reset at any time and must be before 
-    // re-recording.
-    m_renderCommandList.Reset(m_renderCommandAllocators[m_frameIndex].Get(), m_pipelineState.Get());
-    ID3D12GraphicsCommandList* renderList = m_renderCommandList.list.Get();
+    m_lightData.shadowPassActive = true;
+    memcpy(m_mappedSceneData[m_frameIndex], &m_sceneData, sizeof(m_sceneData));
+    memcpy(m_mappedLightData[m_frameIndex], &m_lightData, sizeof(m_lightData));
 
     // Set necessary state.
+    renderList->SetPipelineState(m_shadowPipelineState.Get());
     renderList->SetGraphicsRootSignature(m_rootSignature.Get());
     renderList->RSSetViewports(1, &m_viewport);
     renderList->RSSetScissorRects(1, &m_scissorRect);
@@ -668,8 +701,54 @@ void EngineCore::PopulateCommandList()
     ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap.Get() };
     renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
-    auto* cbvStart = GetConstantBufferHandle(0 * FrameCount + m_frameIndex);
-    renderList->SetGraphicsRootDescriptorTable(0, *cbvStart);
+    renderList->SetGraphicsRootDescriptorTable(SCENE, *GetConstantBufferHandle(SCENE));
+    renderList->SetGraphicsRootDescriptorTable(LIGHT, *GetConstantBufferHandle(LIGHT));
+
+    // Barrier to transition shadow map?
+    CD3DX12_CPU_DESCRIPTOR_HANDLE shadowHandle(m_shadowmapHeap->GetCPUDescriptorHandleForHeapStart());
+    renderList->OMSetRenderTargets(0, nullptr, FALSE, &shadowHandle);
+
+    // Record commands.
+    renderList->ClearDepthStencilView(shadowHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+    renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    for (int drawIdx = 0; drawIdx < m_materials.size(); drawIdx++)
+    {
+        MaterialData& data = m_materials[drawIdx];
+
+        int entityIndex = 0;
+        for (EntityData& entity : m_entities)
+        {
+            if (!entity.visible) continue;
+            memcpy(entity.mappedConstantBufferData[m_frameIndex], &entity.constantBufferData, sizeof(EntityConstantBuffer));
+
+            renderList->IASetVertexBuffers(0, 1, &entity.vertexBufferView);
+            renderList->SetGraphicsRootDescriptorTable(RootSigBufferOffset::ENTITY, *GetConstantBufferHandle(ENTITY + entity.entityIndex));
+            renderList->DrawInstanced(entity.vertexBufferView.SizeInBytes / entity.vertexBufferView.StrideInBytes, 1, 0, 0);
+
+            entityIndex++;
+        }
+    }
+}
+
+void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
+{
+    m_lightData.shadowPassActive = false;
+    memcpy(m_mappedSceneData[m_frameIndex], &m_sceneData, sizeof(m_sceneData));
+    memcpy(m_mappedLightData[m_frameIndex], &m_lightData, sizeof(m_lightData));
+
+    // Set necessary state.
+    renderList->SetPipelineState(m_pipelineState.Get());
+    renderList->SetGraphicsRootSignature(m_rootSignature.Get());
+    renderList->RSSetViewports(1, &m_viewport);
+    renderList->RSSetScissorRects(1, &m_scissorRect);
+
+    // Constant buffer descriptor heap
+    ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap.Get() };
+    renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+    renderList->SetGraphicsRootDescriptorTable(SCENE, *GetConstantBufferHandle(SCENE));
+    renderList->SetGraphicsRootDescriptorTable(LIGHT, *GetConstantBufferHandle(LIGHT));
 
     // Indicate that the back buffer will be used as a render target.
     CD3DX12_RESOURCE_BARRIER barrierToRender = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -685,7 +764,6 @@ void EngineCore::PopulateCommandList()
     renderList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    BeginProfile("DrawLoop", ImColor{ 1.f, 1.f, .1f });
     for (int drawIdx = 0; drawIdx < m_materials.size(); drawIdx++)
     {
         MaterialData& data = m_materials[drawIdx];
@@ -697,16 +775,32 @@ void EngineCore::PopulateCommandList()
             memcpy(entity.mappedConstantBufferData[m_frameIndex], &entity.constantBufferData, sizeof(EntityConstantBuffer));
 
             renderList->IASetVertexBuffers(0, 1, &entity.vertexBufferView);
-            renderList->SetGraphicsRootDescriptorTable(1, *GetConstantBufferHandle(entity.descriptorOffset + m_frameIndex));
+            renderList->SetGraphicsRootDescriptorTable(ENTITY, *GetConstantBufferHandle(ENTITY + entity.entityIndex));
             renderList->DrawInstanced(entity.vertexBufferView.SizeInBytes / entity.vertexBufferView.StrideInBytes, 1, 0, 0);
 
             entityIndex++;
         }
     }
-    EndProfile("DrawLoop");
 
     // UI
     DrawImgui(renderList, &rtvHandle);
+}
+
+void EngineCore::PopulateCommandList()
+{
+    // Command list allocators can only be reset when the associated 
+    // command lists have finished execution on the GPU; apps should use 
+    // fences to determine GPU execution progress.
+    ThrowIfFailed(m_renderCommandAllocators[m_frameIndex]->Reset());
+
+    // However, when ExecuteCommandList() is called on a particular command 
+    // list, that command list can then be reset at any time and must be before 
+    // re-recording.
+    m_renderCommandList.Reset(m_renderCommandAllocators[m_frameIndex].Get(), m_pipelineState.Get());
+    ID3D12GraphicsCommandList* renderList = m_renderCommandList.list.Get();
+    
+    RenderShadows(renderList);
+    RenderScene(renderList);
 
     // Indicate that the back buffer will now be used to present.
     CD3DX12_RESOURCE_BARRIER barrierToPresent = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
@@ -801,15 +895,27 @@ void EngineCore::OnResize(UINT width, UINT height)
 void EngineCore::OnShaderReload()
 {
     WaitForGpu();
-    HRESULT hr = CreatePipelineState();
+
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> utf8_conv;
+    HRESULT hr = CreatePipelineState("VSMain", "PSMain", L"Main Material Pipeline", &m_pipelineState);
+
     if (FAILED(hr))
     {
-        
-        std::wstring_convert<std::codecvt_utf8<wchar_t>> utf8_conv;
         _com_error err(hr);
 
-        m_shaderError.append("Failed to create pipeline state: ");
+        m_shaderError.append("Failed to create material pipeline state: ");
         m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
+        return;
+    }
+
+    hr = CreatePipelineState("VSShadow", "PSShadow", L"Shadow Pipeline", &m_shadowPipelineState);
+    if (FAILED(hr))
+    {
+        _com_error err(hr);
+
+        m_shaderError.append("Failed to create shadow pipeline state: ");
+        m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
+        return;
     }
 }
 

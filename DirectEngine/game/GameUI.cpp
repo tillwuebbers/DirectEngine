@@ -1,6 +1,13 @@
 #include "Game.h"
 #include "remixicon.h"
 
+std::string FormatVector3(XMVECTOR in)
+{
+	XMFLOAT3 data;
+	XMStoreFloat3(&data, in);
+	return std::format("{:.1f}, {:.1f}, {:.1f}", data.x, data.y, data.z);
+}
+
 void Game::DrawUI(EngineCore& engine)
 {
 	engine.BeginProfile("Game UI", ImColor::HSV(.75f, 1.f, .75f));
@@ -61,8 +68,8 @@ void Game::DrawUI(EngineCore& engine)
 			}
 
 			ImGui::NewLine();
-			ImGui::Text(std::format("Mouse pos: {},{}", input.mouseX, input.mouseY).c_str());
-			ImGui::Text(std::format("Camera pitch/yaw: {},{}", playerPitch, playerYaw).c_str());
+			ImGui::Text(std::format("Camera Position: {}", FormatVector3(camera.position)).c_str());
+			ImGui::Text(std::format("Camera pitch/yaw: {:.0f}, {:.0f}", playerPitch / XM_2PI * 360.f, playerYaw / XM_2PI * 360.f).c_str());
 
 			ImGui::NewLine();
 

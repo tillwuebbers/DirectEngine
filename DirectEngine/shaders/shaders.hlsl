@@ -1,14 +1,21 @@
 cbuffer SceneConstantBuffer : register(b0)
 {
 	float4x4 cameraTransform;
-	float4x4 clipTransform;
-	float3 sunDirection;
+	float4x4 perspectiveTransform;
 	float3 worldCameraPos;
 	float time;
 	float deltaTime;
 };
 
-cbuffer EntityConstantBuffer : register(b1)
+cbuffer LightConstantBuffer : register(b1)
+{
+	float4x4 lightTransform;
+	float4x4 lightPerspective;
+	float3 sunDirection;
+	bool shadowPassActive;
+};
+
+cbuffer EntityConstantBuffer : register(b2)
 {
 	float4x4 worldTransform;
 	float4 color;
@@ -23,6 +30,7 @@ struct PSInput
 	float3 worldNormal : NORMAL;
 };
 
+// Default material
 PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL)
 {
 	PSInput result;
@@ -30,7 +38,8 @@ PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 norm
 	float4 worldPos = mul(position, worldTransform);
 	result.worldPosition = worldPos;
 
-	float4x4 vp = mul(cameraTransform, clipTransform);
+	float4x4 vp;
+	vp = mul(cameraTransform, perspectiveTransform);
 	result.position = mul(worldPos, vp);
 
 	result.color = color;
@@ -66,4 +75,28 @@ float4 PSMain(PSInput input) : SV_TARGET
 	float3 specularLit = specularIntensity * specularLightColor;
 
 	return float4(ambientLit + diffuseLit + specularLit, 1.) * input.color;
+}
+
+// Shadowmap
+PSInput VSShadow(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL)
+{
+	PSInput result;
+
+	float4 worldPos = mul(position, worldTransform);
+	result.worldPosition = worldPos;
+
+	float4x4 vp;
+	vp = mul(lightTransform, lightPerspective);
+	result.position = mul(worldPos, vp);
+
+	result.color = color;
+
+	result.worldNormal = mul(float4(normal, 0.), worldTransform).xyz;
+
+	return result;
+}
+
+float4 PSShadow(PSInput input) : SV_TARGET
+{
+	return input.color;
 }

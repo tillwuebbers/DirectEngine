@@ -145,6 +145,8 @@ void Game::StartGame(EngineCore& engine)
 	camera.position = { 0.f, 10.f, 0.f };
 	playerPitch = XM_PI;
 
+	light.position = { 10.f, 10.f, 10.f };
+
 	UpdateCursorState();
 }
 
@@ -192,6 +194,8 @@ void CalculateDirectionVectors(XMVECTOR& outForward, XMVECTOR& outRight, XMVECTO
 
 void Game::UpdateGame(EngineCore& engine)
 {
+	light.rotation = XMQuaternionRotationRollPitchYaw(45.f / 360.f * XM_2PI, 225.f / 360.f * XM_2PI, 0.f);
+
 	XMVECTOR camForward;
 	XMVECTOR camRight;
 	CalculateDirectionVectors(camForward, camRight, camera.rotation);
@@ -321,9 +325,16 @@ void Game::UpdateGame(EngineCore& engine)
 	CalculateDirectionVectors(camForward, camRight, camera.rotation);
 
 	engine.m_sceneData.cameraTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
-	engine.m_sceneData.clipTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
+	engine.m_sceneData.perspectiveTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
 	engine.m_sceneData.worldCameraPos = camera.position;
-	engine.m_sceneData.sunDirection = XMVector3Normalize({ 1.f, -1.f, 1.f });
+
+	// Update light
+	XMVECTOR lightForward;
+	XMVECTOR lightRight;
+	CalculateDirectionVectors(lightForward, lightRight, light.rotation);
+	XMStoreFloat3(&engine.m_lightData.sunDirection, lightForward);
+	engine.m_lightData.lightTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(light.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(light.rotation)));
+	engine.m_lightData.lightPerspective = XMMatrixTranspose(XMMatrixOrthographicLH(16.f, 9.f, .1f, 100.f));
 
 	// Test
 	testCube->position = XMVectorAdd(camera.position, camForward);
