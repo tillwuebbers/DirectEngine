@@ -15,8 +15,8 @@ cbuffer LightConstantBuffer : register(b1)
 	bool shadowPassActive;
 };
 
-Texture2D testTexture : register(t2);
-SamplerState testSampler : register(s0);
+Texture2D diffuseTexture : register(t2);
+SamplerState textureSampler : register(s0);
 
 cbuffer EntityConstantBuffer : register(b3)
 {
@@ -79,7 +79,10 @@ float4 PSMain(PSInput input) : SV_TARGET
 	float3 specularLightColor = float3(1., 1., 1.);
 	float3 specularLit = specularIntensity * specularLightColor;
 
-	return float4((ambientLit + diffuseLit + specularLit) * testTexture.Sample(testSampler, input.uv).rgb * input.color.rgb, 1.);
+	// Texture
+	float4 diffuseTex = diffuseTexture.Sample(textureSampler, input.uv);
+
+	return float4((ambientLit + diffuseLit + specularLit) * diffuseTex.rgb * input.color.rgb, 1.);
 }
 
 // Shadowmap

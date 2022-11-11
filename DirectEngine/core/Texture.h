@@ -17,6 +17,10 @@ struct TextureData
 	size_t width;
 	size_t height;
 	size_t blockSize;
+	size_t mipmapCount;
+	DXGI_FORMAT format;
+	size_t rowPitch;
+	size_t slicePitch;
 	uint8_t* data;
 	size_t dataLength;
 	bool error;

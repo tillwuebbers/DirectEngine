@@ -538,8 +538,8 @@ void EngineCore::LoadAssets()
 void EngineCore::UploadTexture(TextureData& textureData)
 {
     D3D12_RESOURCE_DESC textureDesc = {};
-    textureDesc.MipLevels = 11;
-    textureDesc.Format = DXGI_FORMAT_BC1_UNORM_SRGB;
+    textureDesc.MipLevels = textureData.mipmapCount;
+    textureDesc.Format = textureData.format;
     textureDesc.Width = textureData.width;
     textureDesc.Height = textureData.height;
     textureDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
@@ -563,8 +563,8 @@ void EngineCore::UploadTexture(TextureData& textureData)
 
     D3D12_SUBRESOURCE_DATA resourceData = {};
     resourceData.pData = textureData.data;
-    resourceData.RowPitch = std::max(1ULL, (textureData.width + 3ULL) / 4ULL) * textureData.blockSize;
-    resourceData.SlicePitch = resourceData.RowPitch * textureData.height;
+    resourceData.RowPitch = textureData.rowPitch;
+    resourceData.SlicePitch = textureData.slicePitch;
 
     UpdateSubresources(m_uploadCommandList.list.Get(), m_diffuseTexture.Get(), m_textureUploadHeap.Get(), 0, 0, 1, &resourceData);
 

@@ -17,6 +17,10 @@ TextureData ParseDDS(const char* path, MemoryArena& arena)
 	result.width = header->width;
 	result.height = header->height;
 	result.blockSize = 8; // BC1
+	result.mipmapCount = header->mipMapCount;
+	result.format = DXGI_FORMAT_BC1_UNORM_SRGB;
+	result.rowPitch = std::max(1ULL, (result.width + 3ULL) / 4ULL) * result.blockSize;
+	result.slicePitch = result.rowPitch * result.height;
 
 	file.seekg(128);
 	auto dataStart = file.tellg();

@@ -118,7 +118,7 @@ void Game::StartGame(EngineCore& engine)
 	{
 		PuzzlePiece& piece = displayedPuzzle.pieces[i];
 		Entity* pieceEntity = puzzleEntities[i] = CreateEntity(engine, materialIndex, cubeMeshView);
-		pieceEntity->GetBuffer(engine).color = {(float)(i % 10) / 10.f, (i / 10.f) / 10.f, 0.f};
+		pieceEntity->GetBuffer(engine).color = {.5f, .5f, .5f};
 		pieceEntity->scale = { (float)piece.width + BLOCK_DISPLAY_GAP * (piece.width - 1), 1.f, (float)piece.height + BLOCK_DISPLAY_GAP * (piece.height - 1)};
 		pieceEntity->hasCubeCollision = true;
 		pieceEntity->position = GetPiecePosition(puzzleEntities[i], piece);
@@ -138,7 +138,7 @@ void Game::StartGame(EngineCore& engine)
 	auto groundMeshView = engine.CreateMesh(materialIndex, groundFile.vertices.data(), groundFile.vertices.size());
 	Entity* groundEntity = CreateEntity(engine, materialIndex, groundMeshView);
 	groundEntity->position = { -50.f, -0.51f, -50.f };
-	groundEntity->GetBuffer(engine).color = { 51.f / 255.f, 27.f / 255.f, 18.f / 255.f };
+	groundEntity->GetBuffer(engine).color = { 1.f, 1.f, 1.f };
 
 	engine.FinishMaterialSetup(materialIndex);
 
