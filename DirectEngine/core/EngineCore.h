@@ -21,6 +21,7 @@
 #include "../imgui/ProfilerTask.h"
 
 #include "../Helpers.h"
+#include "Texture.h"
 
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
@@ -32,11 +33,12 @@ enum class WindowMode
     Windowed
 };
 
-enum RootSigBufferOffset : UINT
+enum RootSignatureOffset : UINT
 {
     SCENE = 0,
     LIGHT = 1,
-    ENTITY = 2,
+    DIFFUSE = 2,
+    ENTITY = 3,
 };
 
 struct FrameDebugData
@@ -47,7 +49,6 @@ struct FrameDebugData
 struct CommandList
 {
     ComPtr<ID3D12GraphicsCommandList> list = nullptr;
-    bool scheduled = false;
 
     void Reset(ID3D12CommandAllocator* allocator, ID3D12PipelineState* pipelineState);
 };
@@ -146,8 +147,8 @@ public:
     ComPtr<ID3D12PipelineState> m_pipelineState = nullptr;
     ComPtr<ID3D12PipelineState> m_shadowPipelineState = nullptr;
     CommandList m_uploadCommandList = {};
+    bool m_scheduleUpload = false;
     CommandList m_renderCommandList = {};
-    std::vector<CommandList*> m_scheduledCommandLists = {};
     UINT m_rtvDescriptorSize;
 
     // App resources
@@ -155,6 +156,8 @@ public:
     std::vector<ComPtr<ID3D12Resource>> m_lightConstantBuffers = {};
     ComPtr<ID3D12Resource> m_depthStencilBuffer = nullptr;
     ComPtr<ID3D12Resource> m_shadowmapBuffer = nullptr;
+    ComPtr<ID3D12Resource> m_diffuseTexture = nullptr;
+    ComPtr<ID3D12Resource> m_textureUploadHeap = nullptr;
     SceneConstantBuffer m_sceneData;
     LightConstantBuffer m_lightData;
     std::vector<UINT8*> m_mappedSceneData = {};
@@ -204,6 +207,7 @@ public:
     void LoadSizeDependentResources();
     HRESULT CreatePipelineState(const char* vsEntryName, const char* psEntryName, const wchar_t* debugName, ID3D12PipelineState** outState);
     void LoadAssets();
+    void UploadTexture(TextureData& textureData);
     size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride);
     D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount);
     size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
@@ -212,7 +216,6 @@ public:
     void RenderShadows(ID3D12GraphicsCommandList* renderList);
     void RenderScene(ID3D12GraphicsCommandList* renderList);
     void PopulateCommandList();
-    void ScheduleCommandList(CommandList* newList);
     void MoveToNextFrame();
     void WaitForGpu();
     void CheckTearingSupport();
@@ -225,6 +228,15 @@ public:
 
     // TODO: be smarter about this?
     UINT cbcount = 0;
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE GetNewCPUDescriptorHandle()
+    {
+        D3D12_CPU_DESCRIPTOR_HANDLE heapStart = m_cbvHeap->GetCPUDescriptorHandleForHeapStart();
+        CD3DX12_CPU_DESCRIPTOR_HANDLE heapEntry{};
+        heapEntry.InitOffsetted(heapStart, cbcount * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        cbcount++;
+        return heapEntry;
+    }
 
     template<typename T>
     void CreateConstantBuffers(std::vector<ComPtr<ID3D12Resource>>& buffers, std::vector<UINT8*>& outMappedData)
@@ -244,17 +256,14 @@ public:
             D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
             cbvDesc.BufferLocation = buffers[i]->GetGPUVirtualAddress();
             cbvDesc.SizeInBytes = constantBufferSize;
-            D3D12_CPU_DESCRIPTOR_HANDLE heapStart = m_cbvHeap->GetCPUDescriptorHandleForHeapStart();
-            CD3DX12_CPU_DESCRIPTOR_HANDLE heapEntry{};
-            heapEntry.InitOffsetted(heapStart, cbcount * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+            
+            CD3DX12_CPU_DESCRIPTOR_HANDLE heapEntry = GetNewCPUDescriptorHandle();
             m_device->CreateConstantBufferView(&cbvDesc, heapEntry);
 
             // Map and initialize the constant buffer. We don't unmap this until the
             // app closes. Keeping things mapped for the lifetime of the resource is okay.
             CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
             ThrowIfFailed(buffers[i]->Map(0, &readRange, reinterpret_cast<void**>(&outMappedData[i])));
-
-            cbcount++;
         }
     }
 };

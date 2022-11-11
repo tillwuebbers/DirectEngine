@@ -15,7 +15,10 @@ cbuffer LightConstantBuffer : register(b1)
 	bool shadowPassActive;
 };
 
-cbuffer EntityConstantBuffer : register(b2)
+Texture2D testTexture : register(t2);
+SamplerState testSampler : register(s0);
+
+cbuffer EntityConstantBuffer : register(b3)
 {
 	float4x4 worldTransform;
 	float4 color;
@@ -28,10 +31,11 @@ struct PSInput
 	float4 worldPosition : POSITION;
 	float4 color : COLOR;
 	float3 worldNormal : NORMAL;
+	float2 uv : UV;
 };
 
 // Default material
-PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL)
+PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL, float2 uv : UV)
 {
 	PSInput result;
 
@@ -49,6 +53,7 @@ PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 norm
 	}
 
 	result.worldNormal = mul(float4(normal, 0.), worldTransform).xyz;
+	result.uv = uv;
 
 	return result;
 }
@@ -70,15 +75,15 @@ float4 PSMain(PSInput input) : SV_TARGET
 	// Specular
 	float3 viewDir = normalize(input.worldPosition.xyz - worldCameraPos);
 	float3 halfwayDir = normalize(sunDirection + viewDir);
-	float specularIntensity = pow(max(dot(input.worldNormal, -halfwayDir), 0.), 256);
+	float specularIntensity = pow(max(dot(input.worldNormal, -halfwayDir), 0.), 32);
 	float3 specularLightColor = float3(1., 1., 1.);
 	float3 specularLit = specularIntensity * specularLightColor;
 
-	return float4(ambientLit + diffuseLit + specularLit, 1.) * input.color;
+	return float4((ambientLit + diffuseLit + specularLit) * testTexture.Sample(testSampler, input.uv).rgb * input.color.rgb, 1.);
 }
 
 // Shadowmap
-PSInput VSShadow(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL)
+PSInput VSShadow(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL, float2 uv : UV)
 {
 	PSInput result;
 
@@ -92,6 +97,7 @@ PSInput VSShadow(float4 position : POSITION, float4 vertColor : COLOR, float3 no
 	result.color = color;
 
 	result.worldNormal = mul(float4(normal, 0.), worldTransform).xyz;
+	result.uv = uv;
 
 	return result;
 }

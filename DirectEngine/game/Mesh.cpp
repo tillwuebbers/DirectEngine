@@ -8,12 +8,12 @@
 void CreateQuad(MeshFile& meshFileOut, float width, float height)
 {
 	meshFileOut.vertices = {
-		Vertex{ { 0.f  , 0.f, 0.f    }, {}, {0.f, 1.f, 0.f } },
-		Vertex{ { width, 0.f, height }, {}, {0.f, 1.f, 0.f } },
-		Vertex{ { width, 0.f, 0.f    }, {}, {0.f, 1.f, 0.f } },
-		Vertex{ { 0.f  , 0.f, 0.f    }, {}, {0.f, 1.f, 0.f } },
-		Vertex{ { 0.f  , 0.f, height }, {}, {0.f, 1.f, 0.f } },
-		Vertex{ { width, 0.f, height }, {}, {0.f, 1.f, 0.f } },
+		Vertex{ { 0.f  , 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f} },
+		Vertex{ { width, 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f} },
+		Vertex{ { width, 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f} },
+		Vertex{ { 0.f  , 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f} },
+		Vertex{ { 0.f  , 0.f, height }, {}, {0.f, 1.f, 0.f }, {0.f, 1.f} },
+		Vertex{ { width, 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f} },
 	};
 }
 
@@ -78,8 +78,8 @@ void LoadMeshFromFile(MeshFile& meshFileOut, const std::string& filePath, const 
 				}
 
 				if (idx.texcoord_index >= 0) {
-					tinyobj::real_t tx = attrib.texcoords[2 * size_t(idx.texcoord_index) + 0];
-					tinyobj::real_t ty = attrib.texcoords[2 * size_t(idx.texcoord_index) + 1];
+					vert.uv.x = attrib.texcoords[2 * size_t(idx.texcoord_index) + 0];
+					vert.uv.y = attrib.texcoords[2 * size_t(idx.texcoord_index) + 1];
 				}
 
 				vert.color.x = attrib.colors[3 * size_t(idx.vertex_index) + 0];

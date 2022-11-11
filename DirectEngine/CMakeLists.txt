@@ -9,6 +9,7 @@ add_executable (${PROJECT_NAME} WIN32
                 "DirectEngine.cpp"
                 "DirectEngine.h"
                 "Helpers.h"
+                "core/Coroutine.h"
                 "core/EngineCore.cpp"
                 "core/EngineCore.h"
                 "core/Memory.h"
@@ -18,6 +19,9 @@ add_executable (${PROJECT_NAME} WIN32
                 "core/Input.h"
                 "core/Input.cpp"
                 "core/vkcodes.h"
+                "core/DDS.h"
+                "core/Texture.h"
+                "core/Texture.cpp"
                 "imgui/remixicon.h"
                 "imgui/ImGuiProfilerRenderer.h"
                 "imgui/ProfilerTask.h"
@@ -29,7 +33,9 @@ add_executable (${PROJECT_NAME} WIN32
                 "game/Puzzle.cpp"
                 "game/Puzzle.h"
                 "game/Log.h"
-                "game/Log.cpp" "core/Coroutine.h"  "game/Mesh.h" "game/Mesh.cpp")
+                "game/Log.cpp"
+                "game/Mesh.h"
+                "game/Mesh.cpp")
 
 
 # imgui
@@ -73,6 +79,12 @@ add_custom_command(
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${CMAKE_CURRENT_SOURCE_DIR}/models
                 ${CMAKE_CURRENT_BINARY_DIR}/models)
+                
+add_custom_command(
+        TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_CURRENT_SOURCE_DIR}/textures
+                ${CMAKE_CURRENT_BINARY_DIR}/textures)
                 
 file(COPY "shaders/shaders.hlsl" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 

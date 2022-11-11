@@ -396,7 +396,8 @@ HRESULT EngineCore::CreatePipelineState(const char* vsEntryName, const char* psE
     {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 28, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 28, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 40, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
     };
 
     // Describe and create the graphics pipeline state object (PSO).
@@ -417,13 +418,12 @@ HRESULT EngineCore::CreatePipelineState(const char* vsEntryName, const char* psE
     psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 
     hr = m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(outState));
-    m_pipelineState->SetName(debugName);
+    (*outState)->SetName(debugName);
     return hr;
 }
 
 void EngineCore::LoadAssets()
 {
-    // Create a root signature consisting of a descriptor table with a single CBV.
     {
         D3D12_FEATURE_DATA_ROOT_SIGNATURE featureData = {};
 
@@ -435,15 +435,32 @@ void EngineCore::LoadAssets()
             featureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
         }
 
-        CD3DX12_DESCRIPTOR_RANGE1 ranges[3];
-        CD3DX12_ROOT_PARAMETER1 rootParameters[3];
+        CD3DX12_DESCRIPTOR_RANGE1 ranges[4];
+        CD3DX12_ROOT_PARAMETER1 rootParameters[4];
 
-        ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // scene CBV
-        ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // light CBV
-        ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 2, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // entity CBV
+        ranges[SCENE].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, SCENE, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // scene CBV
+        ranges[LIGHT].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, LIGHT, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // light CBV
+        ranges[DIFFUSE].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, DIFFUSE, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // diffuse texture SRV
+        ranges[ENTITY].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, ENTITY, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // entity CBV
         rootParameters[0].InitAsDescriptorTable(1, &ranges[0], D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[1].InitAsDescriptorTable(1, &ranges[1], D3D12_SHADER_VISIBILITY_ALL);
-        rootParameters[2].InitAsDescriptorTable(1, &ranges[2], D3D12_SHADER_VISIBILITY_VERTEX);
+        rootParameters[2].InitAsDescriptorTable(1, &ranges[2], D3D12_SHADER_VISIBILITY_PIXEL);
+        rootParameters[3].InitAsDescriptorTable(1, &ranges[3], D3D12_SHADER_VISIBILITY_VERTEX);
+
+        D3D12_STATIC_SAMPLER_DESC sampler = {};
+        sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+        sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        sampler.MipLODBias = 0;
+        sampler.MaxAnisotropy = 0;
+        sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+        sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+        sampler.MinLOD = 0.0f;
+        sampler.MaxLOD = D3D12_FLOAT32_MAX;
+        sampler.ShaderRegister = 0;
+        sampler.RegisterSpace = 0;
+        sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
         // Allow input layout and deny uneccessary access to certain pipeline stages.
         D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags =
@@ -453,7 +470,7 @@ void EngineCore::LoadAssets()
             D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
         CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc{};
-        rootSignatureDesc.Init_1_1(_countof(rootParameters), rootParameters, 0, nullptr, rootSignatureFlags);
+        rootSignatureDesc.Init_1_1(_countof(rootParameters), rootParameters, 1, &sampler, rootSignatureFlags);
 
         ComPtr<ID3DBlob> signature;
         ComPtr<ID3DBlob> error;
@@ -474,9 +491,8 @@ void EngineCore::LoadAssets()
     ThrowIfFailed(m_renderCommandList.list->Close());
     m_renderCommandList.list->SetName(L"Render Command List");
 
-    // Create the upload command list and use it
+    // Create the upload command list
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_uploadCommandAllocators[m_frameIndex].Get(), nullptr, IID_PPV_ARGS(&m_uploadCommandList.list)));
-    ThrowIfFailed(m_uploadCommandList.list->Close());
     m_uploadCommandList.list->SetName(L"Upload Command List");
 
     // Shader values for scene
@@ -489,6 +505,13 @@ void EngineCore::LoadAssets()
 
         memcpy(m_mappedLightData[i], &m_lightData, sizeof(m_lightData));
         m_lightConstantBuffers[i]->SetName(std::format(L"Light Constant Buffer {}", i).c_str());
+    }
+
+    // Upload textures
+    {
+        TextureData testData = ParseDDS("textures/ground-diffuse-bc1.dds", frameArena);
+        UploadTexture(testData);
+        m_scheduleUpload = true;
     }
 
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
@@ -510,6 +533,51 @@ void EngineCore::LoadAssets()
         // complete before continuing.
         WaitForGpu();
     }
+}
+
+void EngineCore::UploadTexture(TextureData& textureData)
+{
+    D3D12_RESOURCE_DESC textureDesc = {};
+    textureDesc.MipLevels = 11;
+    textureDesc.Format = DXGI_FORMAT_BC1_UNORM_SRGB;
+    textureDesc.Width = textureData.width;
+    textureDesc.Height = textureData.height;
+    textureDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+    textureDesc.DepthOrArraySize = 1;
+    textureDesc.SampleDesc.Count = 1;
+    textureDesc.SampleDesc.Quality = 0;
+    textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+
+    // Final texture buffer
+    CD3DX12_HEAP_PROPERTIES heapPropertiesDefault(D3D12_HEAP_TYPE_DEFAULT);
+    ThrowIfFailed(m_device->CreateCommittedResource(&heapPropertiesDefault, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_diffuseTexture)));
+    m_diffuseTexture->SetName(L"Diffuse Texture");
+
+    const UINT64 uploadBufferSize = GetRequiredIntermediateSize(m_diffuseTexture.Get(), 0, 1);
+
+    // Temporary upload buffer
+    CD3DX12_HEAP_PROPERTIES heapPropertiesUpload(D3D12_HEAP_TYPE_UPLOAD);
+    CD3DX12_RESOURCE_DESC bufferUloadDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
+    ThrowIfFailed(m_device->CreateCommittedResource(&heapPropertiesUpload, D3D12_HEAP_FLAG_NONE, &bufferUloadDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_textureUploadHeap)));
+    m_textureUploadHeap->SetName(L"Texture Upload Heap");
+
+    D3D12_SUBRESOURCE_DATA resourceData = {};
+    resourceData.pData = textureData.data;
+    resourceData.RowPitch = std::max(1ULL, (textureData.width + 3ULL) / 4ULL) * textureData.blockSize;
+    resourceData.SlicePitch = resourceData.RowPitch * textureData.height;
+
+    UpdateSubresources(m_uploadCommandList.list.Get(), m_diffuseTexture.Get(), m_textureUploadHeap.Get(), 0, 0, 1, &resourceData);
+
+    CD3DX12_RESOURCE_BARRIER transition = CD3DX12_RESOURCE_BARRIER::Transition(m_diffuseTexture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    m_uploadCommandList.list->ResourceBarrier(1, &transition);
+
+    // SRV for the texture
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Format = textureDesc.Format;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MipLevels = 1;
+    m_device->CreateShaderResourceView(m_diffuseTexture.Get(), &srvDesc, GetNewCPUDescriptorHandle());
 }
 
 size_t EngineCore::CreateMaterial(const size_t maxVertices, const size_t vertexStride)
@@ -586,7 +654,7 @@ void EngineCore::FinishMaterialSetup(size_t materialIndex)
     CD3DX12_RESOURCE_BARRIER transition = CD3DX12_RESOURCE_BARRIER::Transition(data.vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
     m_uploadCommandList.list->ResourceBarrier(1, &transition);
 
-    ScheduleCommandList(&m_uploadCommandList);
+    m_scheduleUpload = true;
 }
 
 void EngineCore::OnUpdate()
@@ -603,8 +671,11 @@ void EngineCore::OnUpdate()
     UpdateImgui(this);
 
     BeginProfile("Reset Upload CB", ImColor::HSV(.33f, .33f, 1.f));
-    ThrowIfFailed(m_uploadCommandAllocators[m_frameIndex]->Reset());
-    m_uploadCommandList.Reset(m_uploadCommandAllocators[m_frameIndex].Get(), m_pipelineState.Get());
+    if (!m_scheduleUpload)
+    {
+        ThrowIfFailed(m_uploadCommandAllocators[m_frameIndex]->Reset());
+        m_uploadCommandList.Reset(m_uploadCommandAllocators[m_frameIndex].Get(), m_pipelineState.Get());
+    }
     EndProfile("Reset Upload CB");
 
     if (!m_gameStarted)
@@ -632,16 +703,16 @@ void EngineCore::OnRender()
         ApplyWindowMode();
     }
 
-    PopulateCommandList();
-
-    std::vector<ID3D12CommandList*> lists{};
-    for (CommandList* list : m_scheduledCommandLists)
+    if (m_scheduleUpload)
     {
-        list->scheduled = false;
-        lists.push_back(list->list.Get());
+        m_scheduleUpload = false;
+        ID3D12CommandList* uploadList = m_uploadCommandList.list.Get();
+        m_commandQueue->ExecuteCommandLists(1, &uploadList);
     }
-    m_commandQueue->ExecuteCommandLists(lists.size(), lists.data());
-    m_scheduledCommandLists.clear();
+
+    PopulateCommandList();
+    ID3D12CommandList* renderList = m_renderCommandList.list.Get();
+    m_commandQueue->ExecuteCommandLists(1, &renderList);
     EndProfile("Commands");
 
     BeginProfile("Present", ImColor::HSV(.2f, .5f, 1.f));
@@ -666,19 +737,22 @@ void EngineCore::OnDestroy()
     CloseHandle(m_fenceEvent);
 }
 
-void EngineCore::ScheduleCommandList(CommandList* newList)
-{
-    newList->scheduled = true;
-    for (CommandList* list : m_scheduledCommandLists)
-    {
-        if (newList == list) return;
-    }
-    m_scheduledCommandLists.push_back(newList);
-}
-
 CD3DX12_GPU_DESCRIPTOR_HANDLE* EngineCore::GetConstantBufferHandle(int rootSigDescriptorOffset)
 {
-    UINT offset = rootSigDescriptorOffset * FrameCount + m_frameIndex;
+    UINT offset;
+    if (rootSigDescriptorOffset < DIFFUSE)
+    {
+        offset = rootSigDescriptorOffset * FrameCount + m_frameIndex;
+    }
+    else if (rootSigDescriptorOffset == DIFFUSE)
+    {
+        offset = rootSigDescriptorOffset * FrameCount;
+    }
+    else
+    {
+        offset = (rootSigDescriptorOffset - 1) * FrameCount + 1 + m_frameIndex;
+    }
+
     CD3DX12_GPU_DESCRIPTOR_HANDLE* descriptor = NewObject(frameArena, CD3DX12_GPU_DESCRIPTOR_HANDLE);
     D3D12_GPU_DESCRIPTOR_HANDLE start = m_cbvHeap->GetGPUDescriptorHandleForHeapStart();
     descriptor->InitOffsetted(start, offset, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
@@ -691,13 +765,13 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
     memcpy(m_mappedSceneData[m_frameIndex], &m_sceneData, sizeof(m_sceneData));
     memcpy(m_mappedLightData[m_frameIndex], &m_lightData, sizeof(m_lightData));
 
-    // Set necessary state.
+    // Set pipeline
     renderList->SetPipelineState(m_shadowPipelineState.Get());
     renderList->SetGraphicsRootSignature(m_rootSignature.Get());
     renderList->RSSetViewports(1, &m_viewport);
     renderList->RSSetScissorRects(1, &m_scissorRect);
 
-    // Constant buffer descriptor heap
+    // Load heaps
     ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap.Get() };
     renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
@@ -723,7 +797,7 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
             memcpy(entity.mappedConstantBufferData[m_frameIndex], &entity.constantBufferData, sizeof(EntityConstantBuffer));
 
             renderList->IASetVertexBuffers(0, 1, &entity.vertexBufferView);
-            renderList->SetGraphicsRootDescriptorTable(RootSigBufferOffset::ENTITY, *GetConstantBufferHandle(ENTITY + entity.entityIndex));
+            renderList->SetGraphicsRootDescriptorTable(ENTITY, *GetConstantBufferHandle(ENTITY + entity.entityIndex));
             renderList->DrawInstanced(entity.vertexBufferView.SizeInBytes / entity.vertexBufferView.StrideInBytes, 1, 0, 0);
 
             entityIndex++;
@@ -743,12 +817,13 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
     renderList->RSSetViewports(1, &m_viewport);
     renderList->RSSetScissorRects(1, &m_scissorRect);
 
-    // Constant buffer descriptor heap
+    // Load heaps
     ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap.Get() };
     renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
     renderList->SetGraphicsRootDescriptorTable(SCENE, *GetConstantBufferHandle(SCENE));
     renderList->SetGraphicsRootDescriptorTable(LIGHT, *GetConstantBufferHandle(LIGHT));
+    renderList->SetGraphicsRootDescriptorTable(DIFFUSE, *GetConstantBufferHandle(DIFFUSE));
 
     // Indicate that the back buffer will be used as a render target.
     CD3DX12_RESOURCE_BARRIER barrierToRender = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -807,8 +882,6 @@ void EngineCore::PopulateCommandList()
     renderList->ResourceBarrier(1, &barrierToPresent);
 
     ThrowIfFailed(renderList->Close());
-
-    ScheduleCommandList(&m_renderCommandList);
 }
 
 // Wait for pending GPU work to complete.
@@ -1105,7 +1178,6 @@ inline double EngineCore::TimeSinceFrameStart()
 
 void CommandList::Reset(ID3D12CommandAllocator* allocator, ID3D12PipelineState* pipelineState)
 {
-    assert(!scheduled);
     ThrowIfFailed(list->Reset(allocator, pipelineState));
 }
 
