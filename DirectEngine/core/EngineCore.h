@@ -34,16 +34,30 @@ enum class WindowMode
 };
 
 enum RootSignatureOffset : UINT
-{
-    SCENE = 0,
-    LIGHT = 1,
-    DIFFUSE = 2,
-    ENTITY = 3,
+{                 // Offsets in buffer
+    SCENE = 0,    // 0,1,2
+    LIGHT = 1,    // 3,4,5
+    DIFFUSE = 2,  // 6
+    DEBUG = 3,    // 7
+    SHADOWMAP = 4,// 8
+    ENTITY = 5,   // 9,10,11
 };
 
 struct FrameDebugData
 {
     float duration;
+};
+
+struct DescriptorHandle
+{
+    CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle;
+    CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle;
+};
+
+struct Texture
+{
+    ComPtr<ID3D12Resource> buffer = nullptr;
+    DescriptorHandle handle;
 };
 
 struct CommandList
@@ -143,21 +157,22 @@ public:
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap = nullptr;
     ComPtr<ID3D12DescriptorHeap> m_cbvHeap = nullptr;
     ComPtr<ID3D12DescriptorHeap> m_depthStencilHeap = nullptr;
-    ComPtr<ID3D12DescriptorHeap> m_shadowmapHeap = nullptr;
     ComPtr<ID3D12PipelineState> m_pipelineState = nullptr;
     ComPtr<ID3D12PipelineState> m_shadowPipelineState = nullptr;
     CommandList m_uploadCommandList = {};
     bool m_scheduleUpload = false;
     CommandList m_renderCommandList = {};
     UINT m_rtvDescriptorSize;
+    UINT m_dsvDescriptorSize;
 
     // App resources
     std::vector<ComPtr<ID3D12Resource>> m_sceneConstantBuffers = {};
     std::vector<ComPtr<ID3D12Resource>> m_lightConstantBuffers = {};
     ComPtr<ID3D12Resource> m_depthStencilBuffer = nullptr;
-    ComPtr<ID3D12Resource> m_shadowmapBuffer = nullptr;
+    Texture m_shadowmap;
     ComPtr<ID3D12Resource> m_diffuseTexture = nullptr;
-    ComPtr<ID3D12Resource> m_textureUploadHeap = nullptr;
+    ComPtr<ID3D12Resource> m_debugTexture = nullptr;
+    std::vector<ComPtr<ID3D12Resource>> m_textureUploadHeaps = {};
     SceneConstantBuffer m_sceneData;
     LightConstantBuffer m_lightData;
     std::vector<UINT8*> m_mappedSceneData = {};
@@ -205,9 +220,9 @@ public:
     void GetHardwareAdapter(IDXGIFactory1* pFactory, IDXGIAdapter1** ppAdapter, bool requestHighPerformanceAdapter);
     void LoadPipeline();
     void LoadSizeDependentResources();
-    HRESULT CreatePipelineState(const char* vsEntryName, const char* psEntryName, const wchar_t* debugName, ID3D12PipelineState** outState);
+    HRESULT CreatePipelineState(const wchar_t* shaderFileName, const char* vsEntryName, const char* psEntryName, const wchar_t* debugName, ID3D12PipelineState** outState);
     void LoadAssets();
-    void UploadTexture(TextureData& textureData);
+    void UploadTexture(const TextureData& textureData, ComPtr<ID3D12Resource>& targetResource, const wchar_t* name);
     size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride);
     D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount);
     size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
@@ -229,13 +244,24 @@ public:
     // TODO: be smarter about this?
     UINT cbcount = 0;
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE GetNewCPUDescriptorHandle()
+    void Transition(ID3D12GraphicsCommandList* renderList, ID3D12Resource* resource, D3D12_RESOURCE_STATES from, D3D12_RESOURCE_STATES to)
     {
-        D3D12_CPU_DESCRIPTOR_HANDLE heapStart = m_cbvHeap->GetCPUDescriptorHandleForHeapStart();
-        CD3DX12_CPU_DESCRIPTOR_HANDLE heapEntry{};
-        heapEntry.InitOffsetted(heapStart, cbcount * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(resource, from, to);
+        renderList->ResourceBarrier(1, &barrier);
+    }
+
+    DescriptorHandle GetNewDescriptorHandle()
+    {
+        D3D12_CPU_DESCRIPTOR_HANDLE cpuHeapStart = m_cbvHeap->GetCPUDescriptorHandleForHeapStart();
+        CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHeapEntry{};
+        cpuHeapEntry.InitOffsetted(cpuHeapStart, cbcount * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+
+        D3D12_GPU_DESCRIPTOR_HANDLE gpuHeapStart = m_cbvHeap->GetGPUDescriptorHandleForHeapStart();
+        CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHeapEntry{};
+        gpuHeapEntry.InitOffsetted(gpuHeapStart, cbcount * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+
         cbcount++;
-        return heapEntry;
+        return { cpuHeapEntry, gpuHeapEntry };
     }
 
     template<typename T>
@@ -257,7 +283,7 @@ public:
             cbvDesc.BufferLocation = buffers[i]->GetGPUVirtualAddress();
             cbvDesc.SizeInBytes = constantBufferSize;
             
-            CD3DX12_CPU_DESCRIPTOR_HANDLE heapEntry = GetNewCPUDescriptorHandle();
+            CD3DX12_CPU_DESCRIPTOR_HANDLE heapEntry = GetNewDescriptorHandle().cpuHandle;
             m_device->CreateConstantBufferView(&cbvDesc, heapEntry);
 
             // Map and initialize the constant buffer. We don't unmap this until the

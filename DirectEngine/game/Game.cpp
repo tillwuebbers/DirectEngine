@@ -108,6 +108,12 @@ void Game::StartGame(EngineCore& engine)
 	testCube->GetBuffer(engine).color = {1.f, 1.f, 1.f};
 	testCube->scale = { .01f, .01f, .01f };
 
+	/*MeshFile testQuadMesh{};
+	CreateQuad(testQuadMesh, .2f, .2f);
+	auto testQuadMeshView = engine.CreateMesh(materialIndex, testQuadMesh.vertices.data(), testQuadMesh.vertices.size());
+	Entity* testQuad = CreateEntity(engine, materialIndex, testQuadMeshView);
+	testQuad->GetBuffer(engine).isScreenSpace = true;*/
+
 	for (int i = 0; i < _countof(graphDisplayEntities); i++)
 	{
 		Entity* graphEntity = graphDisplayEntities[i] = CreateEntity(engine, materialIndex, cubeMeshView);

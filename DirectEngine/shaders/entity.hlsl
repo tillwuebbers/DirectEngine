@@ -1,3 +1,5 @@
+SamplerState textureSampler : register(s0);
+
 cbuffer SceneConstantBuffer : register(b0)
 {
 	float4x4 cameraTransform;
@@ -16,9 +18,10 @@ cbuffer LightConstantBuffer : register(b1)
 };
 
 Texture2D diffuseTexture : register(t2);
-SamplerState textureSampler : register(s0);
+Texture2D debugTexture : register(t3);
+Texture2D shadowmapTexture : register(t4);
 
-cbuffer EntityConstantBuffer : register(b3)
+cbuffer EntityConstantBuffer : register(b5)
 {
 	float4x4 worldTransform;
 	float4 color;
@@ -81,31 +84,7 @@ float4 PSMain(PSInput input) : SV_TARGET
 
 	// Texture
 	float4 diffuseTex = diffuseTexture.Sample(textureSampler, input.uv);
+	return debugTexture.Sample(textureSampler, input.uv);
 
 	return float4((ambientLit + diffuseLit + specularLit) * diffuseTex.rgb * input.color.rgb, 1.);
-}
-
-// Shadowmap
-PSInput VSShadow(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL, float2 uv : UV)
-{
-	PSInput result;
-
-	float4 worldPos = mul(position, worldTransform);
-	result.worldPosition = worldPos;
-
-	float4x4 vp;
-	vp = mul(lightTransform, lightPerspective);
-	result.position = mul(worldPos, vp);
-
-	result.color = color;
-
-	result.worldNormal = mul(float4(normal, 0.), worldTransform).xyz;
-	result.uv = uv;
-
-	return result;
-}
-
-float4 PSShadow(PSInput input) : SV_TARGET
-{
-	return input.color;
 }

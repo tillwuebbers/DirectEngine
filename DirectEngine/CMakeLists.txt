@@ -70,9 +70,9 @@ file(COPY "remixicon.ttf" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
 add_custom_command(
         TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy
-                ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shaders.hlsl
-                ${CMAKE_CURRENT_BINARY_DIR}/shaders.hlsl)
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_CURRENT_SOURCE_DIR}/shaders
+                ${CMAKE_CURRENT_BINARY_DIR}/shaders)
 
 add_custom_command(
         TARGET ${PROJECT_NAME} POST_BUILD
@@ -86,8 +86,6 @@ add_custom_command(
                 ${CMAKE_CURRENT_SOURCE_DIR}/textures
                 ${CMAKE_CURRENT_BINARY_DIR}/textures)
                 
-file(COPY "shaders/shaders.hlsl" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-
 # idk
 target_compile_definitions(${PROJECT_NAME} PRIVATE "UNICODE;_UNICODE")
 
