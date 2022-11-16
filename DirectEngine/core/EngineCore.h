@@ -13,6 +13,7 @@
 #include "glm/mat4x4.hpp"
 
 #include "Input.h"
+#include "ShadowMap.h"
 
 #include "../game/IGame.h"
 #include "../game/Mesh.h"
@@ -122,7 +123,7 @@ class EngineCore
 {
 public:
     static const UINT FrameCount = 3;
-    static const size_t MAX_DESCRIPTORS = 4096;
+    static const size_t MAX_DESCRIPTORS = 48;
     static const DXGI_FORMAT DisplayFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
     EngineCore(UINT width, UINT height, IGame* game);
@@ -138,6 +139,7 @@ public:
     bool m_gameStarted = false;
     bool m_quit = false;
 
+    MemoryArena engineArena = {};
     MemoryArena frameArena = {};
 
     // Window Handle
@@ -153,7 +155,8 @@ public:
     ComPtr<ID3D12CommandAllocator> m_uploadCommandAllocators[FrameCount];
     ComPtr<ID3D12CommandAllocator> m_renderCommandAllocators[FrameCount];
     ComPtr<ID3D12CommandQueue> m_commandQueue = nullptr;
-    ComPtr<ID3D12RootSignature> m_rootSignature = nullptr;
+    ComPtr<ID3D12RootSignature> m_rootSignatureScene = nullptr;
+    ComPtr<ID3D12RootSignature> m_rootSignatureShadow = nullptr;
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap = nullptr;
     ComPtr<ID3D12DescriptorHeap> m_cbvHeap = nullptr;
     ComPtr<ID3D12DescriptorHeap> m_depthStencilHeap = nullptr;
@@ -169,7 +172,7 @@ public:
     std::vector<ComPtr<ID3D12Resource>> m_sceneConstantBuffers = {};
     std::vector<ComPtr<ID3D12Resource>> m_lightConstantBuffers = {};
     ComPtr<ID3D12Resource> m_depthStencilBuffer = nullptr;
-    Texture m_shadowmap;
+    ShadowMap* m_shadowmap = nullptr;
     ComPtr<ID3D12Resource> m_diffuseTexture = nullptr;
     ComPtr<ID3D12Resource> m_debugTexture = nullptr;
     std::vector<ComPtr<ID3D12Resource>> m_textureUploadHeaps = {};
@@ -220,7 +223,7 @@ public:
     void GetHardwareAdapter(IDXGIFactory1* pFactory, IDXGIAdapter1** ppAdapter, bool requestHighPerformanceAdapter);
     void LoadPipeline();
     void LoadSizeDependentResources();
-    HRESULT CreatePipelineState(const wchar_t* shaderFileName, const char* vsEntryName, const char* psEntryName, const wchar_t* debugName, ID3D12PipelineState** outState);
+    HRESULT CreatePipelineState(const wchar_t* shaderFileName, const char* vsEntryName, const char* psEntryName, const wchar_t* debugName, ComPtr<ID3D12RootSignature>& rootSignature, ID3D12PipelineState** outState);
     void LoadAssets();
     void UploadTexture(const TextureData& textureData, ComPtr<ID3D12Resource>& targetResource, const wchar_t* name);
     size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride);

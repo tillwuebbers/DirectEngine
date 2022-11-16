@@ -114,11 +114,11 @@ void Game::StartGame(EngineCore& engine)
 	Entity* testQuad = CreateEntity(engine, materialIndex, testQuadMeshView);
 	testQuad->GetBuffer(engine).isScreenSpace = true;*/
 
-	for (int i = 0; i < _countof(graphDisplayEntities); i++)
+	/*for (int i = 0; i < _countof(graphDisplayEntities); i++)
 	{
 		Entity* graphEntity = graphDisplayEntities[i] = CreateEntity(engine, materialIndex, cubeMeshView);
 		engine.m_entities[graphEntity->dataIndex].visible = false;
-	}
+	}*/
 
 	for (int i = 0; i < displayedPuzzle.pieceCount; i++)
 	{
@@ -264,7 +264,7 @@ void Game::UpdateGame(EngineCore& engine)
 			DisplayPuzzleSolution(&displayCoroutine, this, &engine);
 			//DisplayPuzzleSolution(puzzleArena, &displayCoroutine, this, &engine);
 
-			int depthOffsets[1024]{ 0 };
+			/*int depthOffsets[1024]{0};
 			for (int i = 0; i < solver->currentPendingIndex; i++)
 			{
 				SlidingPuzzle& puzzle = solver->pendingPositions[i];
@@ -281,7 +281,7 @@ void Game::UpdateGame(EngineCore& engine)
 				{
 					entity->GetBuffer(engine).color = { .5f, .5f, .5f };
 				}
-			}
+			}*/
 		}
 	}
 	if (input.KeyComboJustPressed(VK_KEY_D, VK_CONTROL))

@@ -84,7 +84,6 @@ float4 PSMain(PSInput input) : SV_TARGET
 
 	// Texture
 	float4 diffuseTex = diffuseTexture.Sample(textureSampler, input.uv);
-	return debugTexture.Sample(textureSampler, input.uv);
 
 	return float4((ambientLit + diffuseLit + specularLit) * diffuseTex.rgb * input.color.rgb, 1.);
 }

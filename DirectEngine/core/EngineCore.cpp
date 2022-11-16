@@ -292,48 +292,26 @@ void EngineCore::LoadSizeDependentResources()
     // depth/stencil view
     {
         D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
-        depthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
+        depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
         depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
         depthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
 
         D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
-        depthOptimizedClearValue.Format = DXGI_FORMAT_D32_FLOAT;
+        depthOptimizedClearValue.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
         depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
         depthOptimizedClearValue.DepthStencil.Stencil = 0;
 
         CD3DX12_HEAP_PROPERTIES heapType(D3D12_HEAP_TYPE_DEFAULT);
-        CD3DX12_RESOURCE_DESC depthTexture = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, m_width, m_height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
+        CD3DX12_RESOURCE_DESC depthTexture = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R24G8_TYPELESS, m_width, m_height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 
         ThrowIfFailed(m_device->CreateCommittedResource(&heapType, D3D12_HEAP_FLAG_NONE, &depthTexture, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, IID_PPV_ARGS(&m_depthStencilBuffer)));
         m_depthStencilBuffer->SetName(L"Depth/Stencil Buffer");
 
         m_device->CreateDepthStencilView(m_depthStencilBuffer.Get(), &depthStencilDesc, m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
     }
-
-    // Shadowmap view
-    {
-        D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
-        depthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
-        depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-        depthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
-
-        D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
-        depthOptimizedClearValue.Format = DXGI_FORMAT_D32_FLOAT;
-        depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
-        depthOptimizedClearValue.DepthStencil.Stencil = 0;
-
-        CD3DX12_HEAP_PROPERTIES heapType(D3D12_HEAP_TYPE_DEFAULT);
-        CD3DX12_RESOURCE_DESC shadowTexture = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, m_width, m_height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
-
-        ThrowIfFailed(m_device->CreateCommittedResource(&heapType, D3D12_HEAP_FLAG_NONE, &shadowTexture, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &depthOptimizedClearValue, IID_PPV_ARGS(&m_shadowmap.buffer)));
-        m_shadowmap.buffer->SetName(L"Shadowmap Buffer");
-
-        CD3DX12_CPU_DESCRIPTOR_HANDLE shadowHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart(), 1, m_dsvDescriptorSize);
-        m_device->CreateDepthStencilView(m_shadowmap.buffer.Get(), &depthStencilDesc, shadowHandle);
-    }
 }
 
-HRESULT EngineCore::CreatePipelineState(const wchar_t* shaderFileName, const char* vsEntryName, const char* psEntryName, const wchar_t* debugName, ID3D12PipelineState** outState)
+HRESULT EngineCore::CreatePipelineState(const wchar_t* shaderFileName, const char* vsEntryName, const char* psEntryName, const wchar_t* debugName, ComPtr<ID3D12RootSignature>& rootSignature, ID3D12PipelineState** outState)
 {
     ComPtr<ID3DBlob> vertexShader;
     ComPtr<ID3DBlob> pixelShader;
@@ -403,7 +381,7 @@ HRESULT EngineCore::CreatePipelineState(const wchar_t* shaderFileName, const cha
     // Describe and create the graphics pipeline state object (PSO).
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
     psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
-    psoDesc.pRootSignature = m_rootSignature.Get();
+    psoDesc.pRootSignature = rootSignature.Get();
     psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.Get());
     psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
     psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
@@ -415,7 +393,7 @@ HRESULT EngineCore::CreatePipelineState(const wchar_t* shaderFileName, const cha
     psoDesc.NumRenderTargets = 1;
     psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
     psoDesc.SampleDesc.Count = 1;
-    psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+    psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
     hr = m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(outState));
     (*outState)->SetName(debugName);
@@ -476,19 +454,28 @@ void EngineCore::LoadAssets()
         CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc{};
         rootSignatureDesc.Init_1_1(_countof(rootParameters), rootParameters, 1, &sampler, rootSignatureFlags);
 
-        ComPtr<ID3DBlob> signature;
-        ComPtr<ID3DBlob> error;
-        if (FAILED(D3DX12SerializeVersionedRootSignature(&rootSignatureDesc, featureData.HighestVersion, &signature, &error)))
+        ComPtr<ID3DBlob> signatureScene;
+        ComPtr<ID3DBlob> errorScene;
+        if (FAILED(D3DX12SerializeVersionedRootSignature(&rootSignatureDesc, featureData.HighestVersion, &signatureScene, &errorScene)))
         {
-            OutputDebugStringA(reinterpret_cast<const char*>(error->GetBufferPointer()));
+            OutputDebugStringA(reinterpret_cast<const char*>(errorScene->GetBufferPointer()));
         }
-        ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
-        m_rootSignature->SetName(L"Engine Root Signature");
+        ThrowIfFailed(m_device->CreateRootSignature(0, signatureScene->GetBufferPointer(), signatureScene->GetBufferSize(), IID_PPV_ARGS(&m_rootSignatureScene)));
+        m_rootSignatureScene->SetName(L"Scene Root Signature");
+
+        ComPtr<ID3DBlob> signatureShadow;
+        ComPtr<ID3DBlob> errorShadow;
+        if (FAILED(D3DX12SerializeVersionedRootSignature(&rootSignatureDesc, featureData.HighestVersion, &signatureShadow, &errorShadow)))
+        {
+            OutputDebugStringA(reinterpret_cast<const char*>(errorShadow->GetBufferPointer()));
+        }
+        ThrowIfFailed(m_device->CreateRootSignature(0, signatureShadow->GetBufferPointer(), signatureShadow->GetBufferSize(), IID_PPV_ARGS(&m_rootSignatureShadow)));
+        m_rootSignatureShadow->SetName(L"Shadow Root Signature");
     }
 
     // Create the pipeline state, which includes compiling and loading shaders.
-    ThrowIfFailed(CreatePipelineState(L"entity.hlsl", "VSMain", "PSMain", L"Main Material Pipeline", &m_pipelineState));
-    ThrowIfFailed(CreatePipelineState(L"shadow.hlsl", "VSShadow", "PSShadow", L"Shadow Pipeline", &m_shadowPipelineState));
+    ThrowIfFailed(CreatePipelineState(L"entity.hlsl", "VSMain", "PSMain", L"Main Material Pipeline", m_rootSignatureScene, &m_pipelineState));
+    ThrowIfFailed(CreatePipelineState(L"shadow.hlsl", "VSShadow", "PSShadow", L"Shadow Pipeline", m_rootSignatureShadow, &m_shadowPipelineState));
 
     // Create the render command list
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_renderCommandAllocators[m_frameIndex].Get(), nullptr, IID_PPV_ARGS(&m_renderCommandList.list)));
@@ -515,29 +502,30 @@ void EngineCore::LoadAssets()
     {
         TextureData testData = ParseDDS("textures/ground-diffuse-bc1.dds", frameArena);
         UploadTexture(testData, m_diffuseTexture, L"Diffuse Texture");
+
         TextureData empty{};
         empty.blockSize = 1;
-        empty.width = 1920;
-        empty.height = 1080;
+        empty.width = 1024;
+        empty.height = 1024;
         empty.dataLength = empty.height * empty.width * 32;
         empty.data = NewArray(frameArena, uint8_t, empty.dataLength);
-        empty.format = DXGI_FORMAT_R32_FLOAT;
-        empty.mipmapCount = 11;
+        empty.format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+        empty.mipmapCount = 1;
         empty.rowPitch = empty.width * 32;
         empty.slicePitch = empty.rowPitch * empty.height;
         UploadTexture(empty, m_debugTexture, L"Debug Texture");
         m_scheduleUpload = true;
-
-        // SRV for shadowmap
-        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        srvDesc.Format = DXGI_FORMAT_R32_FLOAT;
-        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-        srvDesc.Texture2D.MipLevels = 1;
-
-        m_shadowmap.handle = GetNewDescriptorHandle();
-        m_device->CreateShaderResourceView(m_shadowmap.buffer.Get(), &srvDesc, m_shadowmap.handle.cpuHandle);
     }
+
+    m_shadowmap = NewObject(engineArena, ShadowMap, DXGI_FORMAT_R24G8_TYPELESS);
+
+    m_shadowmap->depthStencilViewCPU = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart(), 1, m_dsvDescriptorSize);
+    DescriptorHandle srvHandle = GetNewDescriptorHandle();
+    m_shadowmap->shaderResourceViewCPU = srvHandle.cpuHandle;
+    m_shadowmap->shaderResourceViewGPU = srvHandle.gpuHandle;
+
+    m_shadowmap->SetSize(1024, 1024);
+    m_shadowmap->Build(m_device.Get());
 
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
     {
@@ -788,15 +776,11 @@ CD3DX12_GPU_DESCRIPTOR_HANDLE* EngineCore::GetConstantBufferHandle(int rootSigDe
 
 void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
 {
-    m_lightData.shadowPassActive = true;
-    memcpy(m_mappedSceneData[m_frameIndex], &m_sceneData, sizeof(m_sceneData));
-    memcpy(m_mappedLightData[m_frameIndex], &m_lightData, sizeof(m_lightData));
-
     // Set pipeline
     renderList->SetPipelineState(m_shadowPipelineState.Get());
-    renderList->SetGraphicsRootSignature(m_rootSignature.Get());
-    renderList->RSSetViewports(1, &m_viewport);
-    renderList->RSSetScissorRects(1, &m_scissorRect);
+    renderList->SetGraphicsRootSignature(m_rootSignatureShadow.Get());
+    renderList->RSSetViewports(1, &m_shadowmap->viewport);
+    renderList->RSSetScissorRects(1, &m_shadowmap->scissorRect);
 
     // Load heaps
     ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap.Get() };
@@ -806,7 +790,7 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
     renderList->SetGraphicsRootDescriptorTable(LIGHT, *GetConstantBufferHandle(LIGHT));
 
     // Barrier to transition shadow map
-    Transition(renderList, m_shadowmap.buffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+    Transition(renderList, m_shadowmap->textureResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE shadowHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart(), 1, m_dsvDescriptorSize);
     renderList->OMSetRenderTargets(0, nullptr, FALSE, &shadowHandle);
@@ -832,23 +816,13 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
             entityIndex++;
         }
     }
-
-    Transition(renderList, m_shadowmap.buffer.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COPY_SOURCE);
-    Transition(renderList, m_debugTexture.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
-    renderList->CopyResource(m_debugTexture.Get(), m_shadowmap.buffer.Get());
-    Transition(renderList, m_debugTexture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    Transition(renderList, m_shadowmap.buffer.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 }
 
 void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
 {
-    m_lightData.shadowPassActive = false;
-    memcpy(m_mappedSceneData[m_frameIndex], &m_sceneData, sizeof(m_sceneData));
-    memcpy(m_mappedLightData[m_frameIndex], &m_lightData, sizeof(m_lightData));
-
     // Set necessary state.
     renderList->SetPipelineState(m_pipelineState.Get());
-    renderList->SetGraphicsRootSignature(m_rootSignature.Get());
+    renderList->SetGraphicsRootSignature(m_rootSignatureScene.Get());
     renderList->RSSetViewports(1, &m_viewport);
     renderList->RSSetScissorRects(1, &m_scissorRect);
 
@@ -861,8 +835,8 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
     renderList->SetGraphicsRootDescriptorTable(DIFFUSE, *GetConstantBufferHandle(DIFFUSE));
     renderList->SetGraphicsRootDescriptorTable(DEBUG, *GetConstantBufferHandle(DEBUG));
 
-    Transition(renderList, m_shadowmap.buffer.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap.handle.gpuHandle);
+    Transition(renderList, m_shadowmap->textureResource.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewGPU);
 
     Transition(renderList, m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
@@ -910,7 +884,10 @@ void EngineCore::PopulateCommandList()
     // re-recording.
     m_renderCommandList.Reset(m_renderCommandAllocators[m_frameIndex].Get(), m_pipelineState.Get());
     ID3D12GraphicsCommandList* renderList = m_renderCommandList.list.Get();
-    
+
+    memcpy(m_mappedSceneData[m_frameIndex], &m_sceneData, sizeof(m_sceneData));
+    memcpy(m_mappedLightData[m_frameIndex], &m_lightData, sizeof(m_lightData));
+
     RenderShadows(renderList);
     RenderScene(renderList);
 
@@ -1007,7 +984,7 @@ void EngineCore::OnShaderReload()
     WaitForGpu();
 
     std::wstring_convert<std::codecvt_utf8<wchar_t>> utf8_conv;
-    HRESULT hr = CreatePipelineState(L"entity.hlsl", "VSMain", "PSMain", L"Main Material Pipeline", &m_pipelineState);
+    HRESULT hr = CreatePipelineState(L"entity.hlsl", "VSMain", "PSMain", L"Main Material Pipeline", m_rootSignatureScene, &m_pipelineState);
 
     if (FAILED(hr))
     {
@@ -1018,7 +995,7 @@ void EngineCore::OnShaderReload()
         return;
     }
 
-    hr = CreatePipelineState(L"shadow.hlsl", "VSShadow", "PSShadow", L"Shadow Pipeline", &m_shadowPipelineState);
+    hr = CreatePipelineState(L"shadow.hlsl", "VSShadow", "PSShadow", L"Shadow Pipeline", m_rootSignatureShadow, &m_shadowPipelineState);
     if (FAILED(hr))
     {
         _com_error err(hr);
