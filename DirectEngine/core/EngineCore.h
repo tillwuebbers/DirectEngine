@@ -14,6 +14,7 @@
 
 #include "Input.h"
 #include "ShadowMap.h"
+#include "Texture.h"
 
 #include "../game/IGame.h"
 #include "../game/Mesh.h"
@@ -22,7 +23,7 @@
 #include "../imgui/ProfilerTask.h"
 
 #include "../Helpers.h"
-#include "Texture.h"
+#include "Constants.h"
 
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
@@ -59,6 +60,20 @@ struct Texture
 {
     ComPtr<ID3D12Resource> buffer = nullptr;
     DescriptorHandle handle;
+};
+
+template<typename T>
+struct ConstantBuffer
+{
+    ComPtr<ID3D12Resource> resources[MAX_FRAME_QUEUE] = {};
+    DescriptorHandle handles[MAX_FRAME_QUEUE] = {};
+    uint8_t* mappedData[MAX_FRAME_QUEUE] = {};
+    T data;
+
+    void UploadData(UINT frameIndex)
+    {
+        memcpy(mappedData[frameIndex], &data, sizeof(data));
+    }
 };
 
 struct CommandList
@@ -113,9 +128,7 @@ struct EntityData
     bool visible = true;
     size_t entityIndex = 0;
     size_t materialIndex = 0;
-    EntityConstantBuffer constantBufferData = {};
-    std::vector<UINT8*> mappedConstantBufferData = {};
-    std::vector<ComPtr<ID3D12Resource>> constantBuffers = {};
+    ConstantBuffer<EntityConstantBuffer> constantBuffer = {};
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
 };
 
@@ -169,17 +182,13 @@ public:
     UINT m_dsvDescriptorSize;
 
     // App resources
-    std::vector<ComPtr<ID3D12Resource>> m_sceneConstantBuffers = {};
-    std::vector<ComPtr<ID3D12Resource>> m_lightConstantBuffers = {};
+    ConstantBuffer<SceneConstantBuffer> m_sceneConstantBuffer = {};
+    ConstantBuffer<LightConstantBuffer> m_lightConstantBuffer = {};
     ComPtr<ID3D12Resource> m_depthStencilBuffer = nullptr;
     ShadowMap* m_shadowmap = nullptr;
     ComPtr<ID3D12Resource> m_diffuseTexture = nullptr;
     ComPtr<ID3D12Resource> m_debugTexture = nullptr;
     std::vector<ComPtr<ID3D12Resource>> m_textureUploadHeaps = {};
-    SceneConstantBuffer m_sceneData;
-    LightConstantBuffer m_lightData;
-    std::vector<UINT8*> m_mappedSceneData = {};
-    std::vector<UINT8*> m_mappedLightData = {};
     std::vector<MaterialData> m_materials = {};
     std::vector<EntityData> m_entities = {};
 
@@ -268,31 +277,32 @@ public:
     }
 
     template<typename T>
-    void CreateConstantBuffers(std::vector<ComPtr<ID3D12Resource>>& buffers, std::vector<UINT8*>& outMappedData)
+    void CreateConstantBuffers(ConstantBuffer<T>& buffers, const wchar_t* name)
     {
         const UINT constantBufferSize = sizeof(T);
         assert(constantBufferSize % 256 == 0);
-        buffers.resize(FrameCount);
-        outMappedData.resize(FrameCount);
 
+        assert(FrameCount <= MAX_FRAME_QUEUE);
         for (int i = 0; i < FrameCount; i++)
         {
             CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
             CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(constantBufferSize);
-            ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&buffers[i])));
+            ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&buffers.resources[i])));
 
             // Describe and create a constant buffer view.
             D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-            cbvDesc.BufferLocation = buffers[i]->GetGPUVirtualAddress();
+            cbvDesc.BufferLocation = buffers.resources[i]->GetGPUVirtualAddress();
             cbvDesc.SizeInBytes = constantBufferSize;
             
-            CD3DX12_CPU_DESCRIPTOR_HANDLE heapEntry = GetNewDescriptorHandle().cpuHandle;
-            m_device->CreateConstantBufferView(&cbvDesc, heapEntry);
+            buffers.handles[i] = GetNewDescriptorHandle();
+            m_device->CreateConstantBufferView(&cbvDesc, buffers.handles[i].cpuHandle);
 
             // Map and initialize the constant buffer. We don't unmap this until the
             // app closes. Keeping things mapped for the lifetime of the resource is okay.
             CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
-            ThrowIfFailed(buffers[i]->Map(0, &readRange, reinterpret_cast<void**>(&outMappedData[i])));
+            ThrowIfFailed(buffers.resources[i]->Map(0, &readRange, reinterpret_cast<void**>(&buffers.mappedData[i])));
+
+            buffers.resources[i]->SetName(std::format(L"{} {}", name, i).c_str());
         }
     }
 };

@@ -487,15 +487,12 @@ void EngineCore::LoadAssets()
     m_uploadCommandList.list->SetName(L"Upload Command List");
 
     // Shader values for scene
-    CreateConstantBuffers<SceneConstantBuffer>(m_sceneConstantBuffers, m_mappedSceneData);
-    CreateConstantBuffers<LightConstantBuffer>(m_lightConstantBuffers, m_mappedLightData);
+    CreateConstantBuffers<SceneConstantBuffer>(m_sceneConstantBuffer, L"Scene Constant Buffer");
+    CreateConstantBuffers<LightConstantBuffer>(m_lightConstantBuffer, L"Light Constant Buffer");
     for (int i = 0; i < FrameCount; i++)
     {
-        memcpy(m_mappedSceneData[i], &m_sceneData, sizeof(m_sceneData));
-        m_sceneConstantBuffers[i]->SetName(std::format(L"Scene Constant Buffer {}", i).c_str());
-
-        memcpy(m_mappedLightData[i], &m_lightData, sizeof(m_lightData));
-        m_lightConstantBuffers[i]->SetName(std::format(L"Light Constant Buffer {}", i).c_str());
+        m_sceneConstantBuffer.UploadData(i);
+        m_lightConstantBuffer.UploadData(i);
     }
 
     // Upload textures
@@ -651,11 +648,7 @@ size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_
     entity.materialIndex = materialIndex;
     entity.vertexBufferView = meshView;
 
-    CreateConstantBuffers<EntityConstantBuffer>(entity.constantBuffers, entity.mappedConstantBufferData);
-    for (int i = 0; i < FrameCount; i++)
-    {
-        entity.constantBuffers[i]->SetName(std::format(L"Entity {} Constant Buffer {}", entity.entityIndex, i).c_str());
-    }
+    CreateConstantBuffers<EntityConstantBuffer>(entity.constantBuffer, std::format(L"Entity {} Constant Buffer", entity.entityIndex).c_str());
 
     return entity.entityIndex;
 }
@@ -679,8 +672,8 @@ void EngineCore::OnUpdate()
     m_updateDeltaTime = NanosecondsToSeconds(now - m_frameStartTime);
     m_frameStartTime = now;
 
-    m_sceneData.time = static_cast<float>(secondsSinceStart);
-    m_sceneData.deltaTime = static_cast<float>(m_updateDeltaTime);
+    m_sceneConstantBuffer.data.time = static_cast<float>(secondsSinceStart);
+    m_sceneConstantBuffer.data.deltaTime = static_cast<float>(m_updateDeltaTime);
 
     NewImguiFrame();
     UpdateImgui(this);
@@ -807,8 +800,6 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
         for (EntityData& entity : m_entities)
         {
             if (!entity.visible) continue;
-            memcpy(entity.mappedConstantBufferData[m_frameIndex], &entity.constantBufferData, sizeof(EntityConstantBuffer));
-
             renderList->IASetVertexBuffers(0, 1, &entity.vertexBufferView);
             renderList->SetGraphicsRootDescriptorTable(ENTITY, *GetConstantBufferHandle(ENTITY + entity.entityIndex));
             renderList->DrawInstanced(entity.vertexBufferView.SizeInBytes / entity.vertexBufferView.StrideInBytes, 1, 0, 0);
@@ -858,8 +849,6 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
         for (EntityData& entity : m_entities)
         {
             if (!entity.visible) continue;
-            memcpy(entity.mappedConstantBufferData[m_frameIndex], &entity.constantBufferData, sizeof(EntityConstantBuffer));
-
             renderList->IASetVertexBuffers(0, 1, &entity.vertexBufferView);
             renderList->SetGraphicsRootDescriptorTable(ENTITY, *GetConstantBufferHandle(ENTITY + entity.entityIndex));
             renderList->DrawInstanced(entity.vertexBufferView.SizeInBytes / entity.vertexBufferView.StrideInBytes, 1, 0, 0);
@@ -885,8 +874,13 @@ void EngineCore::PopulateCommandList()
     m_renderCommandList.Reset(m_renderCommandAllocators[m_frameIndex].Get(), m_pipelineState.Get());
     ID3D12GraphicsCommandList* renderList = m_renderCommandList.list.Get();
 
-    memcpy(m_mappedSceneData[m_frameIndex], &m_sceneData, sizeof(m_sceneData));
-    memcpy(m_mappedLightData[m_frameIndex], &m_lightData, sizeof(m_lightData));
+    m_sceneConstantBuffer.UploadData(m_frameIndex);
+    m_lightConstantBuffer.UploadData(m_frameIndex);
+
+    for (EntityData& entity : m_entities)
+    {
+        entity.constantBuffer.UploadData(m_frameIndex);
+    }
 
     RenderShadows(renderList);
     RenderScene(renderList);

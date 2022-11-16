@@ -48,7 +48,7 @@ Entity* CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, 
 
 EntityConstantBuffer& Entity::GetBuffer(EngineCore& engine)
 {
-	return engine.m_entities[dataIndex].constantBufferData;
+	return engine.m_entities[dataIndex].constantBuffer.data;
 }
 
 Game::Game()
@@ -330,17 +330,17 @@ void Game::UpdateGame(EngineCore& engine)
 	camera.rotation = XMQuaternionMultiply(XMQuaternionRotationRollPitchYaw(playerPitch, 0.f, 0.f), XMQuaternionRotationRollPitchYaw(0.f, playerYaw, 0.f));
 	CalculateDirectionVectors(camForward, camRight, camera.rotation);
 
-	engine.m_sceneData.cameraTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
-	engine.m_sceneData.perspectiveTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
-	engine.m_sceneData.worldCameraPos = camera.position;
+	engine.m_sceneConstantBuffer.data.cameraTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
+	engine.m_sceneConstantBuffer.data.perspectiveTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
+	engine.m_sceneConstantBuffer.data.worldCameraPos = camera.position;
 
 	// Update light
 	XMVECTOR lightForward;
 	XMVECTOR lightRight;
 	CalculateDirectionVectors(lightForward, lightRight, light.rotation);
-	XMStoreFloat3(&engine.m_lightData.sunDirection, lightForward);
-	engine.m_lightData.lightTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(light.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(light.rotation)));
-	engine.m_lightData.lightPerspective = XMMatrixTranspose(XMMatrixOrthographicLH(16.f, 9.f, .1f, 100.f));
+	XMStoreFloat3(&engine.m_lightConstantBuffer.data.sunDirection, lightForward);
+	engine.m_lightConstantBuffer.data.lightTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(light.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(light.rotation)));
+	engine.m_lightConstantBuffer.data.lightPerspective = XMMatrixTranspose(XMMatrixOrthographicLH(16.f, 9.f, .1f, 100.f));
 
 	// Test
 	testCube->position = XMVectorAdd(camera.position, camForward);

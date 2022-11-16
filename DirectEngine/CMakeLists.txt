@@ -10,18 +10,21 @@ add_executable (${PROJECT_NAME} WIN32
                 "DirectEngine.h"
                 "Helpers.h"
                 "core/Coroutine.h"
+                "core/Constants.h"
+                "core/DDS.h"
                 "core/EngineCore.cpp"
                 "core/EngineCore.h"
-                "core/Memory.h"
-                "core/Memory.cpp"
-                "core/UI.cpp"
-                "core/UI.h"
                 "core/Input.h"
                 "core/Input.cpp"
-                "core/vkcodes.h"
-                "core/DDS.h"
+                "core/Memory.h"
+                "core/Memory.cpp"
+                "core/ShadowMap.cpp"
+                "core/ShadowMap.h"
                 "core/Texture.h"
                 "core/Texture.cpp"
+                "core/UI.cpp"
+                "core/UI.h"
+                "core/vkcodes.h"
                 "imgui/remixicon.h"
                 "imgui/ImGuiProfilerRenderer.h"
                 "imgui/ProfilerTask.h"
@@ -35,7 +38,7 @@ add_executable (${PROJECT_NAME} WIN32
                 "game/Log.h"
                 "game/Log.cpp"
                 "game/Mesh.h"
-                "game/Mesh.cpp" "core/ShadowMap.cpp" "core/ShadowMap.h")
+                "game/Mesh.cpp")
 
 
 # imgui
