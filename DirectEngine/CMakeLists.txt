@@ -62,12 +62,24 @@ target_include_directories( ${PROJECT_NAME}
                             PUBLIC ${IMGUI_DIR}/backends
                             PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/glm )
 
+# dxtk
+set(DXTK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/dxtk)
 
-# other stuff
+target_include_directories(${PROJECT_NAME}
+                            PUBLIC ${DXTK_DIR}/Inc)
+
+# directx
 target_include_directories(${PROJECT_NAME} PRIVATE directx/headers)
 
-target_link_libraries(${PROJECT_NAME} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib")
+# build the thing
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_link_libraries(${PROJECT_NAME} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib" "${DXTK_DIR}/Bin/Desktop_2022_Win10/x64/Debug/DirectXTK12.lib")
+else()
+    target_link_libraries(${PROJECT_NAME} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib" "${DXTK_DIR}/Bin/Desktop_2022_Win10/x64/Release/DirectXTK12.lib")
+endif()
 
+
+# assets
 file(COPY "Montserrat-Regular.ttf" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY "remixicon.ttf" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
