@@ -279,11 +279,16 @@ void EngineCore::LoadSizeDependentResources()
     {
         CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
 
+        D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+        rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+        rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+
         // Create a RTV for each frame.
         for (UINT n = 0; n < FrameCount; n++)
         {
             ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n])));
-            m_device->CreateRenderTargetView(m_renderTargets[n].Get(), nullptr, rtvHandle);
+
+            m_device->CreateRenderTargetView(m_renderTargets[n].Get(), &rtvDesc, rtvHandle);
             m_renderTargets[n]->SetName(std::format(L"Engine Render Target {}", n).c_str());
             rtvHandle.Offset(1, m_rtvDescriptorSize);
         }
@@ -391,7 +396,7 @@ HRESULT EngineCore::CreatePipelineState(const wchar_t* shaderFileName, const cha
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     psoDesc.NumRenderTargets = 1;
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
     psoDesc.SampleDesc.Count = 1;
     psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
@@ -1128,7 +1133,7 @@ void EngineCore::ApplyWindowMode()
         ThrowIfFailed(m_swapChain->GetContainingOutput(&pOutput));
         DXGI_MODE_DESC modes[1024];
         UINT numModes;
-        ThrowIfFailed(pOutput->GetDisplayModeList(DisplayFormat, 0, &numModes, modes));
+        ThrowIfFailed(pOutput->GetDisplayModeList(DISPLAY_FORMAT, 0, &numModes, modes));
 
         int bestModeIndex = -1;
         UINT bestWidth = 0;

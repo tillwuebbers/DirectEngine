@@ -137,7 +137,6 @@ class EngineCore
 public:
     static const UINT FrameCount = 3;
     static const size_t MAX_DESCRIPTORS = 48;
-    static const DXGI_FORMAT DisplayFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
     EngineCore(UINT width, UINT height, IGame* game);
 

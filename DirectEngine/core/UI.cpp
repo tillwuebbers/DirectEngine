@@ -5,6 +5,7 @@
 #include "backends/imgui_impl_dx12.h"
 
 #include "../Helpers.h"
+#include "Constants.h"
 
 #include <glm/glm.hpp>
 #include <algorithm>
@@ -32,7 +33,7 @@ void SetupImgui(HWND hwnd, EngineCore* engine, int framesInFlight)
 
 	// Setup Platform/Renderer backends
 	ImGui_ImplWin32_Init(hwnd);
-	ImGui_ImplDX12_Init(engine->m_device.Get(), framesInFlight, EngineCore::DisplayFormat, g_pd3dSrvDescHeap, g_pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(), g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
+	ImGui_ImplDX12_Init(engine->m_device.Get(), framesInFlight, DISPLAY_FORMAT, g_pd3dSrvDescHeap, g_pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(), g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
 
 	// Load Fonts
 	io.Fonts->AddFontFromFileTTF("Montserrat-Regular.ttf", 16.0f);
