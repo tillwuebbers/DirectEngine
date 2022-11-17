@@ -146,12 +146,16 @@ void Game::StartGame(EngineCore& engine)
 	groundEntity->position = { -50.f, -0.51f, -50.f };
 	groundEntity->GetBuffer(engine).color = { 1.f, 1.f, 1.f };
 
+	lightDisplayEntity = CreateEntity(engine, materialIndex, cubeMeshView);
+	lightDisplayEntity->scale = { .1f, .1f, .1f };
+
 	engine.FinishMaterialSetup(materialIndex);
 
 	camera.position = { 0.f, 10.f, 0.f };
 	playerPitch = XM_PI;
 
 	light.position = { 10.f, 10.f, 10.f };
+	lightDisplayEntity->position = light.position;
 
 	UpdateCursorState();
 }
@@ -340,7 +344,7 @@ void Game::UpdateGame(EngineCore& engine)
 	CalculateDirectionVectors(lightForward, lightRight, light.rotation);
 	XMStoreFloat3(&engine.m_lightConstantBuffer.data.sunDirection, lightForward);
 	engine.m_lightConstantBuffer.data.lightTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(light.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(light.rotation)));
-	engine.m_lightConstantBuffer.data.lightPerspective = XMMatrixTranspose(XMMatrixOrthographicLH(16.f, 9.f, .1f, 100.f));
+	engine.m_lightConstantBuffer.data.lightPerspective = XMMatrixTranspose(XMMatrixOrthographicLH(10.f, 10.f, 1.f, 30.f));
 
 	// Test
 	testCube->position = XMVectorAdd(camera.position, camForward);

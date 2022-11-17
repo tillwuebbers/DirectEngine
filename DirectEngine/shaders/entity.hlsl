@@ -32,6 +32,7 @@ struct PSInput
 {
 	float4 position : SV_POSITION;
 	float4 worldPosition : POSITION;
+	float4 lightSpacePosition : TEXCOORD1;
 	float4 color : COLOR;
 	float3 worldNormal : NORMAL;
 	float2 uv : UV;
@@ -45,9 +46,11 @@ PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 norm
 	float4 worldPos = mul(position, worldTransform);
 	result.worldPosition = worldPos;
 
-	float4x4 vp;
-	vp = mul(cameraTransform, perspectiveTransform);
+	float4x4 vp = mul(cameraTransform, perspectiveTransform);
 	result.position = mul(worldPos, vp);
+
+	float4x4 lightVP = mul(lightTransform, lightPerspective);
+	result.lightSpacePosition = mul(float4(worldPos.xyz, 1.0), lightVP);
 
 	result.color = color;
 	if (isSelected)
@@ -75,15 +78,31 @@ float4 PSMain(PSInput input) : SV_TARGET
 	float3 diffuseLightColor = float3(1., 1., 1.);
 	float3 diffuseLit = diffuseIntensity * diffuseLightColor;
 
-	// Specular
-	float3 viewDir = normalize(input.worldPosition.xyz - worldCameraPos);
-	float3 halfwayDir = normalize(sunDirection + viewDir);
+	// Specular (TODO: fucked)
+	float3 viewDir = normalize(worldCameraPos - input.worldPosition.xyz);
+	float3 halfwayDir = normalize(-sunDirection + viewDir);
 	float specularIntensity = pow(max(dot(input.worldNormal, -halfwayDir), 0.), 32);
 	float3 specularLightColor = float3(1., 1., 1.);
 	float3 specularLit = specularIntensity * specularLightColor;
 
 	// Texture
 	float4 diffuseTex = diffuseTexture.Sample(textureSampler, input.uv);
+
+	// Shadow
+	float2 shadowMapPos;
+	shadowMapPos.x =  input.lightSpacePosition.x / input.lightSpacePosition.w * .5f + .5f;
+	shadowMapPos.y = -input.lightSpacePosition.y / input.lightSpacePosition.w * .5f + .5f;
+
+	float shadow = 0.;
+	if (shadowMapPos.x >= 0. && shadowMapPos.x <= 1. && shadowMapPos.y >= 0. && shadowMapPos.y <= 1.)
+	{
+		float closestDepth = shadowmapTexture.Sample(textureSampler, shadowMapPos).r;
+		float currentDepth = input.lightSpacePosition.z / input.lightSpacePosition.w - .002;
+		shadow = currentDepth > closestDepth ? 1.0 : 0.0;
+	}
+
+	diffuseLit *= 1. - shadow;
+	specularLit *= 1. - shadow;
 
 	return float4((ambientLit + diffuseLit + specularLit) * diffuseTex.rgb * input.color.rgb, 1.);
 }

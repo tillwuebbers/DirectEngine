@@ -91,6 +91,7 @@ public:
 	PuzzleSolver* solver;
 	Entity* puzzleEntities[MAX_PIECE_COUNT];
 	Entity* testCube;
+	Entity* lightDisplayEntity;
 	Entity* graphDisplayEntities[1024];
 
 	MemoryArena puzzleArena{};
