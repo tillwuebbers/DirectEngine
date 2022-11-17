@@ -233,7 +233,7 @@ public:
     void LoadSizeDependentResources();
     HRESULT CreatePipelineState(const wchar_t* shaderFileName, const char* vsEntryName, const char* psEntryName, const wchar_t* debugName, ComPtr<ID3D12RootSignature>& rootSignature, ID3D12PipelineState** outState);
     void LoadAssets();
-    void UploadTexture(const TextureData& textureData, ComPtr<ID3D12Resource>& targetResource, const wchar_t* name);
+    void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, ComPtr<ID3D12Resource>& targetResource, const wchar_t* name);
     size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride);
     D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount);
     size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);

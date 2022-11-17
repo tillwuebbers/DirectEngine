@@ -26,4 +26,5 @@ struct TextureData
 	bool error;
 };
 
-TextureData ParseDDS(const char* path, MemoryArena& arena);
+TextureData ParseDDSHeader(const wchar_t* path);
+TextureData ParseDDS(const wchar_t* path, MemoryArena& arena);

@@ -21,6 +21,7 @@
 
 #include "UI.h"
 #include "EngineCore.h"
+#include "../dxtk/Inc/DDSTextureLoader.h"
 
 EngineCore::EngineCore(UINT width, UINT height, IGame* game) :
     m_frameIndex(0),
@@ -502,8 +503,13 @@ void EngineCore::LoadAssets()
 
     // Upload textures
     {
-        TextureData testData = ParseDDS("textures/ground-diffuse-bc1.dds", frameArena);
-        UploadTexture(testData, m_diffuseTexture, L"Diffuse Texture");
+        TextureData header = ParseDDSHeader(L"textures/ground-diffuse-bc1.dds");
+        std::unique_ptr<uint8_t[]> data{};
+        std::vector<D3D12_SUBRESOURCE_DATA> subresources{};
+        LoadDDSTextureFromFile(m_device.Get(), L"textures/ground-diffuse-bc1.dds", &m_diffuseTexture, data, subresources);
+        
+        //TextureData testData = ParseDDS(L"textures/ground-diffuse-bc1.dds", frameArena);
+        UploadTexture(header, subresources, m_diffuseTexture, L"Diffuse Texture");
 
         TextureData empty{};
         empty.blockSize = 1;
@@ -515,7 +521,16 @@ void EngineCore::LoadAssets()
         empty.mipmapCount = 1;
         empty.rowPitch = empty.width * 32;
         empty.slicePitch = empty.rowPitch * empty.height;
-        UploadTexture(empty, m_debugTexture, L"Debug Texture");
+
+        D3D12_SUBRESOURCE_DATA emptyData{};
+        emptyData.pData = empty.data;
+        emptyData.RowPitch = empty.rowPitch;
+        emptyData.SlicePitch = empty.slicePitch;
+
+        std::vector<D3D12_SUBRESOURCE_DATA> emptyDataVec{};
+        emptyDataVec.push_back(emptyData);
+
+        UploadTexture(empty, emptyDataVec, m_debugTexture, L"Debug Texture");
         m_scheduleUpload = true;
     }
 
@@ -550,7 +565,7 @@ void EngineCore::LoadAssets()
     }
 }
 
-void EngineCore::UploadTexture(const TextureData& textureData, ComPtr<ID3D12Resource>& targetResource, const wchar_t* name)
+void EngineCore::UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, ComPtr<ID3D12Resource>& targetResource, const wchar_t* name)
 {
     D3D12_RESOURCE_DESC textureDesc = {};
     textureDesc.MipLevels = textureData.mipmapCount;
@@ -568,7 +583,7 @@ void EngineCore::UploadTexture(const TextureData& textureData, ComPtr<ID3D12Reso
     ThrowIfFailed(m_device->CreateCommittedResource(&heapPropertiesDefault, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&targetResource)));
     targetResource->SetName(name);
 
-    const UINT64 uploadBufferSize = GetRequiredIntermediateSize(targetResource.Get(), 0, 1);
+    const UINT64 uploadBufferSize = GetRequiredIntermediateSize(targetResource.Get(), 0, subresources.size());
 
     // Temporary upload buffer
     CD3DX12_HEAP_PROPERTIES heapPropertiesUpload(D3D12_HEAP_TYPE_UPLOAD);
@@ -578,12 +593,7 @@ void EngineCore::UploadTexture(const TextureData& textureData, ComPtr<ID3D12Reso
     ThrowIfFailed(m_device->CreateCommittedResource(&heapPropertiesUpload, D3D12_HEAP_FLAG_NONE, &bufferUloadDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&tempHeap)));
     tempHeap->SetName(L"Temp Texture Upload Heap");
 
-    D3D12_SUBRESOURCE_DATA resourceData = {};
-    resourceData.pData = textureData.data;
-    resourceData.RowPitch = textureData.rowPitch;
-    resourceData.SlicePitch = textureData.slicePitch;
-
-    UpdateSubresources(m_uploadCommandList.list.Get(), targetResource.Get(), tempHeap.Get(), 0, 0, 1, &resourceData);
+    UpdateSubresources(m_uploadCommandList.list.Get(), targetResource.Get(), tempHeap.Get(), 0, 0, subresources.size(), subresources.data());
 
     CD3DX12_RESOURCE_BARRIER transition = CD3DX12_RESOURCE_BARRIER::Transition(targetResource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     m_uploadCommandList.list->ResourceBarrier(1, &transition);
@@ -593,7 +603,7 @@ void EngineCore::UploadTexture(const TextureData& textureData, ComPtr<ID3D12Reso
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srvDesc.Format = textureDesc.Format;
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-    srvDesc.Texture2D.MipLevels = 1;
+    srvDesc.Texture2D.MipLevels = textureData.mipmapCount;
     m_device->CreateShaderResourceView(targetResource.Get(), &srvDesc, GetNewDescriptorHandle().cpuHandle);
 }
 
