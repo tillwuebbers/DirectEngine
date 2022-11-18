@@ -5,19 +5,23 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "../import/tiny_obj_loader.h"
 
-void CreateQuad(MeshFile& meshFileOut, float width, float height)
+
+MeshFile CreateQuad(float width, float height, MemoryArena& vertexArena, MemoryArena& indexArena)
 {
-	meshFileOut.vertices = {
-		Vertex{ { 0.f  , 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f} },
-		Vertex{ { width, 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f} },
-		Vertex{ { width, 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f} },
-		Vertex{ { 0.f  , 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f} },
-		Vertex{ { 0.f  , 0.f, height }, {}, {0.f, 1.f, 0.f }, {0.f, 1.f} },
-		Vertex{ { width, 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f} },
-	};
+	const size_t VERTEX_COUNT = 6;
+
+	Vertex* vertices = NewArray(vertexArena, Vertex, VERTEX_COUNT);
+	vertices[0] = { { 0.f  , 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f} };
+	vertices[1] = { { width, 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f} };
+	vertices[2] = { { width, 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f} };
+	vertices[3] = { { 0.f  , 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f} };
+	vertices[4] = { { 0.f  , 0.f, height }, {}, {0.f, 1.f, 0.f }, {0.f, 1.f} };
+	vertices[5] = { { width, 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f} };
+
+	return MeshFile{ vertices, VERTEX_COUNT, nullptr, 0 };
 }
 
-void LoadMeshFromFile(MeshFile& meshFileOut, const std::string& filePath, const std::string& materialPath, RingLog& debugLog)
+MeshFile LoadMeshFromFile(const std::string& filePath, const std::string& materialPath, RingLog& debugLog, MemoryArena& vertexArena, MemoryArena& indexArena)
 {
 	tinyobj::ObjReaderConfig reader_config;
 	reader_config.mtl_search_path = materialPath;
@@ -44,12 +48,13 @@ void LoadMeshFromFile(MeshFile& meshFileOut, const std::string& filePath, const 
 	const uint64_t normalCount = attrib.colors.size() / 3;
 	const uint64_t texcoordCount = attrib.colors.size() / 2;
 	const uint64_t vertexCount = attrib.vertices.size() / 3;
+	const uint64_t indexCount = reader.GetShapes()[0].mesh.indices.size();
 
 	debugLog.Log(std::format("Loaded OBJ {}: {} shapes, {} materials", filePath, shapes.size(), materials.size()));
 	debugLog.Log(std::format("{} colors, {} normals, {} texcoords, {} vertices", colorCount, normalCount, texcoordCount, vertexCount));
 
-	std::vector<Vertex> vertices{ vertexCount };
-	std::vector<uint64_t> indices{};
+	Vertex* vertices = NewArray(vertexArena, Vertex, indexCount);
+	size_t vertexCounter = 0;
 
 	// Loop over shapes
 	for (size_t shapeIdx = 0; shapeIdx < shapes.size(); shapeIdx++)
@@ -65,7 +70,9 @@ void LoadMeshFromFile(MeshFile& meshFileOut, const std::string& filePath, const 
 			{
 				// access to vertex
 				tinyobj::index_t idx = shapes[shapeIdx].mesh.indices[index_offset + v];
-				Vertex& vert = meshFileOut.vertices.emplace_back();
+				assert(vertexCounter < indexCount);
+				Vertex& vert = vertices[vertexCounter];
+				vertexCounter++;
 
 				vert.position.x = attrib.vertices[3 * size_t(idx.vertex_index) + 0];
 				vert.position.y = attrib.vertices[3 * size_t(idx.vertex_index) + 1];
@@ -87,8 +94,8 @@ void LoadMeshFromFile(MeshFile& meshFileOut, const std::string& filePath, const 
 				vert.color.z = attrib.colors[3 * size_t(idx.vertex_index) + 2];
 				vert.color.w = 1.0f;
 
-				vertices[idx.vertex_index] = vert;
-				indices.push_back(idx.vertex_index);
+				//vertices[idx.vertex_index] = vert;
+				//indices.push_back(idx.vertex_index);
 			}
 			index_offset += fv;
 
@@ -96,4 +103,6 @@ void LoadMeshFromFile(MeshFile& meshFileOut, const std::string& filePath, const 
 			//shapes[shapeIdx].mesh.material_ids[faceIdx];
 		}
 	}
+
+	return MeshFile{ vertices, indexCount, nullptr, 0 };
 }

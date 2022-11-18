@@ -100,9 +100,8 @@ void Game::StartGame(EngineCore& engine)
 
 	size_t materialIndex = engine.CreateMaterial(1024, sizeof(Vertex));
 
-	MeshFile cubeMeshFile{};
-	LoadMeshFromFile(cubeMeshFile, "models/cube.obj", "models/", debugLog);
-	auto cubeMeshView = engine.CreateMesh(materialIndex, cubeMeshFile.vertices.data(), cubeMeshFile.vertices.size());
+	MeshFile cubeMeshFile = LoadMeshFromFile("models/cube.obj", "models/", debugLog, vertexUploadArena, indexUploadArena);
+	auto cubeMeshView = engine.CreateMesh(materialIndex, cubeMeshFile.vertices, cubeMeshFile.vertexCount);
 
 	testCube = CreateEntity(engine, materialIndex, cubeMeshView);
 	testCube->GetBuffer(engine).color = {1.f, 1.f, 1.f};
@@ -132,16 +131,14 @@ void Game::StartGame(EngineCore& engine)
 
 	float boardWidth = displayedPuzzle.width + BLOCK_DISPLAY_GAP * (displayedPuzzle.width - 1);
 	float boardHeight = displayedPuzzle.height + BLOCK_DISPLAY_GAP * (displayedPuzzle.height - 1);
-	MeshFile quadFile{};
-	CreateQuad(quadFile, boardWidth, boardHeight);
-	auto quadMeshView = engine.CreateMesh(materialIndex, quadFile.vertices.data(), quadFile.vertices.size());
+	MeshFile quadFile = CreateQuad(boardWidth, boardHeight, vertexUploadArena, indexUploadArena);
+	auto quadMeshView = engine.CreateMesh(materialIndex, quadFile.vertices, quadFile.vertexCount);
 	Entity* quadEntity = CreateEntity(engine, materialIndex, quadMeshView);
 	quadEntity->position = { -0.5f, -0.5f, -0.5f };
 	quadEntity->GetBuffer(engine).color = {0.f, .5f, 0.f};
 
-	MeshFile groundFile{};
-	CreateQuad(groundFile, 100, 100);
-	auto groundMeshView = engine.CreateMesh(materialIndex, groundFile.vertices.data(), groundFile.vertices.size());
+	MeshFile groundFile = CreateQuad(100, 100, vertexUploadArena, indexUploadArena);
+	auto groundMeshView = engine.CreateMesh(materialIndex, groundFile.vertices, groundFile.vertexCount);
 	Entity* groundEntity = CreateEntity(engine, materialIndex, groundMeshView);
 	groundEntity->position = { -50.f, -0.51f, -50.f };
 	groundEntity->GetBuffer(engine).color = { 1.f, 1.f, 1.f };

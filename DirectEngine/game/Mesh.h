@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Log.h"
+#include "../core/Memory.h"
 
 #include <string>
 #include <vector>
@@ -17,8 +18,11 @@ struct Vertex
 
 struct MeshFile
 {
-	std::vector<Vertex> vertices;
+	Vertex* vertices;
+	size_t vertexCount;
+	uint64_t* indices;
+	size_t indexCount;
 };
 
-void CreateQuad(MeshFile& meshFileOut, float width, float height);
-void LoadMeshFromFile(MeshFile& meshFileOut, const std::string& filePath, const std::string& materialPath, RingLog& debugLog);
+MeshFile CreateQuad(float width, float height, MemoryArena& vertexArena, MemoryArena& indexArena);
+MeshFile LoadMeshFromFile(const std::string& filePath, const std::string& materialPath, RingLog& debugLog, MemoryArena& vertexArena, MemoryArena& indexArena);

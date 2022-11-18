@@ -80,6 +80,8 @@ public:
 
 	MemoryArena globalArena{};
 	MemoryArena entityArena{};
+	MemoryArena vertexUploadArena{};
+	MemoryArena indexUploadArena{};
 
 	DirectionalLight light{};
 	Camera camera{};
