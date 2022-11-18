@@ -1,4 +1,5 @@
-SamplerState textureSampler : register(s0);
+SamplerState rawSampler : register(s0);
+SamplerState smoothSampler : register(s1);
 
 cbuffer SceneConstantBuffer : register(b0)
 {
@@ -86,7 +87,7 @@ float4 PSMain(PSInput input) : SV_TARGET
 	float3 specularLit = specularIntensity * specularLightColor;
 
 	// Texture
-	float4 diffuseTex = diffuseTexture.Sample(textureSampler, input.uv);
+	float4 diffuseTex = diffuseTexture.Sample(smoothSampler, input.uv);
 
 	// Shadow
 	float2 shadowMapPos;
@@ -96,7 +97,7 @@ float4 PSMain(PSInput input) : SV_TARGET
 	float shadow = 0.;
 	if (shadowMapPos.x >= 0. && shadowMapPos.x <= 1. && shadowMapPos.y >= 0. && shadowMapPos.y <= 1.)
 	{
-		float closestDepth = shadowmapTexture.Sample(textureSampler, shadowMapPos).r;
+		float closestDepth = shadowmapTexture.Sample(rawSampler, shadowMapPos).r;
 		float currentDepth = input.lightSpacePosition.z / input.lightSpacePosition.w - .002;
 		shadow = currentDepth > closestDepth ? 1.0 : 0.0;
 	}

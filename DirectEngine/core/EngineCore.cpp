@@ -422,12 +422,12 @@ void EngineCore::LoadAssets()
         CD3DX12_DESCRIPTOR_RANGE1 ranges[6];
         CD3DX12_ROOT_PARAMETER1 rootParameters[6];
 
-        ranges[SCENE    ].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, SCENE    , 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // scene CBV
-        ranges[LIGHT    ].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, LIGHT    , 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // light CBV
-        ranges[DIFFUSE  ].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, DIFFUSE  , 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // diffuse texture SRV
-        ranges[DEBUG    ].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, DEBUG    , 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // debug texture SRV
-        ranges[SHADOWMAP].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, SHADOWMAP, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // SHADOWMAP texture SRV
-        ranges[ENTITY   ].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, ENTITY   , 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC); // entity CBV
+        ranges[SCENE    ].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, SCENE    , 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+        ranges[LIGHT    ].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, LIGHT    , 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+        ranges[DIFFUSE  ].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, DIFFUSE  , 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+        ranges[DEBUG    ].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, DEBUG    , 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+        ranges[SHADOWMAP].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, SHADOWMAP, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+        ranges[ENTITY   ].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, ENTITY   , 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         rootParameters[SCENE    ].InitAsDescriptorTable(1, &ranges[SCENE    ], D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[LIGHT    ].InitAsDescriptorTable(1, &ranges[LIGHT    ], D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[DIFFUSE  ].InitAsDescriptorTable(1, &ranges[DIFFUSE  ], D3D12_SHADER_VISIBILITY_PIXEL);
@@ -435,20 +435,37 @@ void EngineCore::LoadAssets()
         rootParameters[SHADOWMAP].InitAsDescriptorTable(1, &ranges[SHADOWMAP], D3D12_SHADER_VISIBILITY_PIXEL);
         rootParameters[ENTITY   ].InitAsDescriptorTable(1, &ranges[ENTITY   ], D3D12_SHADER_VISIBILITY_VERTEX);
 
-        D3D12_STATIC_SAMPLER_DESC sampler = {};
-        sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
-        sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-        sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-        sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-        sampler.MipLODBias = 0;
-        sampler.MaxAnisotropy = 0;
-        sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-        sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
-        sampler.MinLOD = 0.0f;
-        sampler.MaxLOD = D3D12_FLOAT32_MAX;
-        sampler.ShaderRegister = 0;
-        sampler.RegisterSpace = 0;
-        sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+        D3D12_STATIC_SAMPLER_DESC rawSampler = {};
+        rawSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+        rawSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        rawSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        rawSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        rawSampler.MipLODBias = 0;
+        rawSampler.MaxAnisotropy = 0;
+        rawSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+        rawSampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+        rawSampler.MinLOD = 0.0f;
+        rawSampler.MaxLOD = D3D12_FLOAT32_MAX;
+        rawSampler.ShaderRegister = 0;
+        rawSampler.RegisterSpace = 0;
+        rawSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+        D3D12_STATIC_SAMPLER_DESC smoothSampler = {};
+        smoothSampler.Filter = D3D12_FILTER_ANISOTROPIC;
+        smoothSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        smoothSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        smoothSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        smoothSampler.MipLODBias = 0;
+        smoothSampler.MaxAnisotropy = 16;
+        smoothSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+        smoothSampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+        smoothSampler.MinLOD = 0.0f;
+        smoothSampler.MaxLOD = D3D12_FLOAT32_MAX;
+        smoothSampler.ShaderRegister = 1;
+        smoothSampler.RegisterSpace = 0;
+        smoothSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+        D3D12_STATIC_SAMPLER_DESC samplers[] = { rawSampler, smoothSampler };
 
         // Allow input layout and deny uneccessary access to certain pipeline stages.
         D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags =
@@ -457,8 +474,10 @@ void EngineCore::LoadAssets()
             D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
             D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
+
+
         CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc{};
-        rootSignatureDesc.Init_1_1(_countof(rootParameters), rootParameters, 1, &sampler, rootSignatureFlags);
+        rootSignatureDesc.Init_1_1(_countof(rootParameters), rootParameters, _countof(samplers), samplers, rootSignatureFlags);
 
         ComPtr<ID3DBlob> signatureScene;
         ComPtr<ID3DBlob> errorScene;

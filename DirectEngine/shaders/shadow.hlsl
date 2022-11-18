@@ -1,4 +1,4 @@
-SamplerState textureSampler : register(s0);
+SamplerState smoothSampler : register(s1);
 
 cbuffer SceneConstantBuffer : register(b0)
 {
