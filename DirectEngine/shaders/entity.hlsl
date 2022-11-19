@@ -86,6 +86,7 @@ float4 PSMain(PSInput input) : SV_TARGET
 	float3 specularLit = specularIntensity * specularLightColor;
 
 	// Texture
+	input.uv.y = 1. - input.uv.y;
 	float4 diffuseTex = diffuseTexture.Sample(smoothSampler, input.uv);
 
 	// Shadow

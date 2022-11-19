@@ -86,18 +86,18 @@ Game::Game()
 
 void Game::StartGame(EngineCore& engine)
 {
-	/*size_t kaijuMeshIndex = LoadMeshFromFile(engine, "models/kaiju.obj", "models/");
-	Entity* entity1 = CreateEntity(engine, kaijuMeshIndex);
-	entity1->scale = XMVECTOR{ .1f, .1f, .1f };
-	Entity* entity2 = CreateEntity(engine, kaijuMeshIndex);
-	entity2->position = XMVECTOR{ 0.f, 0.f, 5.f };
-	entity2->scale = XMVECTOR{ .3f, .3f, .3f };*/
-
 	engine.CreateTexture(diffuseTexture, L"textures/ground-diffuse-bc1.dds", L"Diffuse Texture");
 	engine.CreateTexture(memeTexture, L"textures/cat.dds", L"yea");
+	engine.CreateTexture(kaijuTexture, L"textures/kaiju.dds", L"kaiju");
 
-	size_t dirtMaterialIndex = engine.CreateMaterial(1024, sizeof(Vertex), &diffuseTexture);
-	size_t memeMaterialIndex = engine.CreateMaterial(1024, sizeof(Vertex), &memeTexture);
+	size_t dirtMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), &diffuseTexture);
+	size_t memeMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), &memeTexture);
+	size_t kaijuMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), &kaijuTexture);
+
+	MeshFile kaijuMeshFile = LoadMeshFromFile("models/kaiju.obj", "models/", debugLog, vertexUploadArena, indexUploadArena);
+	auto kaijuMeshView = engine.CreateMesh(memeMaterialIndex, kaijuMeshFile.vertices, kaijuMeshFile.vertexCount);
+	Entity* kaijuEntity = CreateEntity(engine, kaijuMaterialIndex, kaijuMeshView);
+	kaijuEntity->GetBuffer()->color = { 1.f, 1.f, 1.f };
 
 	MeshFile cubeMeshFile = LoadMeshFromFile("models/cube.obj", "models/", debugLog, vertexUploadArena, indexUploadArena);
 	auto cubeMeshView = engine.CreateMesh(dirtMaterialIndex, cubeMeshFile.vertices, cubeMeshFile.vertexCount);
@@ -145,14 +145,13 @@ void Game::StartGame(EngineCore& engine)
 	lightDisplayEntity = CreateEntity(engine, dirtMaterialIndex, cubeMeshView);
 	lightDisplayEntity->scale = { .1f, .1f, .1f };
 
-	engine.FinishMaterialSetup(dirtMaterialIndex);
-
 	camera.position = { 0.f, 10.f, 0.f };
 	playerPitch = XM_PI;
 
 	light.position = { 10.f, 10.f, 10.f };
 	lightDisplayEntity->position = light.position;
 
+	engine.UploadVertices();
 	UpdateCursorState();
 }
 

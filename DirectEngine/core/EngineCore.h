@@ -238,7 +238,7 @@ public:
     size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride, Texture* diffuse);
     D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount);
     size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
-    void FinishMaterialSetup(size_t materialIndex);
+    void UploadVertices();
     CD3DX12_GPU_DESCRIPTOR_HANDLE* GetConstantBufferHandle(int offset);
     void RenderShadows(ID3D12GraphicsCommandList* renderList);
     void RenderScene(ID3D12GraphicsCommandList* renderList);

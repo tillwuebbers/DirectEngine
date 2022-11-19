@@ -661,14 +661,14 @@ size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_
     return entity.entityIndex;
 }
 
-void EngineCore::FinishMaterialSetup(size_t materialIndex)
+void EngineCore::UploadVertices()
 {
-    MaterialData& data = m_materials[materialIndex];
-
-    // Copy data to vertex buffer
-    m_uploadCommandList.list->CopyResource(data.vertexBuffer.Get(), data.vertexUploadBuffer.Get());
-    CD3DX12_RESOURCE_BARRIER transition = CD3DX12_RESOURCE_BARRIER::Transition(data.vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-    m_uploadCommandList.list->ResourceBarrier(1, &transition);
+    for (MaterialData& data : m_materials)
+    {
+        m_uploadCommandList.list->CopyResource(data.vertexBuffer.Get(), data.vertexUploadBuffer.Get());
+        CD3DX12_RESOURCE_BARRIER transition = CD3DX12_RESOURCE_BARRIER::Transition(data.vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+        m_uploadCommandList.list->ResourceBarrier(1, &transition);
+    }
 
     m_scheduleUpload = true;
 }

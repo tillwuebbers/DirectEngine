@@ -90,6 +90,7 @@ public:
 	EngineInput input{ globalArena };
 	Texture diffuseTexture{};
 	Texture memeTexture{};
+	Texture kaijuTexture{};
 
 	float playerPitch = 0.f;
 	float playerYaw = 0.f;
