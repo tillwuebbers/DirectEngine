@@ -89,6 +89,7 @@ public:
 	Camera camera{};
 	EngineInput input{ globalArena };
 	Texture diffuseTexture{};
+	Texture memeTexture{};
 
 	float playerPitch = 0.f;
 	float playerYaw = 0.f;

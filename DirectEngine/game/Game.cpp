@@ -94,32 +94,34 @@ void Game::StartGame(EngineCore& engine)
 	entity2->scale = XMVECTOR{ .3f, .3f, .3f };*/
 
 	engine.CreateTexture(diffuseTexture, L"textures/ground-diffuse-bc1.dds", L"Diffuse Texture");
+	engine.CreateTexture(memeTexture, L"textures/cat.dds", L"yea");
 
-	size_t materialIndex = engine.CreateMaterial(1024, sizeof(Vertex), &diffuseTexture);
+	size_t dirtMaterialIndex = engine.CreateMaterial(1024, sizeof(Vertex), &diffuseTexture);
+	size_t memeMaterialIndex = engine.CreateMaterial(1024, sizeof(Vertex), &memeTexture);
 
 	MeshFile cubeMeshFile = LoadMeshFromFile("models/cube.obj", "models/", debugLog, vertexUploadArena, indexUploadArena);
-	auto cubeMeshView = engine.CreateMesh(materialIndex, cubeMeshFile.vertices, cubeMeshFile.vertexCount);
+	auto cubeMeshView = engine.CreateMesh(dirtMaterialIndex, cubeMeshFile.vertices, cubeMeshFile.vertexCount);
 
-	testCube = CreateEntity(engine, materialIndex, cubeMeshView);
+	testCube = CreateEntity(engine, dirtMaterialIndex, cubeMeshView);
 	testCube->GetBuffer()->color = {1.f, 1.f, 1.f};
 	testCube->scale = { .01f, .01f, .01f };
 
 	/*MeshFile testQuadMesh{};
 	CreateQuad(testQuadMesh, .2f, .2f);
-	auto testQuadMeshView = engine.CreateMesh(materialIndex, testQuadMesh.vertices.data(), testQuadMesh.vertices.size());
-	Entity* testQuad = CreateEntity(engine, materialIndex, testQuadMeshView);
+	auto testQuadMeshView = engine.CreateMesh(dirtMaterialIndex, testQuadMesh.vertices.data(), testQuadMesh.vertices.size());
+	Entity* testQuad = CreateEntity(engine, dirtMaterialIndex, testQuadMeshView);
 	testQuad->GetBuffer(engine).isScreenSpace = true;*/
 
 	/*for (int i = 0; i < _countof(graphDisplayEntities); i++)
 	{
-		Entity* graphEntity = graphDisplayEntities[i] = CreateEntity(engine, materialIndex, cubeMeshView);
+		Entity* graphEntity = graphDisplayEntities[i] = CreateEntity(engine, dirtMaterialIndex, cubeMeshView);
 		engine.m_entities[graphEntity->dataIndex].visible = false;
 	}*/
 
 	for (int i = 0; i < displayedPuzzle.pieceCount; i++)
 	{
 		PuzzlePiece& piece = displayedPuzzle.pieces[i];
-		Entity* pieceEntity = puzzleEntities[i] = CreateEntity(engine, materialIndex, cubeMeshView);
+		Entity* pieceEntity = puzzleEntities[i] = CreateEntity(engine, memeMaterialIndex, cubeMeshView);
 		pieceEntity->GetBuffer()->color = {.5f, .5f, .5f};
 		pieceEntity->scale = { (float)piece.width + BLOCK_DISPLAY_GAP * (piece.width - 1), 1.f, (float)piece.height + BLOCK_DISPLAY_GAP * (piece.height - 1)};
 		pieceEntity->hasCubeCollision = true;
@@ -129,21 +131,21 @@ void Game::StartGame(EngineCore& engine)
 	float boardWidth = displayedPuzzle.width + BLOCK_DISPLAY_GAP * (displayedPuzzle.width - 1);
 	float boardHeight = displayedPuzzle.height + BLOCK_DISPLAY_GAP * (displayedPuzzle.height - 1);
 	MeshFile quadFile = CreateQuad(boardWidth, boardHeight, vertexUploadArena, indexUploadArena);
-	auto quadMeshView = engine.CreateMesh(materialIndex, quadFile.vertices, quadFile.vertexCount);
-	Entity* quadEntity = CreateEntity(engine, materialIndex, quadMeshView);
+	auto quadMeshView = engine.CreateMesh(dirtMaterialIndex, quadFile.vertices, quadFile.vertexCount);
+	Entity* quadEntity = CreateEntity(engine, dirtMaterialIndex, quadMeshView);
 	quadEntity->position = { -0.5f, -0.5f, -0.5f };
 	quadEntity->GetBuffer()->color = {0.f, .5f, 0.f};
 
 	MeshFile groundFile = CreateQuad(100, 100, vertexUploadArena, indexUploadArena);
-	auto groundMeshView = engine.CreateMesh(materialIndex, groundFile.vertices, groundFile.vertexCount);
-	Entity* groundEntity = CreateEntity(engine, materialIndex, groundMeshView);
+	auto groundMeshView = engine.CreateMesh(dirtMaterialIndex, groundFile.vertices, groundFile.vertexCount);
+	Entity* groundEntity = CreateEntity(engine, dirtMaterialIndex, groundMeshView);
 	groundEntity->position = { -50.f, -0.51f, -50.f };
 	groundEntity->GetBuffer()->color = { 1.f, 1.f, 1.f };
 
-	lightDisplayEntity = CreateEntity(engine, materialIndex, cubeMeshView);
+	lightDisplayEntity = CreateEntity(engine, dirtMaterialIndex, cubeMeshView);
 	lightDisplayEntity->scale = { .1f, .1f, .1f };
 
-	engine.FinishMaterialSetup(materialIndex);
+	engine.FinishMaterialSetup(dirtMaterialIndex);
 
 	camera.position = { 0.f, 10.f, 0.f };
 	playerPitch = XM_PI;
