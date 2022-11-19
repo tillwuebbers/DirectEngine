@@ -46,11 +46,6 @@ Entity* CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, 
 	return nullptr;
 }
 
-EntityConstantBuffer& Entity::GetBuffer(EngineCore& engine)
-{
-	return engine.m_entities[dataIndex].constantBuffer.data;
-}
-
 Game::Game()
 {
 	displayedPuzzle = {};
@@ -98,13 +93,15 @@ void Game::StartGame(EngineCore& engine)
 	entity2->position = XMVECTOR{ 0.f, 0.f, 5.f };
 	entity2->scale = XMVECTOR{ .3f, .3f, .3f };*/
 
-	size_t materialIndex = engine.CreateMaterial(1024, sizeof(Vertex));
+	engine.CreateTexture(diffuseTexture, L"textures/ground-diffuse-bc1.dds", L"Diffuse Texture");
+
+	size_t materialIndex = engine.CreateMaterial(1024, sizeof(Vertex), &diffuseTexture);
 
 	MeshFile cubeMeshFile = LoadMeshFromFile("models/cube.obj", "models/", debugLog, vertexUploadArena, indexUploadArena);
 	auto cubeMeshView = engine.CreateMesh(materialIndex, cubeMeshFile.vertices, cubeMeshFile.vertexCount);
 
 	testCube = CreateEntity(engine, materialIndex, cubeMeshView);
-	testCube->GetBuffer(engine).color = {1.f, 1.f, 1.f};
+	testCube->GetBuffer()->color = {1.f, 1.f, 1.f};
 	testCube->scale = { .01f, .01f, .01f };
 
 	/*MeshFile testQuadMesh{};
@@ -123,7 +120,7 @@ void Game::StartGame(EngineCore& engine)
 	{
 		PuzzlePiece& piece = displayedPuzzle.pieces[i];
 		Entity* pieceEntity = puzzleEntities[i] = CreateEntity(engine, materialIndex, cubeMeshView);
-		pieceEntity->GetBuffer(engine).color = {.5f, .5f, .5f};
+		pieceEntity->GetBuffer()->color = {.5f, .5f, .5f};
 		pieceEntity->scale = { (float)piece.width + BLOCK_DISPLAY_GAP * (piece.width - 1), 1.f, (float)piece.height + BLOCK_DISPLAY_GAP * (piece.height - 1)};
 		pieceEntity->hasCubeCollision = true;
 		pieceEntity->position = GetPiecePosition(puzzleEntities[i], piece);
@@ -135,13 +132,13 @@ void Game::StartGame(EngineCore& engine)
 	auto quadMeshView = engine.CreateMesh(materialIndex, quadFile.vertices, quadFile.vertexCount);
 	Entity* quadEntity = CreateEntity(engine, materialIndex, quadMeshView);
 	quadEntity->position = { -0.5f, -0.5f, -0.5f };
-	quadEntity->GetBuffer(engine).color = {0.f, .5f, 0.f};
+	quadEntity->GetBuffer()->color = {0.f, .5f, 0.f};
 
 	MeshFile groundFile = CreateQuad(100, 100, vertexUploadArena, indexUploadArena);
 	auto groundMeshView = engine.CreateMesh(materialIndex, groundFile.vertices, groundFile.vertexCount);
 	Entity* groundEntity = CreateEntity(engine, materialIndex, groundMeshView);
 	groundEntity->position = { -50.f, -0.51f, -50.f };
-	groundEntity->GetBuffer(engine).color = { 1.f, 1.f, 1.f };
+	groundEntity->GetBuffer()->color = { 1.f, 1.f, 1.f };
 
 	lightDisplayEntity = CreateEntity(engine, materialIndex, cubeMeshView);
 	lightDisplayEntity->scale = { .1f, .1f, .1f };
@@ -210,7 +207,7 @@ void Game::UpdateGame(EngineCore& engine)
 	// Reset per frame values
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 	{
-		entity->GetBuffer(engine).isSelected = { 0 };
+		entity->GetBuffer()->isSelected = { 0 };
 	}
 
 	// Read Inputs
@@ -248,7 +245,7 @@ void Game::UpdateGame(EngineCore& engine)
 		Entity* collision = CollideWithWorld(camera.position, camForward, *this);
 		if (collision != nullptr)
 		{
-			collision->GetBuffer(engine).isSelected = { 1 };
+			collision->GetBuffer()->isSelected = { 1 };
 		}
 	}
 	if (input.KeyComboJustPressed(VK_KEY_S, VK_CONTROL))
@@ -349,14 +346,12 @@ void Game::UpdateGame(EngineCore& engine)
 	// Update entities
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 	{
-		EntityConstantBuffer& entityBuffer = entity->GetBuffer(engine);
-
 		if (entity->isSpinning)
 		{
 			entity->rotation = XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart()));
 		}
 
-		CreateWorldMatrix(entityBuffer.worldTransform, entity->scale, entity->rotation, entity->position);
+		CreateWorldMatrix(entity->GetBuffer()->worldTransform, entity->scale, entity->rotation, entity->position);
 	}
 
 	engine.EndProfile("Game Update");
@@ -379,6 +374,8 @@ EngineInput& Game::GetInput()
 Entity* Game::CreateEntity(EngineCore& engine, size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView)
 {
 	Entity* entity = NewObject(entityArena, Entity);
+	entity->engine = &engine;
+	entity->materialIndex = materialIndex;
 	entity->dataIndex = engine.CreateEntity(materialIndex, meshView);
 	return entity;
 }
@@ -415,4 +412,9 @@ void Game::Warn(const std::string& message)
 void Game::Error(const std::string& message)
 {
 	if (!stopLog) debugLog.Error(message);
+}
+
+EntityConstantBuffer* Entity::GetBuffer()
+{
+	return &engine->m_materials[materialIndex].entities[dataIndex].constantBuffer.data;
 }

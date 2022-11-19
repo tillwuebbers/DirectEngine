@@ -114,15 +114,6 @@ struct EntityConstantBuffer
 const int debugbuffersize = sizeof(EntityConstantBuffer) % 256;
 static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
-struct MaterialData
-{
-    size_t vertexCount = 0;
-    size_t maxVertexCount = 0;
-    size_t vertexStride = 0;
-    ComPtr<ID3D12Resource> vertexUploadBuffer;
-    ComPtr<ID3D12Resource> vertexBuffer;
-};
-
 struct EntityData
 {
     bool visible = true;
@@ -130,6 +121,17 @@ struct EntityData
     size_t materialIndex = 0;
     ConstantBuffer<EntityConstantBuffer> constantBuffer = {};
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
+};
+
+struct MaterialData
+{
+    size_t vertexCount = 0;
+    size_t maxVertexCount = 0;
+    size_t vertexStride = 0;
+    ComPtr<ID3D12Resource> vertexUploadBuffer;
+    ComPtr<ID3D12Resource> vertexBuffer;
+    std::vector<EntityData> entities{};
+    Texture* diffuse;
 };
 
 class EngineCore
@@ -185,11 +187,9 @@ public:
     ConstantBuffer<LightConstantBuffer> m_lightConstantBuffer = {};
     ComPtr<ID3D12Resource> m_depthStencilBuffer = nullptr;
     ShadowMap* m_shadowmap = nullptr;
-    ComPtr<ID3D12Resource> m_diffuseTexture = nullptr;
     ComPtr<ID3D12Resource> m_debugTexture = nullptr;
     std::vector<ComPtr<ID3D12Resource>> m_textureUploadHeaps = {};
     std::vector<MaterialData> m_materials = {};
-    std::vector<EntityData> m_entities = {};
 
     // Synchronization objects
     UINT m_frameIndex = 0;
@@ -233,8 +233,9 @@ public:
     void LoadSizeDependentResources();
     HRESULT CreatePipelineState(const wchar_t* shaderFileName, const char* vsEntryName, const char* psEntryName, const wchar_t* debugName, ComPtr<ID3D12RootSignature>& rootSignature, ID3D12PipelineState** outState);
     void LoadAssets();
-    void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, ComPtr<ID3D12Resource>& targetResource, const wchar_t* name);
-    size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride);
+    void CreateTexture(Texture& outTexture, const wchar_t* filePath, const wchar_t* debugName);
+    void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture, const wchar_t* name);
+    size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride, Texture* diffuse);
     D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount);
     size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
     void FinishMaterialSetup(size_t materialIndex);

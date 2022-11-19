@@ -19,7 +19,6 @@ cbuffer LightConstantBuffer : register(b1)
 };
 
 Texture2D diffuseTexture : register(t2);
-Texture2D debugTexture : register(t3);
 Texture2D shadowmapTexture : register(t4);
 
 cbuffer EntityConstantBuffer : register(b5)

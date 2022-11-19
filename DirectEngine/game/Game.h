@@ -32,13 +32,15 @@ public:
 	XMVECTOR position{ 0.f, 0.f, 0.f };
 	XMVECTOR rotation{ 0.f, 0.f, 0.f, 1.f };
 	XMVECTOR scale{ 1.f, 1.f, 1.f };
+
+	EngineCore* engine;
+	size_t materialIndex;
 	size_t dataIndex;
 
 	bool isSpinning = false;
-
 	bool hasCubeCollision = false;
 
-	EntityConstantBuffer& GetBuffer(EngineCore& engine);
+	EntityConstantBuffer* GetBuffer();
 };
 
 struct DirectionalLight
@@ -86,6 +88,7 @@ public:
 	DirectionalLight light{};
 	Camera camera{};
 	EngineInput input{ globalArena };
+	Texture diffuseTexture{};
 
 	float playerPitch = 0.f;
 	float playerYaw = 0.f;
