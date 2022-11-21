@@ -166,10 +166,15 @@ void Game::DrawUI(EngineCore& engine)
 				}
 			}
 			ImGui::SameLine();
+			ImGui::Checkbox("Scroll to bottom", &scrollLog);
 
 			ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ 0, 0 });
 			debugLog.DrawLogText();
+			if (scrollLog)
+			{
+				ImGui::SetScrollHereY();
+			}
 			ImGui::PopStyleVar();
 			ImGui::EndChild();
 		}

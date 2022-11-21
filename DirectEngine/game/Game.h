@@ -76,6 +76,7 @@ public:
 	bool showDemoWindow = false;
 	bool showEscMenu = false;
 	bool showDebugUI = true;
+	bool scrollLog = true;
 
 	WindowUpdate windowUpdateData{};
 	std::mutex windowUdpateDataMutex;
