@@ -15,7 +15,6 @@ cbuffer LightConstantBuffer : register(b1)
 	float4x4 lightTransform;
 	float4x4 lightPerspective;
 	float3 sunDirection;
-	bool shadowPassActive;
 };
 
 Texture2D diffuseTexture : register(t2);

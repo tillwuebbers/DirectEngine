@@ -47,7 +47,7 @@ void ShadowMap::Build(ID3D12Device* device)
 	srvDesc.Texture2D.MipLevels = 1;
 	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 	srvDesc.Texture2D.PlaneSlice = 0;
-	device->CreateShaderResourceView(textureResource.Get(), &srvDesc, shaderResourceViewCPU);
+	device->CreateShaderResourceView(textureResource.Get(), &srvDesc, shaderResourceViewHandle.cpuHandle);
 
 	// Depth stencil view for depth buffer write
 	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;

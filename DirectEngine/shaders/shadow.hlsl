@@ -14,7 +14,6 @@ cbuffer LightConstantBuffer : register(b1)
 	float4x4 lightTransform;
 	float4x4 lightPerspective;
 	float3 sunDirection;
-	bool shadowPassActive;
 };
 
 cbuffer EntityConstantBuffer : register(b5)

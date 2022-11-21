@@ -85,6 +85,7 @@ public:
 	bool showDemoWindow = false;
 	bool showEscMenu = false;
 	bool showDebugUI = true;
+	bool showDebugImage = true;
 	bool scrollLog = true;
 
 	WindowUpdate windowUpdateData{};
@@ -107,8 +108,6 @@ public:
 
 	PuzzleSolver* solver;
 	Entity* puzzleEntities[MAX_PIECE_COUNT];
-	Entity* testCube;
-	Entity* lightDisplayEntity;
 	Entity* graphDisplayEntities[1024];
 
 	MemoryArena puzzleArena{};

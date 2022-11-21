@@ -482,8 +482,6 @@ void EngineCore::LoadAssets()
             D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
             D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
-
-
         CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc{};
         rootSignatureDesc.Init_1_1(_countof(rootParameters), rootParameters, _countof(samplers), samplers, rootSignatureFlags);
 
@@ -554,10 +552,7 @@ void EngineCore::LoadAssets()
     m_shadowmap = NewObject(engineArena, ShadowMap, DXGI_FORMAT_R24G8_TYPELESS);
 
     m_shadowmap->depthStencilViewCPU = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart(), 1, m_dsvDescriptorSize);
-    DescriptorHandle srvHandle = GetNewDescriptorHandle();
-    m_shadowmap->shaderResourceViewCPU = srvHandle.cpuHandle;
-    m_shadowmap->shaderResourceViewGPU = srvHandle.gpuHandle;
-
+    m_shadowmap->shaderResourceViewHandle = GetNewDescriptorHandle();
     m_shadowmap->SetSize(SHADOWMAP_SIZE, SHADOWMAP_SIZE);
     m_shadowmap->Build(m_device.Get());
 
@@ -776,14 +771,6 @@ void EngineCore::OnRender()
     frameArena.Reset();
 }
 
-void EngineCore::OnDestroy()
-{
-    WaitForGpu();
-    m_wantedWindowMode = WindowMode::Windowed;
-    ApplyWindowMode();
-    CloseHandle(m_fenceEvent);
-}
-
 void EngineCore::PopulateCommandList()
 {
     // Command list allocators can only be reset when the associated 
@@ -810,7 +797,11 @@ void EngineCore::PopulateCommandList()
 
     RenderShadows(renderList);
 
-    Transition(renderList, m_shadowmap->textureResource.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    Transition(renderList, m_shadowmap->textureResource.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COPY_SOURCE);
+
+    CopyDebugImage(renderList, m_shadowmap->textureResource.Get());
+
+    Transition(renderList, m_shadowmap->textureResource.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     Transition(renderList, m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
     RenderScene(renderList);
@@ -854,7 +845,7 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
     for (int drawIdx = 0; drawIdx < m_materials.size(); drawIdx++)
     {
         MaterialData& data = m_materials[drawIdx];
-        renderList->SetGraphicsRootDescriptorTable(DIFFUSE, data.diffuse->handle.gpuHandle);
+        //renderList->SetGraphicsRootDescriptorTable(DIFFUSE, data.diffuse->handle.gpuHandle);
 
         int entityIndex = 0;
         for (EntityData& entity : data.entities)
@@ -883,7 +874,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
 
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
-    renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewGPU);
+    renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
     CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
@@ -927,7 +918,7 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList)
 
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
-    renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewGPU);
+    renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
     CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
@@ -940,7 +931,6 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList)
     for (int drawIdx = 0; drawIdx < m_materials.size(); drawIdx++)
     {
         MaterialData& data = m_materials[drawIdx];
-        renderList->SetGraphicsRootDescriptorTable(DIFFUSE, data.diffuse->handle.gpuHandle);
 
         int entityIndex = 0;
         for (EntityData& entity : data.entities)
@@ -1080,6 +1070,14 @@ void EngineCore::OnShaderReload()
         m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
         return;
     }
+}
+
+void EngineCore::OnDestroy()
+{
+    WaitForGpu();
+    m_wantedWindowMode = WindowMode::Windowed;
+    ApplyWindowMode();
+    CloseHandle(m_fenceEvent);
 }
 
 // Determines whether tearing support is available for fullscreen borderless windows.

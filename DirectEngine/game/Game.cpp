@@ -104,34 +104,29 @@ Game::Game()
 
 void Game::StartGame(EngineCore& engine)
 {
+	// Textures
 	engine.CreateTexture(diffuseTexture, L"textures/ground-diffuse-bc1.dds", L"Diffuse Texture");
 	engine.CreateTexture(memeTexture, L"textures/cat.dds", L"yea");
 	engine.CreateTexture(kaijuTexture, L"textures/kaiju.dds", L"kaiju");
 
+	// Materials
 	size_t dirtMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), &diffuseTexture);
 	size_t memeMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), &memeTexture);
 	size_t kaijuMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), &kaijuTexture);
 
-	MeshFile kaijuMeshFile = LoadMeshFromFile("models/kaiju.obj", "models/", debugLog, vertexUploadArena, indexUploadArena);
-	auto kaijuMeshView = engine.CreateMesh(memeMaterialIndex, kaijuMeshFile.vertices, kaijuMeshFile.vertexCount);
-	Entity* kaijuEntity = CreateEntity(engine, kaijuMaterialIndex, kaijuMeshView);
-	kaijuEntity->GetBuffer()->color = { 1.f, 1.f, 1.f };
-	kaijuEntity->GetData()->aabbLocalPosition = { 0.f, 5.f, 0.f };
-	kaijuEntity->GetData()->aabbLocalSize = { 4.f, 10.f, 2.f };
-
+	// Meshes
 	MeshFile cubeMeshFile = LoadMeshFromFile("models/cube.obj", "models/", debugLog, vertexUploadArena, indexUploadArena);
 	auto cubeMeshView = engine.CreateMesh(dirtMaterialIndex, cubeMeshFile.vertices, cubeMeshFile.vertexCount);
 	engine.cubeVertexView = cubeMeshView;
 
-	testCube = CreateEntity(engine, dirtMaterialIndex, cubeMeshView);
-	testCube->GetBuffer()->color = { 1.f, 1.f, 1.f };
-	testCube->scale = { .01f, .01f, .01f };
+	MeshFile kaijuMeshFile = LoadMeshFromFile("models/kaiju.obj", "models/", debugLog, vertexUploadArena, indexUploadArena);
+	auto kaijuMeshView = engine.CreateMesh(memeMaterialIndex, kaijuMeshFile.vertices, kaijuMeshFile.vertexCount);
 
-	/*for (int i = 0; i < _countof(graphDisplayEntities); i++)
-	{
-		Entity* graphEntity = graphDisplayEntities[i] = CreateEntity(engine, dirtMaterialIndex, cubeMeshView);
-		engine.m_entities[graphEntity->dataIndex].visible = false;
-	}*/
+	// Entities
+	Entity* kaijuEntity = CreateEntity(engine, kaijuMaterialIndex, kaijuMeshView);
+	kaijuEntity->GetBuffer()->color = { 1.f, 1.f, 1.f };
+	kaijuEntity->GetData()->aabbLocalPosition = { 0.f, 5.f, 0.f };
+	kaijuEntity->GetData()->aabbLocalSize = { 4.f, 10.f, 2.f };
 
 	for (int i = 0; i < displayedPuzzle.pieceCount; i++)
 	{
@@ -157,14 +152,10 @@ void Game::StartGame(EngineCore& engine)
 	groundEntity->position = { -50.f, -0.51f, -50.f };
 	groundEntity->GetBuffer()->color = { 1.f, 1.f, 1.f };
 
-	lightDisplayEntity = CreateEntity(engine, dirtMaterialIndex, cubeMeshView);
-	lightDisplayEntity->scale = { .1f, .1f, .1f };
-
 	camera.position = { 0.f, 10.f, 0.f };
 	playerPitch = XM_PI;
 
 	light.position = { 10.f, 10.f, 10.f };
-	lightDisplayEntity->position = light.position;
 
 	engine.UploadVertices();
 	UpdateCursorState();
@@ -313,6 +304,10 @@ void Game::UpdateGame(EngineCore& engine)
 	{
 		showProfiler = !showProfiler;
 	}
+	if (input.KeyComboJustPressed(VK_KEY_T, VK_CONTROL))
+	{
+		showDebugImage = !showDebugImage;
+	}
 
 	if (!showEscMenu)
 	{
@@ -351,16 +346,28 @@ void Game::UpdateGame(EngineCore& engine)
 	engine.m_sceneConstantBuffer.data.perspectiveTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
 	engine.m_sceneConstantBuffer.data.worldCameraPos = camera.position;
 
-	// Update light
+	// Update light/shadowmap
+	engine.m_lightConstantBuffer.data.lightTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(light.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(light.rotation)));
+
+	XMVECTOR lightSpaceMin{};
+	XMVECTOR lightSpaceMax{};
+	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
+	{
+		XMVECTOR lightSpacePosition = XMVector3Transform(entity->position, engine.m_lightConstantBuffer.data.lightTransform);
+		lightSpaceMin = XMVectorMin(lightSpacePosition, lightSpaceMin);
+		lightSpaceMax = XMVectorMax(lightSpacePosition, lightSpaceMax);
+	}
+
 	XMVECTOR lightForward;
 	XMVECTOR lightRight;
 	CalculateDirectionVectors(lightForward, lightRight, light.rotation);
 	XMStoreFloat3(&engine.m_lightConstantBuffer.data.sunDirection, lightForward);
-	engine.m_lightConstantBuffer.data.lightTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(light.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(light.rotation)));
-	engine.m_lightConstantBuffer.data.lightPerspective = XMMatrixTranspose(XMMatrixOrthographicLH(10.f, 10.f, 1.f, 30.f));
+	XMFLOAT3 lsMin;
+	XMFLOAT3 lsMax;
+	XMStoreFloat3(&lsMin, lightSpaceMin);
+	XMStoreFloat3(&lsMax, lightSpaceMax);
 
-	// Test
-	testCube->position = XMVectorAdd(camera.position, camForward);
+	engine.m_lightConstantBuffer.data.lightPerspective = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(lsMin.x, lsMax.x, -10., 20., 1., 30.));
 
 	// Update entities
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)

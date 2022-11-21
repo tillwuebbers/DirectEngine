@@ -1,5 +1,6 @@
 #include "Game.h"
 #include "remixicon.h"
+#include "../core/UI.h"
 
 std::string FormatVector3(XMVECTOR in)
 {
@@ -134,6 +135,11 @@ void Game::DrawUI(EngineCore& engine)
 			{
 				showDemoWindow = !showDemoWindow;
 			}
+			ImGui::SameLine();
+			if (ImGui::Button("Show Image"))
+			{
+				showDebugImage = !showDebugImage;
+			}
 			if (ImGui::Button("Show Log"))
 			{
 				showLog = !showLog;
@@ -143,6 +149,10 @@ void Game::DrawUI(EngineCore& engine)
 			{
 				showProfiler = !showProfiler;
 			}
+
+			ImGui::NewLine();
+
+			ImGui::Checkbox("Show Bounds", &engine.renderAABB);
 		}
 		ImGui::End();
 	}
@@ -178,9 +188,21 @@ void Game::DrawUI(EngineCore& engine)
 			ImGui::PopStyleVar();
 			ImGui::EndChild();
 		}
+
 		ImGui::End();
 	}
 	ImGui::PopStyleVar();
+
+	if (showDebugImage)
+	{
+		if (ImGui::Begin("Debug Image", &showDebugImage))
+		{
+			ImVec2 availableSize = ImGui::GetContentRegionAvail();
+			float minSize = std::min(availableSize.x, availableSize.y);
+			DrawDebugImage({ minSize, minSize });
+			ImGui::End();
+		}
+	}
 
 	engine.EndProfile("Game UI");
 

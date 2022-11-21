@@ -24,6 +24,7 @@
 
 #include "../Helpers.h"
 #include "Constants.h"
+#include "Common.h"
 
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
@@ -48,18 +49,6 @@ enum RootSignatureOffset : UINT
 struct FrameDebugData
 {
     float duration;
-};
-
-struct DescriptorHandle
-{
-    CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle;
-    CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle;
-};
-
-struct Texture
-{
-    ComPtr<ID3D12Resource> buffer = nullptr;
-    DescriptorHandle handle;
 };
 
 template<typename T>
@@ -99,7 +88,6 @@ struct LightConstantBuffer
     XMMATRIX lightTransform = {};
     XMMATRIX lightPerspective = {};
     XMFLOAT3 sunDirection = {};
-    int shadowPassActive;
     float padding[26];
 };
 static_assert((sizeof(LightConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
@@ -107,7 +95,7 @@ static_assert((sizeof(LightConstantBuffer) % 256) == 0, "Constant Buffer size mu
 struct EntityConstantBuffer
 {
     XMMATRIX worldTransform = {};
-    XMVECTOR color;
+    XMVECTOR color = { 1., 1., 1. };
     XMVECTOR aabbLocalPosition = { 0., 0., 0. };
     XMVECTOR aabbLocalSize = { 1., 1., 1. };
     bool isSelected;

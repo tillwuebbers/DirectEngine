@@ -18,3 +18,5 @@ ImGuiInputBlock ParseImGuiInputs(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
 void NewImguiFrame();
 void UpdateImgui(EngineCore* engine);
 void DrawImgui(ID3D12GraphicsCommandList* commandList, D3D12_CPU_DESCRIPTOR_HANDLE* renderTargetDescriptorView);
+void CopyDebugImage(ID3D12GraphicsCommandList* commandList, ID3D12Resource* resource);
+void DrawDebugImage(ImVec2 size);
