@@ -216,6 +216,10 @@ void Game::UpdateGame(EngineCore& engine)
 	input.accessMutex.lock();
 	input.UpdateMousePosition();
 
+	float camSpeed = 10.f;
+	if (input.KeyDown(VK_SHIFT)) camSpeed *= .1f;
+	if (input.KeyDown(VK_CONTROL)) camSpeed *= 5.f;
+
 	if (input.KeyJustPressed(VK_ESCAPE))
 	{
 		showEscMenu = !showEscMenu;
@@ -227,19 +231,19 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 	if (input.KeyDown(VK_KEY_A))
 	{
-		camera.position -= camRight * engine.m_updateDeltaTime * 10.f;
+		camera.position -= camRight * engine.m_updateDeltaTime * camSpeed;
 	}
 	if (input.KeyDown(VK_KEY_D))
 	{
-		camera.position += camRight * engine.m_updateDeltaTime * 10.f;
+		camera.position += camRight * engine.m_updateDeltaTime * camSpeed;
 	}
 	if (input.KeyDown(VK_KEY_S))
 	{
-		camera.position -= camForward * engine.m_updateDeltaTime * 10.f;
+		camera.position -= camForward * engine.m_updateDeltaTime * camSpeed;
 	}
 	if (input.KeyDown(VK_KEY_W))
 	{
-		camera.position += camForward * engine.m_updateDeltaTime * 10.f;
+		camera.position += camForward * engine.m_updateDeltaTime * camSpeed;
 	}
 	if (input.KeyDown(VK_LBUTTON))
 	{
