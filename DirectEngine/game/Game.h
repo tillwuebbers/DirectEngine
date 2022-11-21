@@ -19,6 +19,12 @@ using namespace DirectX;
 const float BLOCK_DISPLAY_GAP = 0.1f;
 const float SOLUTION_PLAYBACK_SPEED = 0.5f;
 
+enum CollisionLayers : uint64_t
+{
+	None,
+	ClickTest,
+};
+
 struct WindowUpdate
 {
 	bool updateCursor;
@@ -38,9 +44,12 @@ public:
 	size_t dataIndex;
 
 	bool isSpinning = false;
-	bool hasCubeCollision = false;
+	uint64_t collisionLayers = 0;
 
+	EntityData* GetData();
 	EntityConstantBuffer* GetBuffer();
+	XMVECTOR LocalToWorld(XMVECTOR localPosition);
+	XMVECTOR WorldToLocal(XMVECTOR worldPosition);
 };
 
 struct DirectionalLight

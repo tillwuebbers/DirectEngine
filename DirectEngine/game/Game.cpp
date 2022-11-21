@@ -2,6 +2,7 @@
 
 #include <array>
 #include <format>
+#include <limits>
 
 #include "../core/vkcodes.h"
 #include "remixicon.h"
@@ -18,14 +19,27 @@ XMVECTOR GetPiecePosition(Entity* entity, const PuzzlePiece& piece)
 	return { (float)piece.x * (1.f + BLOCK_DISPLAY_GAP) + scale.x / 2.f - 0.5f, 0.f, (float)piece.y * (1.f + BLOCK_DISPLAY_GAP) + scale.z / 2.f - 0.5f };
 }
 
-Entity* CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, const Game& game)
+struct CollisionResult
 {
+	Entity* entity;
+	float distance;
+};
+
+CollisionResult CollideWithWorld(Game& game, const XMVECTOR rayOrigin, const XMVECTOR rayDirection, uint64_t matchingLayers)
+{
+	CollisionResult result{ nullptr, std::numeric_limits<float>::max() };
+
 	for (Entity* entity = (Entity*)game.entityArena.base; entity != (Entity*)(game.entityArena.base + game.entityArena.used); entity++)
 	{
-		if (entity->hasCubeCollision)
+		if ((entity->collisionLayers & matchingLayers) != 0)
 		{
-			XMVECTOR boxMin = entity->position - entity->scale / 2.f;
-			XMVECTOR boxMax = entity->position + entity->scale / 2.f;
+			EntityData* entityData = entity->GetData();
+
+			XMVECTOR entityCenterWorld = entity->position + entity->LocalToWorld(entityData->aabbLocalPosition);
+			XMVECTOR entitySizeWorld = entity->LocalToWorld(entityData->aabbLocalSize);
+
+			XMVECTOR boxMin = entityCenterWorld - entitySizeWorld / 2.f;
+			XMVECTOR boxMax = entityCenterWorld + entitySizeWorld / 2.f;
 
 			XMVECTOR t0 = XMVectorDivide(XMVectorSubtract(boxMin, rayOrigin), rayDirection);
 			XMVECTOR t1 = XMVectorDivide(XMVectorSubtract(boxMax, rayOrigin), rayDirection);
@@ -36,14 +50,18 @@ Entity* CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, 
 			XMFLOAT3 tMaxValues;
 			XMStoreFloat3(&tMinValues, tmin);
 			XMStoreFloat3(&tMaxValues, tmax);
-			if (std::max(std::max(tMinValues.x, tMinValues.y), tMinValues.z) <= std::min(std::min(tMaxValues.x, tMaxValues.y), tMaxValues.z))
+
+			float minDistance = std::max(std::max(tMinValues.x, tMinValues.y), tMinValues.z);
+			float maxDistance = std::min(std::min(tMaxValues.x, tMaxValues.y), tMaxValues.z);
+			if (minDistance <= maxDistance && minDistance < result.distance)
 			{
-				return entity;
+				result.distance = minDistance;
+				result.entity = entity;
 			}
 		}
 	}
 
-	return nullptr;
+	return result;
 }
 
 Game::Game()
@@ -98,19 +116,16 @@ void Game::StartGame(EngineCore& engine)
 	auto kaijuMeshView = engine.CreateMesh(memeMaterialIndex, kaijuMeshFile.vertices, kaijuMeshFile.vertexCount);
 	Entity* kaijuEntity = CreateEntity(engine, kaijuMaterialIndex, kaijuMeshView);
 	kaijuEntity->GetBuffer()->color = { 1.f, 1.f, 1.f };
+	kaijuEntity->GetData()->aabbLocalPosition = { 0.f, 5.f, 0.f };
+	kaijuEntity->GetData()->aabbLocalSize = { 4.f, 10.f, 2.f };
 
 	MeshFile cubeMeshFile = LoadMeshFromFile("models/cube.obj", "models/", debugLog, vertexUploadArena, indexUploadArena);
 	auto cubeMeshView = engine.CreateMesh(dirtMaterialIndex, cubeMeshFile.vertices, cubeMeshFile.vertexCount);
+	engine.cubeVertexView = cubeMeshView;
 
 	testCube = CreateEntity(engine, dirtMaterialIndex, cubeMeshView);
-	testCube->GetBuffer()->color = {1.f, 1.f, 1.f};
+	testCube->GetBuffer()->color = { 1.f, 1.f, 1.f };
 	testCube->scale = { .01f, .01f, .01f };
-
-	/*MeshFile testQuadMesh{};
-	CreateQuad(testQuadMesh, .2f, .2f);
-	auto testQuadMeshView = engine.CreateMesh(dirtMaterialIndex, testQuadMesh.vertices.data(), testQuadMesh.vertices.size());
-	Entity* testQuad = CreateEntity(engine, dirtMaterialIndex, testQuadMeshView);
-	testQuad->GetBuffer(engine).isScreenSpace = true;*/
 
 	/*for (int i = 0; i < _countof(graphDisplayEntities); i++)
 	{
@@ -124,7 +139,7 @@ void Game::StartGame(EngineCore& engine)
 		Entity* pieceEntity = puzzleEntities[i] = CreateEntity(engine, memeMaterialIndex, cubeMeshView);
 		pieceEntity->GetBuffer()->color = {.5f, .5f, .5f};
 		pieceEntity->scale = { (float)piece.width + BLOCK_DISPLAY_GAP * (piece.width - 1), 1.f, (float)piece.height + BLOCK_DISPLAY_GAP * (piece.height - 1)};
-		pieceEntity->hasCubeCollision = true;
+		pieceEntity->collisionLayers = ClickTest;
 		pieceEntity->position = GetPiecePosition(puzzleEntities[i], piece);
 	}
 
@@ -155,7 +170,6 @@ void Game::StartGame(EngineCore& engine)
 	UpdateCursorState();
 }
 
-//CoroutineReturn DisplayPuzzleSolution(MemoryArena& arena, std::coroutine_handle<>* handle, Game* game, EngineCore* engine)
 CoroutineReturn DisplayPuzzleSolution(std::coroutine_handle<>* handle, Game* game, EngineCore* engine)
 {
 	CoroutineAwaiter awaiter{ handle };
@@ -247,13 +261,13 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 	if (input.KeyDown(VK_LBUTTON))
 	{
-		Entity* collision = CollideWithWorld(camera.position, camForward, *this);
-		if (collision != nullptr)
+		CollisionResult collision = CollideWithWorld(*this, camera.position, camForward, ClickTest);
+		if (collision.entity != nullptr)
 		{
-			collision->GetBuffer()->isSelected = { 1 };
+			collision.entity->GetBuffer()->isSelected = { 1 };
 		}
 	}
-	if (input.KeyComboJustPressed(VK_KEY_S, VK_CONTROL))
+	if (input.KeyJustPressed(VK_F1))
 	{
 		puzzleArena.Reset();
 		solver->Solve();
@@ -356,6 +370,9 @@ void Game::UpdateGame(EngineCore& engine)
 			entity->rotation = XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart()));
 		}
 
+		entity->GetBuffer()->aabbLocalPosition = entity->GetData()->aabbLocalPosition;
+		entity->GetBuffer()->aabbLocalSize = entity->GetData()->aabbLocalSize;
+
 		CreateWorldMatrix(entity->GetBuffer()->worldTransform, entity->scale, entity->rotation, entity->position);
 	}
 
@@ -419,7 +436,23 @@ void Game::Error(const std::string& message)
 	if (!stopLog) debugLog.Error(message);
 }
 
+EntityData* Entity::GetData()
+{
+	return &engine->m_materials[materialIndex].entities[dataIndex];
+}
+
 EntityConstantBuffer* Entity::GetBuffer()
 {
-	return &engine->m_materials[materialIndex].entities[dataIndex].constantBuffer.data;
+	return &GetData()->constantBuffer.data;
+}
+
+XMVECTOR Entity::LocalToWorld(XMVECTOR localPosition)
+{
+	return XMVector4Transform(localPosition, GetBuffer()->worldTransform);
+}
+
+XMVECTOR Entity::WorldToLocal(XMVECTOR worldPosition)
+{
+	XMVECTOR det;
+	return XMVector4Transform(worldPosition, XMMatrixInverse(&det, GetBuffer()->worldTransform));
 }

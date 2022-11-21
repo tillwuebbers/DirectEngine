@@ -21,15 +21,14 @@ cbuffer EntityConstantBuffer : register(b5)
 {
 	float4x4 worldTransform;
 	float4 color;
+	float3 aabbLocalPosition;
+	float3 aabbLocalSize;
 	bool isSelected;
 };
 
 struct PSInput
 {
 	float4 position : SV_POSITION;
-	float4 worldPosition : POSITION;
-	float4 color : COLOR;
-	float3 worldNormal : NORMAL;
 	float2 uv : UV;
 };
 
@@ -38,15 +37,11 @@ PSInput VSShadow(float4 position : POSITION, float4 vertColor : COLOR, float3 no
 	PSInput result;
 
 	float4 worldPos = mul(position, worldTransform);
-	result.worldPosition = worldPos;
 
 	float4x4 vp;
 	vp = mul(lightTransform, lightPerspective);
 	result.position = mul(worldPos, vp);
 
-	result.color = color;
-
-	result.worldNormal = mul(float4(normal, 0.), worldTransform).xyz;
 	result.uv = uv;
 
 	return result;
@@ -54,5 +49,5 @@ PSInput VSShadow(float4 position : POSITION, float4 vertColor : COLOR, float3 no
 
 float4 PSShadow(PSInput input) : SV_TARGET
 {
-	return input.color;
+	return float4(0., 0., 0., 1.);
 }

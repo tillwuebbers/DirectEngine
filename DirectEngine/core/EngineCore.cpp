@@ -317,7 +317,7 @@ void EngineCore::LoadSizeDependentResources()
     }
 }
 
-HRESULT EngineCore::CreatePipelineState(const wchar_t* shaderFileName, const char* vsEntryName, const char* psEntryName, const wchar_t* debugName, ComPtr<ID3D12RootSignature>& rootSignature, ID3D12PipelineState** outState)
+HRESULT EngineCore::CreatePipelineState(PipelineConfig& config, ComPtr<ID3D12RootSignature>& rootSignature)
 {
     ComPtr<ID3DBlob> vertexShader;
     ComPtr<ID3DBlob> pixelShader;
@@ -326,7 +326,7 @@ HRESULT EngineCore::CreatePipelineState(const wchar_t* shaderFileName, const cha
     // Enable better shader debugging with the graphics debugging tools.
     UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
     std::wstring path = std::wstring(L"../../../../DirectEngine/shaders/");
-    path.append(shaderFileName);
+    path.append(config.shaderFileName);
     const wchar_t* shaderPath = path.c_str();
 
     bool canOpen = false;
@@ -344,7 +344,7 @@ HRESULT EngineCore::CreatePipelineState(const wchar_t* shaderFileName, const cha
 #else
     UINT compileFlags = 0;
     std::wstring path = std::wstring(L"shaders/");
-    path.append(shaderFileName);
+    path.append(config.shaderFileName);
     const wchar_t* shaderPath = path.c_str();
 #endif
 
@@ -353,7 +353,7 @@ HRESULT EngineCore::CreatePipelineState(const wchar_t* shaderFileName, const cha
     HRESULT hr;
 
     m_shaderError.clear();
-    hr = D3DCompileFromFile(shaderPath, nullptr, nullptr, vsEntryName, "vs_5_0", compileFlags, 0, &vertexShader, &vsErrors);
+    hr = D3DCompileFromFile(shaderPath, nullptr, nullptr, config.vsEntryName, "vs_5_0", compileFlags, 0, &vertexShader, &vsErrors);
     if (vsErrors)
     {
         m_shaderError = std::format("Vertex Shader Errors:\n{}\n", (LPCSTR)vsErrors->GetBufferPointer());
@@ -364,7 +364,7 @@ HRESULT EngineCore::CreatePipelineState(const wchar_t* shaderFileName, const cha
         return hr;
     }
 
-    hr = D3DCompileFromFile(shaderPath, nullptr, nullptr, psEntryName, "ps_5_0", compileFlags, 0, &pixelShader, &psErrors);
+    hr = D3DCompileFromFile(shaderPath, nullptr, nullptr, config.psEntryName, "ps_5_0", compileFlags, 0, &pixelShader, &psErrors);
     if (psErrors)
     {
         m_shaderError = std::format("Pixel Shader Errors:\n{}\n", (LPCSTR)psErrors->GetBufferPointer());
@@ -384,13 +384,21 @@ HRESULT EngineCore::CreatePipelineState(const wchar_t* shaderFileName, const cha
         { "UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 40, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
     };
 
+    // Rasterizer
+    CD3DX12_RASTERIZER_DESC rasterizerDesc(D3D12_DEFAULT);
+    if (config.wireframe)
+    {
+        rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
+        rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
+    }
+
     // Describe and create the graphics pipeline state object (PSO).
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
     psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
     psoDesc.pRootSignature = rootSignature.Get();
     psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.Get());
     psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
-    psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    psoDesc.RasterizerState = rasterizerDesc;
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
     psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
@@ -401,8 +409,8 @@ HRESULT EngineCore::CreatePipelineState(const wchar_t* shaderFileName, const cha
     psoDesc.SampleDesc.Count = 1;
     psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
-    hr = m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(outState));
-    (*outState)->SetName(debugName);
+    hr = m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&config.pipelineState));
+    config.pipelineState->SetName(config.debugName);
     return hr;
 }
 
@@ -499,8 +507,31 @@ void EngineCore::LoadAssets()
     }
 
     // Create the pipeline state, which includes compiling and loading shaders.
-    ThrowIfFailed(CreatePipelineState(L"entity.hlsl", "VSMain", "PSMain", L"Main Material Pipeline", m_rootSignatureScene, &m_pipelineState));
-    ThrowIfFailed(CreatePipelineState(L"shadow.hlsl", "VSShadow", "PSShadow", L"Shadow Pipeline", m_rootSignatureShadow, &m_shadowPipelineState));
+    m_sceneConfig = {
+        false,
+        L"entity.hlsl",
+        "VSMain",
+        "PSMain",
+        L"Main Material Pipeline"
+    };
+    m_shadowConfig = {
+        false,
+        L"shadow.hlsl",
+        "VSShadow",
+        "PSShadow",
+        L"Shadow Pipeline"
+    };
+    m_wireframeConfig = {
+        true,
+        L"aabb.hlsl",
+        "VSWire",
+        "PSWire",
+        L"Wireframe Pipeline"
+    };
+
+    ThrowIfFailed(CreatePipelineState(m_sceneConfig, m_rootSignatureScene));
+    ThrowIfFailed(CreatePipelineState(m_shadowConfig, m_rootSignatureShadow));
+    ThrowIfFailed(CreatePipelineState(m_wireframeConfig, m_rootSignatureScene));
 
     // Create the render command list
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_renderCommandAllocators[m_frameIndex].Get(), nullptr, IID_PPV_ARGS(&m_renderCommandList.list)));
@@ -527,7 +558,7 @@ void EngineCore::LoadAssets()
     m_shadowmap->shaderResourceViewCPU = srvHandle.cpuHandle;
     m_shadowmap->shaderResourceViewGPU = srvHandle.gpuHandle;
 
-    m_shadowmap->SetSize(1024, 1024);
+    m_shadowmap->SetSize(SHADOWMAP_SIZE, SHADOWMAP_SIZE);
     m_shadowmap->Build(m_device.Get());
 
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
@@ -698,7 +729,7 @@ void EngineCore::OnUpdate()
     if (!m_scheduleUpload)
     {
         ThrowIfFailed(m_uploadCommandAllocators[m_frameIndex]->Reset());
-        m_uploadCommandList.Reset(m_uploadCommandAllocators[m_frameIndex].Get(), m_pipelineState.Get());
+        m_uploadCommandList.Reset(m_uploadCommandAllocators[m_frameIndex].Get(), m_sceneConfig.pipelineState.Get());
     }
     EndProfile("Reset Upload CB");
 
@@ -753,10 +784,52 @@ void EngineCore::OnDestroy()
     CloseHandle(m_fenceEvent);
 }
 
+void EngineCore::PopulateCommandList()
+{
+    // Command list allocators can only be reset when the associated 
+    // command lists have finished execution on the GPU; apps should use 
+    // fences to determine GPU execution progress.
+    ThrowIfFailed(m_renderCommandAllocators[m_frameIndex]->Reset());
+
+    // However, when ExecuteCommandList() is called on a particular command 
+    // list, that command list can then be reset at any time and must be before 
+    // re-recording.
+    m_renderCommandList.Reset(m_renderCommandAllocators[m_frameIndex].Get(), m_sceneConfig.pipelineState.Get());
+    ID3D12GraphicsCommandList* renderList = m_renderCommandList.list.Get();
+
+    m_sceneConstantBuffer.UploadData(m_frameIndex);
+    m_lightConstantBuffer.UploadData(m_frameIndex);
+
+    for (MaterialData& material : m_materials)
+    {
+        for (EntityData& entity : material.entities)
+        {
+            entity.constantBuffer.UploadData(m_frameIndex);
+        }
+    }
+
+    RenderShadows(renderList);
+
+    Transition(renderList, m_shadowmap->textureResource.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    Transition(renderList, m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+    RenderScene(renderList);
+    RenderWireframe(renderList);
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
+    DrawImgui(renderList, &rtvHandle);
+
+    // Indicate that the back buffer will now be used to present.
+    CD3DX12_RESOURCE_BARRIER barrierToPresent = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+    renderList->ResourceBarrier(1, &barrierToPresent);
+
+    ThrowIfFailed(renderList->Close());
+}
+
 void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
 {
     // Set pipeline
-    renderList->SetPipelineState(m_shadowPipelineState.Get());
+    renderList->SetPipelineState(m_shadowConfig.pipelineState.Get());
     renderList->SetGraphicsRootSignature(m_rootSignatureShadow.Get());
     renderList->RSSetViewports(1, &m_shadowmap->viewport);
     renderList->RSSetScissorRects(1, &m_shadowmap->scissorRect);
@@ -799,7 +872,7 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
 void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
 {
     // Set necessary state.
-    renderList->SetPipelineState(m_pipelineState.Get());
+    renderList->SetPipelineState(m_sceneConfig.pipelineState.Get());
     renderList->SetGraphicsRootSignature(m_rootSignatureScene.Get());
     renderList->RSSetViewports(1, &m_viewport);
     renderList->RSSetScissorRects(1, &m_scissorRect);
@@ -810,11 +883,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
 
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
-
-    Transition(renderList, m_shadowmap->textureResource.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewGPU);
-
-    Transition(renderList, m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
     CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
@@ -834,7 +903,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
         int entityIndex = 0;
         for (EntityData& entity : data.entities)
         {
-            if (!entity.visible) continue;
+            if (!entity.visible || entity.wireframe) continue;
             renderList->IASetVertexBuffers(0, 1, &entity.vertexBufferView);
             renderList->SetGraphicsRootDescriptorTable(ENTITY, entity.constantBuffer.handles[m_frameIndex].gpuHandle);
             renderList->DrawInstanced(entity.vertexBufferView.SizeInBytes / entity.vertexBufferView.StrideInBytes, 1, 0, 0);
@@ -842,43 +911,57 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
             entityIndex++;
         }
     }
-
-    // UI
-    DrawImgui(renderList, &rtvHandle);
 }
 
-void EngineCore::PopulateCommandList()
+void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList)
 {
-    // Command list allocators can only be reset when the associated 
-    // command lists have finished execution on the GPU; apps should use 
-    // fences to determine GPU execution progress.
-    ThrowIfFailed(m_renderCommandAllocators[m_frameIndex]->Reset());
+    // Set necessary state.
+    renderList->SetPipelineState(m_wireframeConfig.pipelineState.Get());
+    renderList->SetGraphicsRootSignature(m_rootSignatureScene.Get());
+    renderList->RSSetViewports(1, &m_viewport);
+    renderList->RSSetScissorRects(1, &m_scissorRect);
 
-    // However, when ExecuteCommandList() is called on a particular command 
-    // list, that command list can then be reset at any time and must be before 
-    // re-recording.
-    m_renderCommandList.Reset(m_renderCommandAllocators[m_frameIndex].Get(), m_pipelineState.Get());
-    ID3D12GraphicsCommandList* renderList = m_renderCommandList.list.Get();
+    // Load heaps
+    ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap.Get() };
+    renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
-    m_sceneConstantBuffer.UploadData(m_frameIndex);
-    m_lightConstantBuffer.UploadData(m_frameIndex);
+    renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
+    renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
+    renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewGPU);
 
-    for (MaterialData& material : m_materials)
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
+    renderList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+
+    // Record commands.
+    renderList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+    renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    for (int drawIdx = 0; drawIdx < m_materials.size(); drawIdx++)
     {
-        for (EntityData& entity : material.entities)
+        MaterialData& data = m_materials[drawIdx];
+        renderList->SetGraphicsRootDescriptorTable(DIFFUSE, data.diffuse->handle.gpuHandle);
+
+        int entityIndex = 0;
+        for (EntityData& entity : data.entities)
         {
-            entity.constantBuffer.UploadData(m_frameIndex);
+            if (renderAABB)
+            {
+                renderList->IASetVertexBuffers(0, 1, &cubeVertexView);
+                renderList->SetGraphicsRootDescriptorTable(ENTITY, entity.constantBuffer.handles[m_frameIndex].gpuHandle);
+                renderList->DrawInstanced(cubeVertexView.SizeInBytes / cubeVertexView.StrideInBytes, 1, 0, 0);
+            }
+            
+            if (entity.visible && entity.wireframe)
+            {
+                renderList->IASetVertexBuffers(0, 1, &entity.vertexBufferView);
+                renderList->SetGraphicsRootDescriptorTable(ENTITY, entity.constantBuffer.handles[m_frameIndex].gpuHandle);
+                renderList->DrawInstanced(entity.vertexBufferView.SizeInBytes / entity.vertexBufferView.StrideInBytes, 1, 0, 0);
+            }
+
+            entityIndex++;
         }
     }
-
-    RenderShadows(renderList);
-    RenderScene(renderList);
-
-    // Indicate that the back buffer will now be used to present.
-    CD3DX12_RESOURCE_BARRIER barrierToPresent = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-    renderList->ResourceBarrier(1, &barrierToPresent);
-
-    ThrowIfFailed(renderList->Close());
 }
 
 // Wait for pending GPU work to complete.
@@ -967,7 +1050,7 @@ void EngineCore::OnShaderReload()
     WaitForGpu();
 
     std::wstring_convert<std::codecvt_utf8<wchar_t>> utf8_conv;
-    HRESULT hr = CreatePipelineState(L"entity.hlsl", "VSMain", "PSMain", L"Main Material Pipeline", m_rootSignatureScene, &m_pipelineState);
+    HRESULT hr = CreatePipelineState(m_sceneConfig, m_rootSignatureScene);
 
     if (FAILED(hr))
     {
@@ -978,12 +1061,22 @@ void EngineCore::OnShaderReload()
         return;
     }
 
-    hr = CreatePipelineState(L"shadow.hlsl", "VSShadow", "PSShadow", L"Shadow Pipeline", m_rootSignatureShadow, &m_shadowPipelineState);
+    hr = CreatePipelineState(m_shadowConfig, m_rootSignatureShadow);
     if (FAILED(hr))
     {
         _com_error err(hr);
 
         m_shaderError.append("Failed to create shadow pipeline state: ");
+        m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
+        return;
+    }
+
+    hr = CreatePipelineState(m_wireframeConfig, m_rootSignatureScene);
+    if (FAILED(hr))
+    {
+        _com_error err(hr);
+
+        m_shaderError.append("Failed to create wireframe pipeline state: ");
         m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
         return;
     }

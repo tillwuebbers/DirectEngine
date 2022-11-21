@@ -108,8 +108,10 @@ struct EntityConstantBuffer
 {
     XMMATRIX worldTransform = {};
     XMVECTOR color;
+    XMVECTOR aabbLocalPosition = { 0., 0., 0. };
+    XMVECTOR aabbLocalSize = { 1., 1., 1. };
     bool isSelected;
-    float padding[(256 - 96) / 4];
+    float padding[(256 - 64 - 3 * 16 - 16) / 4];
 };
 const int debugbuffersize = sizeof(EntityConstantBuffer) % 256;
 static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
@@ -117,6 +119,9 @@ static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size m
 struct EntityData
 {
     bool visible = true;
+    bool wireframe = false;
+    XMVECTOR aabbLocalPosition = { 0., 0., 0. };
+    XMVECTOR aabbLocalSize = { 1., 1., 1. };
     size_t entityIndex = 0;
     size_t materialIndex = 0;
     ConstantBuffer<EntityConstantBuffer> constantBuffer = {};
@@ -132,6 +137,17 @@ struct MaterialData
     ComPtr<ID3D12Resource> vertexBuffer;
     std::vector<EntityData> entities{};
     Texture* diffuse;
+};
+
+struct PipelineConfig
+{
+    bool wireframe;
+    const wchar_t* shaderFileName;
+    const char* vsEntryName;
+    const char* psEntryName;
+    const wchar_t* debugName;
+
+    ComPtr<ID3D12PipelineState> pipelineState;
 };
 
 class EngineCore
@@ -174,13 +190,14 @@ public:
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap = nullptr;
     ComPtr<ID3D12DescriptorHeap> m_cbvHeap = nullptr;
     ComPtr<ID3D12DescriptorHeap> m_depthStencilHeap = nullptr;
-    ComPtr<ID3D12PipelineState> m_pipelineState = nullptr;
-    ComPtr<ID3D12PipelineState> m_shadowPipelineState = nullptr;
     CommandList m_uploadCommandList = {};
     bool m_scheduleUpload = false;
     CommandList m_renderCommandList = {};
     UINT m_rtvDescriptorSize;
     UINT m_dsvDescriptorSize;
+    PipelineConfig m_sceneConfig;
+    PipelineConfig m_shadowConfig;
+    PipelineConfig m_wireframeConfig;
 
     // App resources
     ConstantBuffer<SceneConstantBuffer> m_sceneConstantBuffer = {};
@@ -220,6 +237,10 @@ public:
     std::vector<legit::ProfilerTask> m_profilerTaskData{};
     std::unordered_map<std::string, size_t> m_profilerTasks{};
     bool m_inUpdate = false;
+
+    // TODO: don't init this in game
+    D3D12_VERTEX_BUFFER_VIEW cubeVertexView;
+    bool renderAABB = true;
     
     // Time
     std::chrono::steady_clock::time_point m_startTime;
@@ -231,7 +252,7 @@ public:
     void GetHardwareAdapter(IDXGIFactory1* pFactory, IDXGIAdapter1** ppAdapter, bool requestHighPerformanceAdapter);
     void LoadPipeline();
     void LoadSizeDependentResources();
-    HRESULT CreatePipelineState(const wchar_t* shaderFileName, const char* vsEntryName, const char* psEntryName, const wchar_t* debugName, ComPtr<ID3D12RootSignature>& rootSignature, ID3D12PipelineState** outState);
+    HRESULT CreatePipelineState(PipelineConfig& config, ComPtr<ID3D12RootSignature>& rootSignature);
     void LoadAssets();
     void CreateTexture(Texture& outTexture, const wchar_t* filePath, const wchar_t* debugName);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture, const wchar_t* name);
@@ -242,6 +263,7 @@ public:
     CD3DX12_GPU_DESCRIPTOR_HANDLE* GetConstantBufferHandle(int offset);
     void RenderShadows(ID3D12GraphicsCommandList* renderList);
     void RenderScene(ID3D12GraphicsCommandList* renderList);
+    void RenderWireframe(ID3D12GraphicsCommandList* renderList);
     void PopulateCommandList();
     void MoveToNextFrame();
     void WaitForGpu();

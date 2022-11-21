@@ -25,6 +25,8 @@ cbuffer EntityConstantBuffer : register(b5)
 {
 	float4x4 worldTransform;
 	float4 color;
+	float3 aabbLocalPosition;
+	float3 aabbLocalSize;
 	bool isSelected;
 };
 
