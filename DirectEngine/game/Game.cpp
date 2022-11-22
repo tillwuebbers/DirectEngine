@@ -141,6 +141,7 @@ void Game::StartGame(EngineCore& engine)
 {
 	// Shaders
 	ShaderDescription defaultShader{ L"entity.hlsl", "VSMain", "PSMain", L"Main" };
+	ShaderDescription groundShader{ L"ground.hlsl", "VSMain", "PSMain", L"Ground" };
 
 	// Textures
 	engine.CreateTexture(diffuseTexture, L"textures/ground-diffuse-bc1.dds", L"Diffuse Texture");
@@ -151,6 +152,7 @@ void Game::StartGame(EngineCore& engine)
 	size_t dirtMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &diffuseTexture }, defaultShader);
 	size_t memeMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &memeTexture }, defaultShader);
 	size_t kaijuMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &kaijuTexture }, defaultShader);
+	size_t groundMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, groundShader);
 
 	// Meshes
 	MeshFile cubeMeshFile = LoadMeshFromFile("models/cube.obj", "models/", debugLog, vertexUploadArena, indexUploadArena);
@@ -185,8 +187,8 @@ void Game::StartGame(EngineCore& engine)
 	quadEntity->GetBuffer()->color = {0.f, .5f, 0.f};
 
 	MeshFile groundFile = CreateQuad(100, 100, vertexUploadArena, indexUploadArena);
-	auto groundMeshView = engine.CreateMesh(dirtMaterialIndex, groundFile.vertices, groundFile.vertexCount);
-	Entity* groundEntity = CreateEntity(engine, dirtMaterialIndex, groundMeshView);
+	auto groundMeshView = engine.CreateMesh(groundMaterialIndex, groundFile.vertices, groundFile.vertexCount);
+	Entity* groundEntity = CreateEntity(engine, groundMaterialIndex, groundMeshView);
 	groundEntity->position = { -50.f, -0.51f, -50.f };
 	groundEntity->GetBuffer()->color = { 1.f, 1.f, 1.f };
 

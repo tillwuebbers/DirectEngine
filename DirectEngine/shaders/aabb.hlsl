@@ -1,20 +1,4 @@
-cbuffer SceneConstantBuffer : register(b0)
-{
-	float4x4 cameraTransform;
-	float4x4 perspectiveTransform;
-	float3 worldCameraPos;
-	float time;
-	float deltaTime;
-};
-
-cbuffer EntityConstantBuffer : register(b2)
-{
-	float4x4 worldTransform;
-	float4 color;
-	float3 aabbLocalPosition;
-	float3 aabbLocalSize;
-	bool isSelected;
-};
+#include "common.hlsl"
 
 struct PSInput
 {

@@ -446,7 +446,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
     ComPtr<ID3D10Blob> psErrors;
 
     m_shaderError.clear();
-    config->creationError = D3DCompileFromFile(shaderPath, nullptr, nullptr, config->shaderDescription.vsEntryName, "vs_5_0", compileFlags, 0, &vertexShader, &vsErrors);
+    config->creationError = D3DCompileFromFile(shaderPath, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, config->shaderDescription.vsEntryName, "vs_5_0", compileFlags, 0, &vertexShader, &vsErrors);
     if (vsErrors)
     {
         m_shaderError = std::format("Vertex Shader Errors:\n{}\n", (LPCSTR)vsErrors->GetBufferPointer());
@@ -454,7 +454,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
     }
     if (FAILED(config->creationError)) return;
 
-    config->creationError = D3DCompileFromFile(shaderPath, nullptr, nullptr, config->shaderDescription.psEntryName, "ps_5_0", compileFlags, 0, &pixelShader, &psErrors);
+    config->creationError = D3DCompileFromFile(shaderPath, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, config->shaderDescription.psEntryName, "ps_5_0", compileFlags, 0, &pixelShader, &psErrors);
     if (psErrors)
     {
         m_shaderError = std::format("Pixel Shader Errors:\n{}\n", (LPCSTR)psErrors->GetBufferPointer());
@@ -681,8 +681,8 @@ void EngineCore::OnUpdate()
     m_updateDeltaTime = NanosecondsToSeconds(now - m_frameStartTime);
     m_frameStartTime = now;
 
-    m_sceneConstantBuffer.data.time = static_cast<float>(secondsSinceStart);
-    m_sceneConstantBuffer.data.deltaTime = static_cast<float>(m_updateDeltaTime);
+    float time = static_cast<float>(secondsSinceStart);
+    m_sceneConstantBuffer.data.time = XMLoadFloat(&time);
 
     NewImguiFrame();
     UpdateImgui(this);
