@@ -18,3 +18,23 @@ struct Texture
     ComPtr<ID3D12Resource> buffer = nullptr;
     DescriptorHandle handle;
 };
+
+struct ShaderDescription
+{
+    const wchar_t* shaderFileName;
+    const char* vsEntryName;
+    const char* psEntryName;
+    const wchar_t* debugName;
+};
+
+struct PipelineConfig
+{
+    bool wireframe;
+    ShaderDescription shaderDescription;
+    size_t textureSlotCount;
+
+    ComPtr<ID3D12PipelineState> pipelineState;
+    ComPtr<ID3D12RootSignature> rootSignature;
+
+    HRESULT creationError;
+};

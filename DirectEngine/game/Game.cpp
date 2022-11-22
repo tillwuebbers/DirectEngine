@@ -104,15 +104,18 @@ Game::Game()
 
 void Game::StartGame(EngineCore& engine)
 {
+	// Shaders
+	ShaderDescription defaultShader{ L"entity.hlsl", "VSMain", "PSMain", L"Main" };
+
 	// Textures
 	engine.CreateTexture(diffuseTexture, L"textures/ground-diffuse-bc1.dds", L"Diffuse Texture");
 	engine.CreateTexture(memeTexture, L"textures/cat.dds", L"yea");
 	engine.CreateTexture(kaijuTexture, L"textures/kaiju.dds", L"kaiju");
 
 	// Materials
-	size_t dirtMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), &diffuseTexture);
-	size_t memeMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), &memeTexture);
-	size_t kaijuMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), &kaijuTexture);
+	size_t dirtMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &diffuseTexture }, defaultShader);
+	size_t memeMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &memeTexture }, defaultShader);
+	size_t kaijuMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &kaijuTexture }, defaultShader);
 
 	// Meshes
 	MeshFile cubeMeshFile = LoadMeshFromFile("models/cube.obj", "models/", debugLog, vertexUploadArena, indexUploadArena);

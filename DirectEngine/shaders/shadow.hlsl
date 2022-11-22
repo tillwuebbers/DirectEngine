@@ -16,7 +16,7 @@ cbuffer LightConstantBuffer : register(b1)
 	float3 sunDirection;
 };
 
-cbuffer EntityConstantBuffer : register(b5)
+cbuffer EntityConstantBuffer : register(b2)
 {
 	float4x4 worldTransform;
 	float4 color;

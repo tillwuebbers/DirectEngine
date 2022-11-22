@@ -17,10 +17,7 @@ cbuffer LightConstantBuffer : register(b1)
 	float3 sunDirection;
 };
 
-Texture2D diffuseTexture : register(t2);
-Texture2D shadowmapTexture : register(t4);
-
-cbuffer EntityConstantBuffer : register(b5)
+cbuffer EntityConstantBuffer : register(b2)
 {
 	float4x4 worldTransform;
 	float4 color;
@@ -28,6 +25,9 @@ cbuffer EntityConstantBuffer : register(b5)
 	float3 aabbLocalSize;
 	bool isSelected;
 };
+
+Texture2D shadowmapTexture : register(t3);
+Texture2D diffuseTexture : register(t4);
 
 struct PSInput
 {

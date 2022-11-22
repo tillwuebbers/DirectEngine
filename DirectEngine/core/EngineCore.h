@@ -37,13 +37,12 @@ enum class WindowMode
 };
 
 enum RootSignatureOffset : UINT
-{                 // Offsets in buffer
-    SCENE = 0,    // 0,1,2
-    LIGHT = 1,    // 3,4,5
-    DIFFUSE = 2,  // 6
-    DEBUG = 3,    // 7
-    SHADOWMAP = 4,// 8
-    ENTITY = 5,   // 9,10,11
+{
+    SCENE = 0,
+    LIGHT = 1,
+    ENTITY = 2,
+    SHADOWMAP = 3,
+    CUSTOM_START = 4,
 };
 
 struct FrameDebugData
@@ -63,13 +62,6 @@ struct ConstantBuffer
     {
         memcpy(mappedData[frameIndex], &data, sizeof(data));
     }
-};
-
-struct CommandList
-{
-    ComPtr<ID3D12GraphicsCommandList> list = nullptr;
-
-    void Reset(ID3D12CommandAllocator* allocator, ID3D12PipelineState* pipelineState);
 };
 
 struct SceneConstantBuffer
@@ -124,18 +116,8 @@ struct MaterialData
     ComPtr<ID3D12Resource> vertexUploadBuffer;
     ComPtr<ID3D12Resource> vertexBuffer;
     std::vector<EntityData> entities{};
-    Texture* diffuse;
-};
-
-struct PipelineConfig
-{
-    bool wireframe;
-    const wchar_t* shaderFileName;
-    const char* vsEntryName;
-    const char* psEntryName;
-    const wchar_t* debugName;
-
-    ComPtr<ID3D12PipelineState> pipelineState;
+    std::vector<Texture*> textures{};
+    PipelineConfig* pipeline;
 };
 
 class EngineCore
@@ -173,19 +155,16 @@ public:
     ComPtr<ID3D12CommandAllocator> m_uploadCommandAllocators[FrameCount];
     ComPtr<ID3D12CommandAllocator> m_renderCommandAllocators[FrameCount];
     ComPtr<ID3D12CommandQueue> m_commandQueue = nullptr;
-    ComPtr<ID3D12RootSignature> m_rootSignatureScene = nullptr;
-    ComPtr<ID3D12RootSignature> m_rootSignatureShadow = nullptr;
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap = nullptr;
     ComPtr<ID3D12DescriptorHeap> m_cbvHeap = nullptr;
     ComPtr<ID3D12DescriptorHeap> m_depthStencilHeap = nullptr;
-    CommandList m_uploadCommandList = {};
+    ComPtr<ID3D12GraphicsCommandList> m_uploadCommandList = {};
+    ComPtr<ID3D12GraphicsCommandList> m_renderCommandList = {};
     bool m_scheduleUpload = false;
-    CommandList m_renderCommandList = {};
     UINT m_rtvDescriptorSize;
     UINT m_dsvDescriptorSize;
-    PipelineConfig m_sceneConfig;
-    PipelineConfig m_shadowConfig;
-    PipelineConfig m_wireframeConfig;
+    PipelineConfig* m_shadowConfig;
+    PipelineConfig* m_wireframeConfig;
 
     // App resources
     ConstantBuffer<SceneConstantBuffer> m_sceneConstantBuffer = {};
@@ -240,11 +219,12 @@ public:
     void GetHardwareAdapter(IDXGIFactory1* pFactory, IDXGIAdapter1** ppAdapter, bool requestHighPerformanceAdapter);
     void LoadPipeline();
     void LoadSizeDependentResources();
-    HRESULT CreatePipelineState(PipelineConfig& config, ComPtr<ID3D12RootSignature>& rootSignature);
+    PipelineConfig* CreatePipeline(ShaderDescription shaderDesc, size_t textureCount, bool wireframe);
+    void CreatePipelineState(PipelineConfig* config);
     void LoadAssets();
     void CreateTexture(Texture& outTexture, const wchar_t* filePath, const wchar_t* debugName);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture, const wchar_t* name);
-    size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride, Texture* diffuse);
+    size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride, std::vector<Texture*> textures, ShaderDescription shaderDesc);
     D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount);
     size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
     void UploadVertices();
