@@ -342,6 +342,7 @@ void Game::UpdateGame(EngineCore& engine)
 
 	engine.m_sceneConstantBuffer.data.cameraTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
 	engine.m_sceneConstantBuffer.data.perspectiveTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
+	engine.m_sceneConstantBuffer.data.projectionParams = { camera.nearClip, camera.farClip };
 	engine.m_sceneConstantBuffer.data.worldCameraPos = camera.position;
 
 	// Update light/shadowmap

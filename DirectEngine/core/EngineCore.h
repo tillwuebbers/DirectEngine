@@ -68,9 +68,10 @@ struct SceneConstantBuffer
 {
     XMMATRIX cameraTransform = {};
     XMMATRIX perspectiveTransform = {};
+    XMVECTOR projectionParams = {};
     XMVECTOR worldCameraPos = {};
     XMVECTOR time;
-    float padding[22];
+    float padding[18];
 };
 static_assert((sizeof(SceneConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 

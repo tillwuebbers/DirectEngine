@@ -5,6 +5,7 @@ cbuffer SceneConstantBuffer : register(b0)
 {
 	float4x4 cameraTransform;
 	float4x4 perspectiveTransform;
+	float4 projectionParams;
 	float3 worldCameraPos;
 	float4 time;
 };
@@ -104,4 +105,12 @@ LightData PSCalcLightData(PSInputDefault input, float ambientIntensity, float di
 
 float RandomPerPixel(float2 uv, float a = 12.9898, float b = 78.233, float c = 43758.5453123) {
 	return frac(sin(dot(uv, float2(a, b))) * c);
+}
+
+float3 ApplyFog(float3 baseColor, float3 worldPosition)
+{
+	float cameraDistance = length(worldCameraPos - worldPosition);
+	float fogPart = cameraDistance * .01;
+	float fogFactor = pow(2., -fogPart * fogPart);
+	return lerp(baseColor, float3(.3, .3, .3), clamp(1. - fogFactor, 0., 1.));
 }

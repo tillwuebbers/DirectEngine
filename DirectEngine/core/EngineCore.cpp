@@ -281,7 +281,7 @@ void EngineCore::LoadSizeDependentResources()
         CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
 
         D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-        rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+        rtvDesc.Format = DISPLAY_FORMAT;
         rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
 
         // Create a RTV for each frame.
@@ -492,7 +492,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     psoDesc.NumRenderTargets = 1;
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+    psoDesc.RTVFormats[0] = DISPLAY_FORMAT;
     psoDesc.SampleDesc.Count = 1;
     psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
@@ -681,8 +681,7 @@ void EngineCore::OnUpdate()
     m_updateDeltaTime = NanosecondsToSeconds(now - m_frameStartTime);
     m_frameStartTime = now;
 
-    float time = static_cast<float>(secondsSinceStart);
-    m_sceneConstantBuffer.data.time = XMLoadFloat(&time);
+    m_sceneConstantBuffer.data.time = { static_cast<float>(secondsSinceStart) };
 
     NewImguiFrame();
     UpdateImgui(this);
@@ -852,7 +851,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
     renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
 
     // Record commands.
-    const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+    const float clearColor[] = { 0.3f, 0.3f, 0.3f, 1.0f };
     renderList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
     renderList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
