@@ -10,6 +10,7 @@ add_executable (${PROJECT_NAME} WIN32
                 "DirectEngine.h"
                 "Helpers.h"
                 "core/Coroutine.h"
+                "core/Common.h"
                 "core/Constants.h"
                 "core/DDS.h"
                 "core/EngineCore.cpp"
@@ -29,6 +30,8 @@ add_executable (${PROJECT_NAME} WIN32
                 "imgui/ImGuiProfilerRenderer.h"
                 "imgui/ProfilerTask.h"
                 "import/tiny_obj_loader.h"
+                "game/Entity.h"
+                "game/Entity.cpp"
                 "game/IGame.h"
                 "game/Game.h"
                 "game/Game.cpp"
@@ -38,7 +41,7 @@ add_executable (${PROJECT_NAME} WIN32
                 "game/Log.h"
                 "game/Log.cpp"
                 "game/Mesh.h"
-                "game/Mesh.cpp" "core/Common.h")
+                "game/Mesh.cpp")
 
 
 # imgui

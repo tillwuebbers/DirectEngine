@@ -19,11 +19,14 @@ XMVECTOR GetPiecePosition(Entity* entity, const PuzzlePiece& piece)
 	return { (float)piece.x * (1.f + BLOCK_DISPLAY_GAP) + scale.x / 2.f - 0.5f, 0.f, (float)piece.y * (1.f + BLOCK_DISPLAY_GAP) + scale.z / 2.f - 0.5f };
 }
 
-struct CollisionResult
+void CalculateDirectionVectors(XMVECTOR& outForward, XMVECTOR& outRight, XMVECTOR inRotation)
 {
-	Entity* entity;
-	float distance;
-};
+	XMMATRIX camRotation = XMMatrixRotationQuaternion(inRotation);
+	XMVECTOR right{ 1, 0, 0 };
+	XMVECTOR forward{ 0, 0, 1 };
+	outForward = XMVector3Transform(forward, camRotation);
+	outRight = XMVector3Transform(right, camRotation);
+}
 
 CollisionResult CollideWithWorld(Game& game, const XMVECTOR rayOrigin, const XMVECTOR rayDirection, uint64_t matchingLayers)
 {
@@ -62,6 +65,38 @@ CollisionResult CollideWithWorld(Game& game, const XMVECTOR rayOrigin, const XMV
 	}
 
 	return result;
+}
+
+CoroutineReturn DisplayPuzzleSolution(std::coroutine_handle<>* handle, Game* game, EngineCore* engine)
+{
+	CoroutineAwaiter awaiter{ handle };
+
+	for (int i = 0; i < game->solver->solvedPosition.path.moveCount; i++)
+	{
+		float moveStartTime = engine->TimeSinceStart();
+		PuzzleMove& move = game->solver->solvedPosition.path.moves[i];
+		PuzzlePiece& piece = game->displayedPuzzle.pieces[move.pieceIndex];
+
+		XMVECTOR startPos = GetPiecePosition(game->puzzleEntities[move.pieceIndex], piece);
+		piece.x += move.x;
+		piece.y += move.y;
+		XMVECTOR endPos = GetPiecePosition(game->puzzleEntities[move.pieceIndex], piece);
+
+		float timeInStep = 0.f;
+		do
+		{
+			co_await awaiter;
+			timeInStep = engine->TimeSinceStart() - moveStartTime;
+			if (timeInStep > SOLUTION_PLAYBACK_SPEED) timeInStep = SOLUTION_PLAYBACK_SPEED;
+
+			float progress = timeInStep / SOLUTION_PLAYBACK_SPEED;
+			float progressSq = progress * progress;
+			float progressCb = progressSq * progress;
+			float smoothProgress = 3.f * progressSq - 2.f * progressCb;
+			game->puzzleEntities[move.pieceIndex]->position = XMVectorLerp(startPos, endPos, smoothProgress);
+
+		} while (timeInStep < SOLUTION_PLAYBACK_SPEED);
+	}
 }
 
 Game::Game()
@@ -159,56 +194,15 @@ void Game::StartGame(EngineCore& engine)
 	playerPitch = XM_PI;
 
 	light.position = { 10.f, 10.f, 10.f };
+	light.rotation = XMQuaternionRotationRollPitchYaw(45.f / 360.f * XM_2PI, 225.f / 360.f * XM_2PI, 0.f);
 
+	// Finish setup
 	engine.UploadVertices();
 	UpdateCursorState();
 }
 
-CoroutineReturn DisplayPuzzleSolution(std::coroutine_handle<>* handle, Game* game, EngineCore* engine)
-{
-	CoroutineAwaiter awaiter{ handle };
-
-	for (int i = 0; i < game->solver->solvedPosition.path.moveCount; i++)
-	{
-		float moveStartTime = engine->TimeSinceStart();
-		PuzzleMove& move = game->solver->solvedPosition.path.moves[i];
-		PuzzlePiece& piece = game->displayedPuzzle.pieces[move.pieceIndex];
-
-		XMVECTOR startPos = GetPiecePosition(game->puzzleEntities[move.pieceIndex], piece);
-		piece.x += move.x;
-		piece.y += move.y;
-		XMVECTOR endPos = GetPiecePosition(game->puzzleEntities[move.pieceIndex], piece);
-		
-		float timeInStep = 0.f;
-		do
-		{
-			co_await awaiter;
-			timeInStep = engine->TimeSinceStart() - moveStartTime;
-			if (timeInStep > SOLUTION_PLAYBACK_SPEED) timeInStep = SOLUTION_PLAYBACK_SPEED;
-
-			float progress = timeInStep / SOLUTION_PLAYBACK_SPEED;
-			float progressSq = progress * progress;
-			float progressCb = progressSq * progress;
-			float smoothProgress = 3.f * progressSq - 2.f * progressCb;
-			game->puzzleEntities[move.pieceIndex]->position = XMVectorLerp(startPos, endPos, smoothProgress);
-
-		} while (timeInStep < SOLUTION_PLAYBACK_SPEED);
-	}
-}
-
-void CalculateDirectionVectors(XMVECTOR& outForward, XMVECTOR& outRight, XMVECTOR inRotation)
-{
-	XMMATRIX camRotation = XMMatrixRotationQuaternion(inRotation);
-	XMVECTOR right{ 1, 0, 0 };
-	XMVECTOR forward{ 0, 0, 1 };
-	outForward = XMVector3Transform(forward, camRotation);
-	outRight = XMVector3Transform(right, camRotation);
-}
-
 void Game::UpdateGame(EngineCore& engine)
 {
-	light.rotation = XMQuaternionRotationRollPitchYaw(45.f / 360.f * XM_2PI, 225.f / 360.f * XM_2PI, 0.f);
-
 	XMVECTOR camForward;
 	XMVECTOR camRight;
 	CalculateDirectionVectors(camForward, camRight, camera.rotation);
@@ -273,7 +267,6 @@ void Game::UpdateGame(EngineCore& engine)
 				puzzleEntities[i]->position = GetPiecePosition(puzzleEntities[i], displayedPuzzle.pieces[i]);
 			}
 			DisplayPuzzleSolution(&displayCoroutine, this, &engine);
-			//DisplayPuzzleSolution(puzzleArena, &displayCoroutine, this, &engine);
 
 			/*int depthOffsets[1024]{0};
 			for (int i = 0; i < solver->currentPendingIndex; i++)
@@ -444,25 +437,4 @@ void Game::Warn(const std::string& message)
 void Game::Error(const std::string& message)
 {
 	if (!stopLog) debugLog.Error(message);
-}
-
-EntityData* Entity::GetData()
-{
-	return &engine->m_materials[materialIndex].entities[dataIndex];
-}
-
-EntityConstantBuffer* Entity::GetBuffer()
-{
-	return &GetData()->constantBuffer.data;
-}
-
-XMVECTOR Entity::LocalToWorld(XMVECTOR localPosition)
-{
-	return XMVector4Transform(localPosition, GetBuffer()->worldTransform);
-}
-
-XMVECTOR Entity::WorldToLocal(XMVECTOR worldPosition)
-{
-	XMVECTOR det;
-	return XMVector4Transform(worldPosition, XMMatrixInverse(&det, GetBuffer()->worldTransform));
 }
