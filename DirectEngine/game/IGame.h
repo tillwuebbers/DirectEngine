@@ -11,6 +11,7 @@ public:
 	virtual void StartGame(EngineCore& engine) = 0;
 	virtual void UpdateGame(EngineCore& engine) = 0;
 
+	virtual float* GetClearColor() = 0;
 	virtual EngineInput& GetInput() = 0;
 
 	virtual void Log(const std::string& message) = 0;

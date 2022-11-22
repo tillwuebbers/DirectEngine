@@ -423,6 +423,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
     path.append(config->shaderDescription.shaderFileName);
     const wchar_t* shaderPath = path.c_str();
 
+    Sleep(100);
     bool canOpen = false;
     while (!canOpen)
     {
@@ -851,8 +852,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
     renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
 
     // Record commands.
-    const float clearColor[] = { 0.3f, 0.3f, 0.3f, 1.0f };
-    renderList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+    renderList->ClearRenderTargetView(rtvHandle, m_game->GetClearColor(), 0, nullptr);
     renderList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 

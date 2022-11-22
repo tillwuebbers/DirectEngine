@@ -26,5 +26,5 @@ float4 PSMain(PSInputDefault input) : SV_TARGET
 
 	float3 appliedColor = randomGridColor * litColor * baseColor;
 
-	return float4(ApplyFog(appliedColor, input.worldPosition.rgb), 1.);
+	return float4(PostProcess(appliedColor, input.worldPosition.rgb), 1.);
 }

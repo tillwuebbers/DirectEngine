@@ -73,6 +73,7 @@ public:
 	bool showEscMenu = false;
 	bool showDebugUI = true;
 	bool showDebugImage = true;
+	bool showPostProcessImage = true;
 	bool scrollLog = true;
 
 	WindowUpdate windowUpdateData{};
@@ -93,6 +94,12 @@ public:
 	float playerPitch = 0.f;
 	float playerYaw = 0.f;
 
+	XMVECTOR clearColor = { .1f, .2f, .4f, 1.f };
+	float contrast = 1.;
+	float brightness = 0.;
+	float saturation = 1.;
+	float fog = 0.;
+
 	PuzzleSolver* solver;
 	Entity* puzzleEntities[MAX_PIECE_COUNT];
 	Entity* graphDisplayEntities[1024];
@@ -109,6 +116,7 @@ public:
 	Entity* CreateEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView);
 	void UpdateCursorState();
 
+	float* GetClearColor() override;
 	EngineInput& GetInput() override;
 
 	void Log(const std::string& message) override;

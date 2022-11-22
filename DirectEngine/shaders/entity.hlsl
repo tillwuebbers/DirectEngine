@@ -24,5 +24,5 @@ float4 PSMain(PSInputDefault input) : SV_TARGET
 	float4 diffuseTex = diffuseTexture.Sample(smoothSampler, input.uv);
 	float3 appliedColor = litColor * diffuseTex.rgb * input.color.rgb;
 
-	return float4(ApplyFog(appliedColor, input.worldPosition.rgb), 1.);
+	return float4(PostProcess(appliedColor, input.worldPosition.rgb), 1.);
 }

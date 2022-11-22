@@ -342,7 +342,7 @@ void Game::UpdateGame(EngineCore& engine)
 
 	engine.m_sceneConstantBuffer.data.cameraTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
 	engine.m_sceneConstantBuffer.data.perspectiveTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
-	engine.m_sceneConstantBuffer.data.projectionParams = { camera.nearClip, camera.farClip };
+	engine.m_sceneConstantBuffer.data.postProcessing = { contrast, brightness, saturation, fog };
 	engine.m_sceneConstantBuffer.data.worldCameraPos = camera.position;
 
 	// Update light/shadowmap
@@ -382,6 +382,11 @@ void Game::UpdateGame(EngineCore& engine)
 		CreateWorldMatrix(entity->GetBuffer()->worldTransform, entity->scale, entity->rotation, entity->position);
 	}
 
+	// Post Processing
+	XMVECTOR baseClearColor = { .1f, .2f, .4f, 1.f };
+	XMVECTOR fogColor = { .3f, .3f, .3f, 1.f };
+	clearColor = XMVectorLerp(baseClearColor, fogColor, std::min(1.f, std::max(0.f, fog)));
+
 	engine.EndProfile("Game Update");
 
 	// Draw UI
@@ -392,6 +397,11 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 
 	DrawUI(engine);
+}
+
+float* Game::GetClearColor()
+{
+	return clearColor.m128_f32;
 }
 
 EngineInput& Game::GetInput()

@@ -5,7 +5,7 @@ cbuffer SceneConstantBuffer : register(b0)
 {
 	float4x4 cameraTransform;
 	float4x4 perspectiveTransform;
-	float4 projectionParams;
+	float4 postProcessing;
 	float3 worldCameraPos;
 	float4 time;
 };
@@ -107,10 +107,23 @@ float RandomPerPixel(float2 uv, float a = 12.9898, float b = 78.233, float c = 4
 	return frac(sin(dot(uv, float2(a, b))) * c);
 }
 
-float3 ApplyFog(float3 baseColor, float3 worldPosition)
+float3 PostProcess(float3 baseColor, float3 worldPosition)
 {
+	float3 color = baseColor;
+
+	float fog = postProcessing.w;
 	float cameraDistance = length(worldCameraPos - worldPosition);
-	float fogPart = cameraDistance * .01;
+	float fogPart = cameraDistance * fog * .01;
 	float fogFactor = pow(2., -fogPart * fogPart);
-	return lerp(baseColor, float3(.3, .3, .3), clamp(1. - fogFactor, 0., 1.));
+	color = lerp(color, float3(.3, .3, .3), clamp(1. - fogFactor, 0., 1.));
+
+	float constrast = postProcessing.x;
+	float brightness = postProcessing.y;
+	color = clamp(constrast * (color - 0.5) + 0.5 + brightness, 0., 1.);
+	
+	float saturation = postProcessing.z;
+	float3 grayscale = dot(color, float3(0.299, 0.587, 0.114));
+	color = clamp(lerp(color, grayscale, 1. - saturation), 0., 1.);
+
+	return color;
 }

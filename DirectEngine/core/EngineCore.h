@@ -68,7 +68,7 @@ struct SceneConstantBuffer
 {
     XMMATRIX cameraTransform = {};
     XMMATRIX perspectiveTransform = {};
-    XMVECTOR projectionParams = {};
+    XMVECTOR postProcessing = {};
     XMVECTOR worldCameraPos = {};
     XMVECTOR time;
     float padding[18];

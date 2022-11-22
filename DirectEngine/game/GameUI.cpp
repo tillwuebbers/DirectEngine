@@ -27,7 +27,7 @@ void Game::DrawUI(EngineCore& engine)
 		ImGui::SetNextWindowPos(ImVec2());
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(hAlign, vAlign));
-		ImGui::Begin("Pause Menu", 0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBringToFrontOnFocus);
+		ImGui::Begin("Pause Menu", 0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoBackground);
 
 		if (ImGui::Button("Continue", buttonSize))
 		{
@@ -193,6 +193,7 @@ void Game::DrawUI(EngineCore& engine)
 	}
 	ImGui::PopStyleVar();
 
+	// Debug Image
 	if (showDebugImage)
 	{
 		if (ImGui::Begin("Debug Image", &showDebugImage))
@@ -200,10 +201,22 @@ void Game::DrawUI(EngineCore& engine)
 			ImVec2 availableSize = ImGui::GetContentRegionAvail();
 			float minSize = std::min(availableSize.x, availableSize.y);
 			DrawDebugImage({ minSize, minSize });
-			ImGui::End();
 		}
+		ImGui::End();
 	}
 
+	// Post Processing
+	if (showPostProcessImage)
+	{
+		if (ImGui::Begin("Post Processing", &showPostProcessImage))
+		{
+			ImGui::SliderFloat("Contrast", &contrast, 0., 3., "%.2f");
+			ImGui::SliderFloat("Brightness", &brightness, -1., 1., "%.2f");
+			ImGui::SliderFloat("Saturation", &saturation, 0., 3., "%.2f");
+			ImGui::SliderFloat("Fog", &fog, 0., 3., "%.2f");
+		}
+		ImGui::End();
+	}
 	engine.EndProfile("Game UI");
 
 	// Profiler
