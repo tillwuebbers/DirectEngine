@@ -30,6 +30,8 @@ add_executable (${PROJECT_NAME} WIN32
                 "imgui/ImGuiProfilerRenderer.h"
                 "imgui/ProfilerTask.h"
                 "import/tiny_obj_loader.h"
+                "directx-tex/DDSTextureLoader12.h"
+                "directx-tex/DDSTextureLoader12.cpp"
                 "game/Entity.h"
                 "game/Entity.cpp"
                 "game/IGame.h"
@@ -65,20 +67,21 @@ target_include_directories( ${PROJECT_NAME}
                             PUBLIC ${IMGUI_DIR}/backends
                             PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/glm )
 
-# dxtk
-set(DXTK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/dxtk)
-
-target_include_directories(${PROJECT_NAME}
-                            PUBLIC ${DXTK_DIR}/Inc)
-
 # directx
 target_include_directories(${PROJECT_NAME} PRIVATE directx/headers)
 
+# xaudio2
+set(XAUDIO2_DIR ${CMAKE_CURRENT_SOURCE_DIR}/xaudio2)
+
+target_include_directories(${PROJECT_NAME} PUBLIC ${XAUDIO2_DIR}/include)
+
 # build the thing
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_link_libraries(${PROJECT_NAME} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib" "${DXTK_DIR}/Bin/Desktop_2022_Win10/x64/Debug/DirectXTK12.lib")
+    file(COPY "${XAUDIO2_DIR}/debug/bin/x64/xaudio2_9redist.dll" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+    target_link_libraries(${PROJECT_NAME} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib" "${XAUDIO2_DIR}/debug/lib/x64/xaudio2_9redist.lib")
 else()
-    target_link_libraries(${PROJECT_NAME} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib" "${DXTK_DIR}/Bin/Desktop_2022_Win10/x64/Release/DirectXTK12.lib")
+    file(COPY "${XAUDIO2_DIR}/release/bin/x64/xaudio2_9redist.dll" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+    target_link_libraries(${PROJECT_NAME} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib" "${XAUDIO2_DIR}/release/lib/x64/xaudio2_9redist.lib")
 endif()
 
 

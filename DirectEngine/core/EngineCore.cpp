@@ -21,7 +21,7 @@
 
 #include "UI.h"
 #include "EngineCore.h"
-#include "../dxtk/Inc/DDSTextureLoader.h"
+#include "../directx-tex/DDSTextureLoader12.h"
 
 EngineCore::EngineCore(UINT width, UINT height, IGame* game) :
     m_frameIndex(0),
@@ -44,6 +44,10 @@ void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
 
     LoadPipeline();
     LoadAssets();
+
+    ThrowIfFailed(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
+    ThrowIfFailed(XAudio2Create(&m_audio, 0, XAUDIO2_DEFAULT_PROCESSOR));
+    ThrowIfFailed(m_audio->CreateMasteringVoice(&m_audioMasteringVoice));
 
     m_startTime = std::chrono::high_resolution_clock::now();
     m_frameStartTime = m_startTime;

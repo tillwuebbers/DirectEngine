@@ -10,6 +10,8 @@
 #include <chrono>
 #include <unordered_map>
 
+#include <xaudio2Redist.h>
+
 #include "glm/mat4x4.hpp"
 
 #include "Input.h"
@@ -208,6 +210,10 @@ public:
     D3D12_VERTEX_BUFFER_VIEW cubeVertexView;
     bool renderAABB = false;
     
+    // Audio
+    IXAudio2* m_audio;
+    IXAudio2MasteringVoice* m_audioMasteringVoice;
+
     // Time
     std::chrono::steady_clock::time_point m_startTime;
     std::chrono::steady_clock::time_point m_frameStartTime;
