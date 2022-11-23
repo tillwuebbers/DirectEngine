@@ -3,8 +3,8 @@ SamplerState smoothSampler : register(s1);
 
 cbuffer SceneConstantBuffer : register(b0)
 {
-	float4x4 cameraTransform;
-	float4x4 perspectiveTransform;
+	float4x4 cameraView;
+	float4x4 cameraProjection;
 	float4 postProcessing;
 	float3 worldCameraPos;
 	float4 time;
@@ -12,8 +12,8 @@ cbuffer SceneConstantBuffer : register(b0)
 
 cbuffer LightConstantBuffer : register(b1)
 {
-	float4x4 lightTransform;
-	float4x4 lightPerspective;
+	float4x4 lightView;
+	float4x4 lightProjection;
 	float3 sunDirection;
 };
 
@@ -45,10 +45,10 @@ PSInputDefault VSCalcDefault(float4 position, float3 normal, float2 uv)
 	float4 worldPos = mul(position, worldTransform);
 	result.worldPosition = worldPos;
 
-	float4x4 vp = mul(cameraTransform, perspectiveTransform);
+	float4x4 vp = mul(cameraView, cameraProjection);
 	result.position = mul(worldPos, vp);
 
-	float4x4 lightVP = mul(lightTransform, lightPerspective);
+	float4x4 lightVP = mul(lightView, lightProjection);
 	result.lightSpacePosition = mul(float4(worldPos.xyz, 1.0), lightVP);
 
 	result.worldNormal = mul(float4(normal, 0.), worldTransform).xyz;
@@ -93,7 +93,7 @@ LightData PSCalcLightData(PSInputDefault input, float ambientIntensity, float di
 	if (shadowMapPos.x >= 0. && shadowMapPos.x <= 1. && shadowMapPos.y >= 0. && shadowMapPos.y <= 1.)
 	{
 		float closestDepth = shadowmapTexture.Sample(rawSampler, shadowMapPos).r;
-		float currentDepth = input.lightSpacePosition.z / input.lightSpacePosition.w - .01;
+		float currentDepth = input.lightSpacePosition.z / input.lightSpacePosition.w - .003;
 		shadow = currentDepth > closestDepth ? 1.0 : 0.0;
 	}
 

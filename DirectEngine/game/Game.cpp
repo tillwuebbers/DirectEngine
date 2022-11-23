@@ -180,23 +180,20 @@ void Game::StartGame(EngineCore& engine)
 
 	float boardWidth = displayedPuzzle.width + BLOCK_DISPLAY_GAP * (displayedPuzzle.width - 1);
 	float boardHeight = displayedPuzzle.height + BLOCK_DISPLAY_GAP * (displayedPuzzle.height - 1);
-	MeshFile quadFile = CreateQuad(boardWidth, boardHeight, vertexUploadArena, indexUploadArena);
-	auto quadMeshView = engine.CreateMesh(dirtMaterialIndex, quadFile.vertices, quadFile.vertexCount);
-	Entity* quadEntity = CreateEntity(engine, dirtMaterialIndex, quadMeshView);
-	quadEntity->position = { -0.5f, -0.5f, -0.5f };
+	Entity* quadEntity = CreateQuadEntity(engine, groundMaterialIndex, boardWidth, boardHeight);
 	quadEntity->GetBuffer()->color = {0.f, .5f, 0.f};
+	quadEntity->position = { -0.5f, -0.5f, -0.5f };
 
-	MeshFile groundFile = CreateQuad(100, 100, vertexUploadArena, indexUploadArena);
-	auto groundMeshView = engine.CreateMesh(groundMaterialIndex, groundFile.vertices, groundFile.vertexCount);
-	Entity* groundEntity = CreateEntity(engine, groundMaterialIndex, groundMeshView);
-	groundEntity->position = { -50.f, -0.51f, -50.f };
+	Entity* groundEntity = CreateQuadEntity(engine, groundMaterialIndex, 100.f, 100.f);
 	groundEntity->GetBuffer()->color = { 1.f, 1.f, 1.f };
+	groundEntity->position += { 0.f, -.51f, 0.f };
+	groundEntity->checkForShadowBounds = false;
 
+	// Defaults
 	camera.position = { 0.f, 10.f, 0.f };
 	playerPitch = XM_PI;
 
 	light.position = { 10.f, 10.f, 10.f };
-	light.rotation = XMQuaternionRotationRollPitchYaw(45.f / 360.f * XM_2PI, 225.f / 360.f * XM_2PI, 0.f);
 
 	// Finish setup
 	engine.UploadVertices();
@@ -205,6 +202,9 @@ void Game::StartGame(EngineCore& engine)
 
 void Game::UpdateGame(EngineCore& engine)
 {
+	light.rotation = XMQuaternionRotationRollPitchYaw(45.f / 360.f * XM_2PI, engine.TimeSinceStart(), 0.f);
+
+	// Read camera rotation into vectors
 	XMVECTOR camForward;
 	XMVECTOR camRight;
 	CalculateDirectionVectors(camForward, camRight, camera.rotation);
@@ -340,33 +340,50 @@ void Game::UpdateGame(EngineCore& engine)
 	camera.rotation = XMQuaternionMultiply(XMQuaternionRotationRollPitchYaw(playerPitch, 0.f, 0.f), XMQuaternionRotationRollPitchYaw(0.f, playerYaw, 0.f));
 	CalculateDirectionVectors(camForward, camRight, camera.rotation);
 
-	engine.m_sceneConstantBuffer.data.cameraTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
-	engine.m_sceneConstantBuffer.data.perspectiveTransform = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
+	engine.m_sceneConstantBuffer.data.cameraView = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
+	engine.m_sceneConstantBuffer.data.cameraProjection = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
 	engine.m_sceneConstantBuffer.data.postProcessing = { contrast, brightness, saturation, fog };
 	engine.m_sceneConstantBuffer.data.worldCameraPos = camera.position;
 
 	// Update light/shadowmap
-	engine.m_lightConstantBuffer.data.lightTransform = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(light.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(light.rotation)));
+	engine.m_lightConstantBuffer.data.lightView = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(light.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(light.rotation)));
 
 	XMVECTOR lightSpaceMin{};
 	XMVECTOR lightSpaceMax{};
+	XMVECTOR testPositionBuffer[8] = {
+		{ -1., -1., -1.},
+		{ -1., -1.,  1.},
+		{ -1.,  1., -1.},
+		{ -1.,  1.,  1.},
+		{  1., -1., -1.},
+		{  1., -1.,  1.},
+		{  1.,  1., -1.},
+		{  1.,  1.,  1.},
+	};
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 	{
-		XMVECTOR lightSpacePosition = XMVector3Transform(entity->position, engine.m_lightConstantBuffer.data.lightTransform);
-		lightSpaceMin = XMVectorMin(lightSpacePosition, lightSpaceMin);
-		lightSpaceMax = XMVectorMax(lightSpacePosition, lightSpaceMax);
+		if (!entity->checkForShadowBounds) continue;
+
+		XMVECTOR aabbWorldPosition = XMVector3Transform(entity->GetData()->aabbLocalPosition, entity->GetBuffer()->worldTransform);
+		XMVECTOR aabbWorldSize = XMVector3Transform(entity->GetData()->aabbLocalSize, entity->GetBuffer()->worldTransform);
+
+		for (int i = 0; i < _countof(testPositionBuffer); i++)
+		{
+			XMVECTOR aabbWorldCorner = XMVectorMultiply(aabbWorldSize, testPositionBuffer[i]);
+			XMVECTOR lightSpacePosition = XMVector3Transform(entity->position + aabbWorldPosition + aabbWorldCorner, engine.m_lightConstantBuffer.data.lightView);
+			lightSpaceMin = XMVectorMin(lightSpacePosition, lightSpaceMin);
+			lightSpaceMax = XMVectorMax(lightSpacePosition, lightSpaceMax);
+		}
 	}
 
-	XMVECTOR lightForward;
 	XMVECTOR lightRight;
-	CalculateDirectionVectors(lightForward, lightRight, light.rotation);
-	XMStoreFloat3(&engine.m_lightConstantBuffer.data.sunDirection, lightForward);
+	CalculateDirectionVectors(engine.m_lightConstantBuffer.data.sunDirection, lightRight, light.rotation);
 	XMFLOAT3 lsMin;
 	XMFLOAT3 lsMax;
 	XMStoreFloat3(&lsMin, lightSpaceMin);
 	XMStoreFloat3(&lsMax, lightSpaceMax);
 
-	engine.m_lightConstantBuffer.data.lightPerspective = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(lsMin.x, lsMax.x, -10., 20., 1., 30.));
+	engine.m_lightConstantBuffer.data.lightProjection = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(lsMin.x, lsMax.x, lsMin.y, lsMax.y, lsMin.z - 10., lsMax.z + 10.));
 
 	// Update entities
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
@@ -415,6 +432,17 @@ Entity* Game::CreateEntity(EngineCore& engine, size_t materialIndex, D3D12_VERTE
 	entity->engine = &engine;
 	entity->materialIndex = materialIndex;
 	entity->dataIndex = engine.CreateEntity(materialIndex, meshView);
+	return entity;
+}
+
+Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height)
+{
+	MeshFile file = CreateQuad(width, height, vertexUploadArena, indexUploadArena);
+	auto meshView = engine.CreateMesh(materialIndex, file.vertices, file.vertexCount);
+	Entity* entity = CreateEntity(engine, materialIndex, meshView);
+	entity->position = { -width / 2.f, 0.f, -width / 2.f };
+	entity->GetData()->aabbLocalPosition = { width / 2.f, -.05f, width / 2.f };
+	entity->GetData()->aabbLocalSize = { width, .1f, width };
 	return entity;
 }
 

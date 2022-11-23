@@ -16,6 +16,7 @@ public:
 	size_t materialIndex;
 	size_t dataIndex;
 
+	bool checkForShadowBounds = true;
 	bool isSpinning = false;
 	uint64_t collisionLayers = 0;
 

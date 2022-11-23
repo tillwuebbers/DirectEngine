@@ -114,6 +114,7 @@ public:
 	void DrawUI(EngineCore& engine);
 
 	Entity* CreateEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView);
+	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height);
 	void UpdateCursorState();
 
 	float* GetClearColor() override;

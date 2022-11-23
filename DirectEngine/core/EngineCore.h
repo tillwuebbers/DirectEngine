@@ -66,8 +66,8 @@ struct ConstantBuffer
 
 struct SceneConstantBuffer
 {
-    XMMATRIX cameraTransform = {};
-    XMMATRIX perspectiveTransform = {};
+    XMMATRIX cameraView = {};
+    XMMATRIX cameraProjection = {};
     XMVECTOR postProcessing = {};
     XMVECTOR worldCameraPos = {};
     XMVECTOR time;
@@ -77,9 +77,9 @@ static_assert((sizeof(SceneConstantBuffer) % 256) == 0, "Constant Buffer size mu
 
 struct LightConstantBuffer
 {
-    XMMATRIX lightTransform = {};
-    XMMATRIX lightPerspective = {};
-    XMFLOAT3 sunDirection = {};
+    XMMATRIX lightView = {};
+    XMMATRIX lightProjection = {};
+    XMVECTOR sunDirection = {};
     float padding[26];
 };
 static_assert((sizeof(LightConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");

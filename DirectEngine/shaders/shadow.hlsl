@@ -13,7 +13,7 @@ PSInput VSShadow(float4 position : POSITION, float4 vertColor : COLOR, float3 no
 	float4 worldPos = mul(position, worldTransform);
 
 	float4x4 vp;
-	vp = mul(lightTransform, lightPerspective);
+	vp = mul(lightView, lightProjection);
 	result.position = mul(worldPos, vp);
 
 	result.uv = uv;

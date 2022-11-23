@@ -17,7 +17,7 @@ PSInput VSWire(float4 position : POSITION, float4 vertColor : COLOR, float3 norm
 	float4 worldPos = mul(position, aabbTransform);
 	float4 worldOffset = mul(float4(aabbLocalPosition, 0.), worldTransform);
 
-	float4x4 vp = mul(cameraTransform, perspectiveTransform);
+	float4x4 vp = mul(cameraView, cameraProjection);
 	result.position = mul(worldPos + worldOffset, vp);
 
 	return result;

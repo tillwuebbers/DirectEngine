@@ -214,6 +214,8 @@ void Game::DrawUI(EngineCore& engine)
 			ImGui::SliderFloat("Brightness", &brightness, -1., 1., "%.2f");
 			ImGui::SliderFloat("Saturation", &saturation, 0., 3., "%.2f");
 			ImGui::SliderFloat("Fog", &fog, 0., 3., "%.2f");
+			//ImGui::SliderFloat("neartest", &neartest, -100., 100., "%.0f");
+			//ImGui::SliderFloat("fartest", &fartest, -100., 100., "%.0f");
 		}
 		ImGui::End();
 	}
