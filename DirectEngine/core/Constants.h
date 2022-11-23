@@ -9,3 +9,9 @@
 #define V3_ZERO XMVECTOR{ 0.f, 0.f, 0.f };
 #define V3_UP XMVECTOR{ 0.f, 1.f, 0.f }
 #define V3_DOWN XMVECTOR{ 0.f, -1.f, 0.f }
+
+#ifdef _DEBUG
+#define ISDEBUG true
+#else
+#define ISDEBUG false
+#endif

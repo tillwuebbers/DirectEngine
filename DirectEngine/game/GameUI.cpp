@@ -131,23 +131,34 @@ void Game::DrawUI(EngineCore& engine)
 
 			ImGui::NewLine();
 
-			if (ImGui::Button("Show Demo"))
+			if (ImGui::Button("ImGui Demo"))
 			{
 				showDemoWindow = !showDemoWindow;
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("Show Image"))
+			if (ImGui::Button("Debug Image"))
 			{
 				showDebugImage = !showDebugImage;
 			}
-			if (ImGui::Button("Show Log"))
+
+			if (ImGui::Button("Log"))
 			{
 				showLog = !showLog;
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("Show Profiler"))
+			if (ImGui::Button("Profiler"))
 			{
 				showProfiler = !showProfiler;
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Movement"))
+			{
+				showMovementWindow = !showMovementWindow;
+			}
+
+			if (ImGui::Button("Post Processing"))
+			{
+				showPostProcessWindow = !showPostProcessWindow;
 			}
 
 			ImGui::NewLine();
@@ -206,9 +217,9 @@ void Game::DrawUI(EngineCore& engine)
 	}
 
 	// Post Processing
-	if (showPostProcessImage)
+	if (showPostProcessWindow)
 	{
-		if (ImGui::Begin("Post Processing", &showPostProcessImage))
+		if (ImGui::Begin("Post Processing", &showPostProcessWindow))
 		{
 			ImGui::SliderFloat("Contrast", &contrast, 0., 3., "%.2f");
 			ImGui::SliderFloat("Brightness", &brightness, -1., 1., "%.2f");

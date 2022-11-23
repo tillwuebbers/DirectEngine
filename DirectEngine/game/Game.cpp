@@ -98,7 +98,6 @@ void Game::StartGame(EngineCore& engine)
 		enemy->isEnemy = true;
 		enemy->isActive = false;
 		enemy->collisionLayers |= Dead;
-		enemy->checkForShadowBounds = false;
 		enemy->GetData()->visible = false;
 	}
 

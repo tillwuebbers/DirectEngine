@@ -60,11 +60,11 @@ struct Camera
 class Game : public IGame
 {
 public:
-	bool showLog = true;
+	bool showLog = ISDEBUG;
 	bool stopLog = false;
 	RingLog debugLog{};
 
-	bool showProfiler = true;
+	bool showProfiler = ISDEBUG;
 	bool pauseProfiler = false;
 	ImGuiUtils::ProfilersWindow profilerWindow{};
 	FrameDebugData lastFrames[256] = {};
@@ -72,10 +72,10 @@ public:
 
 	bool showDemoWindow = false;
 	bool showEscMenu = false;
-	bool showDebugUI = true;
-	bool showDebugImage = true;
-	bool showPostProcessImage = true;
-	bool showMovementWindow = true;
+	bool showDebugUI = ISDEBUG;
+	bool showDebugImage = ISDEBUG;
+	bool showPostProcessWindow = ISDEBUG;
+	bool showMovementWindow = ISDEBUG;
 	bool scrollLog = true;
 	bool noclip = false;
 
