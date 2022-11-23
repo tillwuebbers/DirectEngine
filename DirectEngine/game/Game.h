@@ -96,8 +96,7 @@ public:
 	Texture kaijuTexture{};
 
 	Entity* enemies[MAX_ENENMY_COUNT];
-	XMVECTOR enemyVelocities[MAX_ENENMY_COUNT]{};
-	bool enemyActive[MAX_ENENMY_COUNT]{};
+	Entity* projectiles[MAX_PROJECTILE_COUNT];
 
 	float playerPitch = 0.f;
 	float playerYaw = 0.f;
@@ -115,9 +114,14 @@ public:
 	float enemyMaxSpeed = 15.f;
 	float enemySpawnRate = 5.f;
 
+	float projectileSpeed = 100.f;
+	float projectileSpawnRate = .1f;
+	float projectileLifetime = 1.f;
+
 	float jumpBufferDuration = 1.f;
 	float lastJumpPressTime = -1000.f;
 	float lastEnemySpawn = 0.f;
+	float lastProjectileSpawn = -1000.f;
 
 	XMVECTOR clearColor = { .1f, .2f, .4f, 1.f };
 	float contrast = 1.;

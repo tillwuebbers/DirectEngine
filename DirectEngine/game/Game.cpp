@@ -94,9 +94,21 @@ void Game::StartGame(EngineCore& engine)
 
 	for (int i = 0; i < MAX_ENENMY_COUNT; i++)
 	{
-		enemies[i] = CreateEntity(engine, memeMaterialIndex, cubeMeshView);
-		enemies[i]->collisionLayers |= Dead;
-		enemies[i]->GetData()->visible = false;
+		Entity* enemy = enemies[i] = CreateEntity(engine, memeMaterialIndex, cubeMeshView);
+		enemy->isEnemy = true;
+		enemy->isActive = false;
+		enemy->collisionLayers |= Dead;
+		enemy->checkForShadowBounds = false;
+		enemy->GetData()->visible = false;
+	}
+
+	for (int i = 0; i < MAX_PROJECTILE_COUNT; i++)
+	{
+		Entity* projectile = projectiles[i] = CreateEntity(engine, groundMaterialIndex, cubeMeshView);
+		projectile->isProjectile = true;
+		projectile->isActive = false;
+		projectile->GetData()->visible = false;
+		projectile->scale = { .1f, .1f, .1f };
 	}
 
 	Entity* groundEntity = CreateQuadEntity(engine, groundMaterialIndex, 100.f, 100.f);
@@ -272,7 +284,16 @@ void Game::UpdateGame(EngineCore& engine)
 		camera.position += playerVelocity * engine.m_updateDeltaTime;
 	}
 
-	// danger cubes watch out
+	// Update Camera
+	camera.rotation = XMQuaternionMultiply(XMQuaternionRotationRollPitchYaw(playerPitch, 0.f, 0.f), XMQuaternionRotationRollPitchYaw(0.f, playerYaw, 0.f));
+	CalculateDirectionVectors(camForward, camRight, camera.rotation);
+
+	engine.m_sceneConstantBuffer.data.cameraView = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
+	engine.m_sceneConstantBuffer.data.cameraProjection = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
+	engine.m_sceneConstantBuffer.data.postProcessing = { contrast, brightness, saturation, fog };
+	engine.m_sceneConstantBuffer.data.worldCameraPos = camera.position;
+
+	// Spawn enemies
 	if (engine.TimeSinceStart() >= lastEnemySpawn + enemySpawnRate)
 	{
 		lastEnemySpawn = engine.TimeSinceStart();
@@ -280,11 +301,12 @@ void Game::UpdateGame(EngineCore& engine)
 		bool enemySpawned = false;
 		for (int i = 0; i < MAX_ENENMY_COUNT; i++)
 		{
-			if (!enemyActive[i])
+			Entity* enemy = enemies[i];
+			if (!enemy->isActive)
 			{
-				enemyActive[i] = true;
-				enemies[i]->GetData()->visible = true;
-				enemies[i]->position = {};
+				enemy->isActive = true;
+				enemy->GetData()->visible = true;
+				enemy->position = {};
 
 				enemySpawned = true;
 				break;
@@ -297,35 +319,87 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 	}
 
+	// Update enemies
 	for (int i = 0; i < MAX_ENENMY_COUNT; i++)
 	{
-		XMVECTOR toPlayer = XMVector3Normalize(camera.position - enemies[i]->position);
-		enemyVelocities[i] += XMVectorScale(toPlayer, engine.m_updateDeltaTime * enemyAcceleration);
-		float testEnemySpeed = XMVector3Length(enemyVelocities[i]).m128_f32[0];
-		if (testEnemySpeed > enemyMaxSpeed)
+		Entity* enemy = enemies[i];
+		if (!enemy->isActive) continue;
+
+		XMVECTOR toPlayer = XMVector3Normalize(camera.position - enemy->position);
+		enemy->velocity += XMVectorScale(toPlayer, engine.m_updateDeltaTime * enemyAcceleration);
+		float enemySpeed = XMVector3Length(enemy->velocity).m128_f32[0];
+		if (enemySpeed > enemyMaxSpeed)
 		{
-			enemyVelocities[i] = XMVectorScale(XMVector3Normalize(enemyVelocities[i]), enemyMaxSpeed);
+			enemy->velocity = XMVectorScale(XMVector3Normalize(enemy->velocity), enemyMaxSpeed);
 		}
-		enemies[i]->position += enemyVelocities[i] * engine.m_updateDeltaTime;
+		enemy->position += enemy->velocity * engine.m_updateDeltaTime;
 	}
 
 	// Kinda hacky enemy collision detection
 	CollisionResult enemyCollision = CollideWithWorld(camera.position, V3_DOWN, Dead);
-	if (enemyCollision.distance <= 0.f)
+	if (enemyCollision.distance <= 0.f && enemyCollision.entity != nullptr)
 	{
 		Warn("U R DED!!");
+		enemyCollision.entity->isActive = false;
 		enemyCollision.entity->GetData()->visible = false;
 	}
 
-	// Update Camera
-	camera.rotation = XMQuaternionMultiply(XMQuaternionRotationRollPitchYaw(playerPitch, 0.f, 0.f), XMQuaternionRotationRollPitchYaw(0.f, playerYaw, 0.f));
-	CalculateDirectionVectors(camForward, camRight, camera.rotation);
+	// Update Projectiles
+	for (int i = 0; i < MAX_PROJECTILE_COUNT; i++)
+	{
+		Entity* projectile = projectiles[i];
+		if (!projectile->isActive) continue;
 
-	engine.m_sceneConstantBuffer.data.cameraView = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
-	engine.m_sceneConstantBuffer.data.cameraProjection = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
-	engine.m_sceneConstantBuffer.data.postProcessing = { contrast, brightness, saturation, fog };
-	engine.m_sceneConstantBuffer.data.worldCameraPos = camera.position;
-	
+		if (engine.TimeSinceStart() > projectile->spawnTime + projectileLifetime)
+		{
+			projectile->isActive = false;
+			projectile->GetData()->visible = false;
+			continue;
+		}
+
+		projectile->position += projectile->velocity * engine.m_updateDeltaTime;
+
+		CollisionResult enemyCollision = CollideWithWorld(projectile->position, V3_DOWN, Dead);
+		if (enemyCollision.distance <= 0.f && enemyCollision.entity != nullptr)
+		{
+			enemyCollision.entity->isActive = false;
+			enemyCollision.entity->GetData()->visible = false;
+		}
+	}
+
+	// Shoot!
+	if (input.KeyDown(VK_LBUTTON) && engine.TimeSinceStart() > lastProjectileSpawn + projectileSpawnRate)
+	{
+		for (int i = 0; i < MAX_PROJECTILE_COUNT; i++)
+		{
+			Entity* projectile = projectiles[i];
+			if (projectile->isActive) continue;
+
+			projectile->isActive = true;
+			projectile->spawnTime = engine.TimeSinceStart();
+			projectile->position = camera.position + XMVECTOR{ 0.05f, -.2f, .1f };
+			projectile->velocity = camForward * projectileSpeed + playerVelocity;
+			projectile->GetData()->visible = true;
+
+			lastProjectileSpawn = engine.TimeSinceStart();
+			break;
+		}
+	}
+
+	// Update entities
+	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
+	{
+		if (entity->isSpinning)
+		{
+			entity->rotation = XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart()));
+		}
+
+		entity->GetBuffer()->aabbLocalPosition = entity->GetData()->aabbLocalPosition;
+		entity->GetBuffer()->aabbLocalSize = entity->GetData()->aabbLocalSize;
+
+		CreateWorldMatrix(entity->GetBuffer()->worldTransform, entity->scale, entity->rotation, entity->position);
+	}
+
 	// Update light/shadowmap
 	light.rotation = XMQuaternionRotationRollPitchYaw(45.f / 360.f * XM_2PI, engine.TimeSinceStart(), 0.f);
 
@@ -368,31 +442,12 @@ void Game::UpdateGame(EngineCore& engine)
 
 	engine.m_lightConstantBuffer.data.lightProjection = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(lsMin.x, lsMax.x, lsMin.y, lsMax.y, lsMin.z - 10., lsMax.z + 10.));
 
-	// Update entities
-	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
-	{
-		if (entity->isSpinning)
-		{
-			entity->rotation = XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart()));
-		}
-
-		entity->GetBuffer()->aabbLocalPosition = entity->GetData()->aabbLocalPosition;
-		entity->GetBuffer()->aabbLocalSize = entity->GetData()->aabbLocalSize;
-
-		CreateWorldMatrix(entity->GetBuffer()->worldTransform, entity->scale, entity->rotation, entity->position);
-	}
-
-	// TODO: Don't read input after this point!
-	input.NextFrame();
-	input.accessMutex.unlock();
-
 	// Post Processing
 	XMVECTOR baseClearColor = { .1f, .2f, .4f, 1.f };
 	XMVECTOR fogColor = { .3f, .3f, .3f, 1.f };
 	clearColor = XMVectorLerp(baseClearColor, fogColor, std::min(1.f, std::max(0.f, fog)));
 
 	engine.EndProfile("Game Update");
-
 	// Draw UI
 	if (!pauseProfiler)
 	{
@@ -401,6 +456,10 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 
 	DrawUI(engine);
+
+	input.NextFrame();
+	input.accessMutex.unlock();
+
 }
 
 float* Game::GetClearColor()

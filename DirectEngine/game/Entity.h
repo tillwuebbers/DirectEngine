@@ -19,6 +19,13 @@ public:
 	bool checkForShadowBounds = true;
 	bool isSpinning = false;
 	uint64_t collisionLayers = 0;
+	XMVECTOR velocity = {};
+	bool isActive = false; // used by enemy and projectile
+	float spawnTime = -1000.f;
+
+	bool isEnemy = false;
+
+	bool isProjectile = false;
 
 	EntityData* GetData();
 	EntityConstantBuffer* GetBuffer();
