@@ -12,13 +12,6 @@ void CreateWorldMatrix(XMMATRIX& out, const XMVECTOR scale, const XMVECTOR rotat
 	out = DirectX::XMMatrixTranspose(DirectX::XMMatrixAffineTransformation(scale, XMVECTOR{}, rotation, position));
 }
 
-XMVECTOR GetPiecePosition(Entity* entity, const PuzzlePiece& piece)
-{
-	XMFLOAT3 scale;
-	XMStoreFloat3(&scale, entity->scale);
-	return { (float)piece.x * (1.f + BLOCK_DISPLAY_GAP) + scale.x / 2.f - 0.5f, 0.f, (float)piece.y * (1.f + BLOCK_DISPLAY_GAP) + scale.z / 2.f - 0.5f };
-}
-
 void CalculateDirectionVectors(XMVECTOR& outForward, XMVECTOR& outRight, XMVECTOR inRotation)
 {
 	XMMATRIX camRotation = XMMatrixRotationQuaternion(inRotation);
@@ -67,76 +60,6 @@ CollisionResult CollideWithWorld(Game& game, const XMVECTOR rayOrigin, const XMV
 	return result;
 }
 
-CoroutineReturn DisplayPuzzleSolution(std::coroutine_handle<>* handle, Game* game, EngineCore* engine)
-{
-	CoroutineAwaiter awaiter{ handle };
-
-	for (int i = 0; i < game->solver->solvedPosition.path.moveCount; i++)
-	{
-		float moveStartTime = engine->TimeSinceStart();
-		PuzzleMove& move = game->solver->solvedPosition.path.moves[i];
-		PuzzlePiece& piece = game->displayedPuzzle.pieces[move.pieceIndex];
-
-		XMVECTOR startPos = GetPiecePosition(game->puzzleEntities[move.pieceIndex], piece);
-		piece.x += move.x;
-		piece.y += move.y;
-		XMVECTOR endPos = GetPiecePosition(game->puzzleEntities[move.pieceIndex], piece);
-
-		float timeInStep = 0.f;
-		do
-		{
-			co_await awaiter;
-			timeInStep = engine->TimeSinceStart() - moveStartTime;
-			if (timeInStep > SOLUTION_PLAYBACK_SPEED) timeInStep = SOLUTION_PLAYBACK_SPEED;
-
-			float progress = timeInStep / SOLUTION_PLAYBACK_SPEED;
-			float progressSq = progress * progress;
-			float progressCb = progressSq * progress;
-			float smoothProgress = 3.f * progressSq - 2.f * progressCb;
-			game->puzzleEntities[move.pieceIndex]->position = XMVectorLerp(startPos, endPos, smoothProgress);
-
-		} while (timeInStep < SOLUTION_PLAYBACK_SPEED);
-	}
-}
-
-Game::Game()
-{
-	displayedPuzzle = {};
-	displayedPuzzle.width = 3;
-	displayedPuzzle.height = 3;
-	displayedPuzzle.pieceCount = 2;
-
-	PuzzlePiece& p = displayedPuzzle.pieces[0];
-	p.width = 2;
-	p.height = 2;
-	p.startX = 0;
-	p.startY = 0;
-	p.targetX = 1;
-	p.targetY = 1;
-	p.canMoveHorizontal = true;
-	p.canMoveVertical = true;
-	p.hasTarget = true;
-	p.typeHash = 0;
-	p.x = p.startX;
-	p.y = p.startY;
-
-	PuzzlePiece& p2 = displayedPuzzle.pieces[1];
-	p2.width = 1;
-	p2.height = 1;
-	p2.startX = 2;
-	p2.startY = 2;
-	p2.targetX = 0;
-	p2.targetY = 0;
-	p2.canMoveHorizontal = true;
-	p2.canMoveVertical = true;
-	p2.hasTarget = true;
-	p2.typeHash = 0;
-	p2.x = p2.startX;
-	p2.y = p2.startY;
-
-	solver = NewObject(globalArena, PuzzleSolver, displayedPuzzle, debugLog);
-}
-
 void Game::StartGame(EngineCore& engine)
 {
 	// Shaders
@@ -156,11 +79,12 @@ void Game::StartGame(EngineCore& engine)
 
 	// Meshes
 	MeshFile cubeMeshFile = LoadMeshFromFile("models/cube.obj", "models/", debugLog, vertexUploadArena, indexUploadArena);
-	auto cubeMeshView = engine.CreateMesh(dirtMaterialIndex, cubeMeshFile.vertices, cubeMeshFile.vertexCount);
+	// TODO: why does mesh need material index, and why doesn't it matter if it's wrong?
+	auto cubeMeshView = engine.CreateMesh(memeMaterialIndex, cubeMeshFile.vertices, cubeMeshFile.vertexCount);
 	engine.cubeVertexView = cubeMeshView;
 
 	MeshFile kaijuMeshFile = LoadMeshFromFile("models/kaiju.obj", "models/", debugLog, vertexUploadArena, indexUploadArena);
-	auto kaijuMeshView = engine.CreateMesh(memeMaterialIndex, kaijuMeshFile.vertices, kaijuMeshFile.vertexCount);
+	auto kaijuMeshView = engine.CreateMesh(kaijuMaterialIndex, kaijuMeshFile.vertices, kaijuMeshFile.vertexCount);
 
 	// Entities
 	Entity* kaijuEntity = CreateEntity(engine, kaijuMaterialIndex, kaijuMeshView);
@@ -168,26 +92,13 @@ void Game::StartGame(EngineCore& engine)
 	kaijuEntity->GetData()->aabbLocalPosition = { 0.f, 5.f, 0.f };
 	kaijuEntity->GetData()->aabbLocalSize = { 4.f, 10.f, 2.f };
 
-	for (int i = 0; i < displayedPuzzle.pieceCount; i++)
-	{
-		PuzzlePiece& piece = displayedPuzzle.pieces[i];
-		Entity* pieceEntity = puzzleEntities[i] = CreateEntity(engine, memeMaterialIndex, cubeMeshView);
-		pieceEntity->GetBuffer()->color = {.5f, .5f, .5f};
-		pieceEntity->scale = { (float)piece.width + BLOCK_DISPLAY_GAP * (piece.width - 1), 1.f, (float)piece.height + BLOCK_DISPLAY_GAP * (piece.height - 1)};
-		pieceEntity->collisionLayers = ClickTest;
-		pieceEntity->position = GetPiecePosition(puzzleEntities[i], piece);
-	}
-
-	float boardWidth = displayedPuzzle.width + BLOCK_DISPLAY_GAP * (displayedPuzzle.width - 1);
-	float boardHeight = displayedPuzzle.height + BLOCK_DISPLAY_GAP * (displayedPuzzle.height - 1);
-	Entity* quadEntity = CreateQuadEntity(engine, groundMaterialIndex, boardWidth, boardHeight);
-	quadEntity->GetBuffer()->color = {0.f, .5f, 0.f};
-	quadEntity->position = { -0.5f, -0.5f, -0.5f };
+	Entity* cubeEntity = CreateEntity(engine, memeMaterialIndex, cubeMeshView);
+	cubeEntity->position = { 0.f, 0.5f, 0.f };
 
 	Entity* groundEntity = CreateQuadEntity(engine, groundMaterialIndex, 100.f, 100.f);
 	groundEntity->GetBuffer()->color = { 1.f, 1.f, 1.f };
-	groundEntity->position += { 0.f, -.51f, 0.f };
 	groundEntity->checkForShadowBounds = false;
+	groundEntity->collisionLayers |= Floor;
 
 	// Defaults
 	camera.position = { 0.f, 10.f, 0.f };
@@ -202,7 +113,9 @@ void Game::StartGame(EngineCore& engine)
 
 void Game::UpdateGame(EngineCore& engine)
 {
-	light.rotation = XMQuaternionRotationRollPitchYaw(45.f / 360.f * XM_2PI, engine.TimeSinceStart(), 0.f);
+	engine.BeginProfile("Game Update", ImColor::HSV(.75f, 1.f, 1.f));
+	input.accessMutex.lock();
+	input.UpdateMousePosition();
 
 	// Read camera rotation into vectors
 	XMVECTOR camForward;
@@ -215,39 +128,11 @@ void Game::UpdateGame(EngineCore& engine)
 		entity->GetBuffer()->isSelected = { 0 };
 	}
 
-	// Read Inputs
-	engine.BeginProfile("Input", ImColor::HSV(.5f, 1.f, .5f));
-	input.accessMutex.lock();
-	input.UpdateMousePosition();
-
-	float camSpeed = 10.f;
-	if (input.KeyDown(VK_SHIFT)) camSpeed *= .1f;
-	if (input.KeyDown(VK_CONTROL)) camSpeed *= 5.f;
-
+	// Debug Controls
 	if (input.KeyJustPressed(VK_ESCAPE))
 	{
 		showEscMenu = !showEscMenu;
 		UpdateCursorState();
-	}
-	if (input.KeyComboJustPressed(VK_KEY_R, VK_CONTROL))
-	{
-		camera.position = { 0.f, 0.f, 0.f };
-	}
-	if (input.KeyDown(VK_KEY_A))
-	{
-		camera.position -= camRight * engine.m_updateDeltaTime * camSpeed;
-	}
-	if (input.KeyDown(VK_KEY_D))
-	{
-		camera.position += camRight * engine.m_updateDeltaTime * camSpeed;
-	}
-	if (input.KeyDown(VK_KEY_S))
-	{
-		camera.position -= camForward * engine.m_updateDeltaTime * camSpeed;
-	}
-	if (input.KeyDown(VK_KEY_W))
-	{
-		camera.position += camForward * engine.m_updateDeltaTime * camSpeed;
 	}
 	if (input.KeyDown(VK_LBUTTON))
 	{
@@ -255,39 +140,6 @@ void Game::UpdateGame(EngineCore& engine)
 		if (collision.entity != nullptr)
 		{
 			collision.entity->GetBuffer()->isSelected = { 1 };
-		}
-	}
-	if (input.KeyJustPressed(VK_F1))
-	{
-		puzzleArena.Reset();
-		solver->Solve();
-		if (solver->solved)
-		{
-			displayedPuzzle = solver->puzzle;
-			for (int i = 0; i < displayedPuzzle.pieceCount; i++)
-			{
-				puzzleEntities[i]->position = GetPiecePosition(puzzleEntities[i], displayedPuzzle.pieces[i]);
-			}
-			DisplayPuzzleSolution(&displayCoroutine, this, &engine);
-
-			/*int depthOffsets[1024]{0};
-			for (int i = 0; i < solver->currentPendingIndex; i++)
-			{
-				SlidingPuzzle& puzzle = solver->pendingPositions[i];
-				int depth = puzzle.path.moveCount;
-				Entity* entity = graphDisplayEntities[i];
-				entity->position = { (float)depth * 1.1f, 0.f, 3.5f + depthOffsets[depth]++ * 1.1f };
-				entity->scale = { .5f, .5f, .5f };
-				engine.m_entities[entity->dataIndex].visible = true;
-				if (puzzle.distance == 0)
-				{
-					entity->GetBuffer(engine).color = { 207.f / 256.f, 159.f / 256.f, 27.f / 256.f };
-				}
-				else
-				{
-					entity->GetBuffer(engine).color = { .5f, .5f, .5f };
-				}
-			}*/
 		}
 	}
 	if (input.KeyComboJustPressed(VK_KEY_D, VK_CONTROL))
@@ -317,23 +169,103 @@ void Game::UpdateGame(EngineCore& engine)
 		if (playerPitch < -maxPitch) playerPitch = -maxPitch;
 	}
 
-	input.NextFrame();
-	input.accessMutex.unlock();
-	engine.EndProfile("Input");
-	
-	// Update game
-	engine.BeginProfile("Game Update", ImColor::HSV(.75f, 1.f, 1.f));
-	if (displayCoroutine != nullptr)
+	// Camera controls
+	if (input.KeyComboJustPressed(VK_KEY_R, VK_CONTROL))
 	{
-		if (displayCoroutine.done())
+		camera.position = { 0.f, 0.f, 0.f };
+	}
+
+	float horizontalInput = 0.f;
+	if (input.KeyDown(VK_KEY_A)) horizontalInput -= 1.f;
+	if (input.KeyDown(VK_KEY_D)) horizontalInput += 1.f;
+
+	float verticalInput = 0.f;
+	if (input.KeyDown(VK_KEY_S)) verticalInput -= 1.f;
+	if (input.KeyDown(VK_KEY_W)) verticalInput += 1.f;
+
+	if (noclip)
+	{
+		float camSpeed = 10.f;
+		if (input.KeyDown(VK_SHIFT)) camSpeed *= .1f;
+		if (input.KeyDown(VK_CONTROL)) camSpeed *= 5.f;
+
+		camera.position += camRight * horizontalInput * engine.m_updateDeltaTime * camSpeed;
+		camera.position += camForward * verticalInput * engine.m_updateDeltaTime * camSpeed;
+	}
+	else
+	{
+		// Buffer jump for later
+		if (input.KeyJustPressed(VK_SPACE))
 		{
-			displayCoroutine.destroy();
-			displayCoroutine = nullptr;
+			lastJumpPressTime = engine.TimeSinceStart();
+		}
+
+		// Add input to velocity
+		XMVECTOR playerForward = camForward;
+		playerForward.m128_f32[1] = 0.f;
+		playerForward = XMVector3Normalize(playerForward);
+
+		XMVECTOR playerRight = camRight;
+		playerRight.m128_f32[1] = 0.f;
+		playerRight = XMVector3Normalize(playerRight);
+
+		playerVelocity += XMVectorScale(playerForward, verticalInput * engine.m_updateDeltaTime * playerAcceleration);
+		playerVelocity += XMVectorScale(playerRight, horizontalInput * engine.m_updateDeltaTime * playerAcceleration);
+
+		// Limit speed
+		float verticalPlayerVelocity = playerVelocity.m128_f32[1];
+		XMVECTOR horizontalPlayerVelocity = playerVelocity;
+		horizontalPlayerVelocity.m128_f32[1] = 0.f;
+
+		float horizontalPlayerSpeed = XMVector3Length(horizontalPlayerVelocity).m128_f32[0];
+		if (horizontalPlayerSpeed > playerMaxSpeed)
+		{
+			horizontalPlayerVelocity = XMVector3Normalize(horizontalPlayerVelocity) * playerMaxSpeed;
+			horizontalPlayerSpeed = playerMaxSpeed;
+
+			playerVelocity = horizontalPlayerVelocity;
+			playerVelocity.m128_f32[1] = verticalPlayerVelocity;
+		}
+
+		// Ground collision
+		CollisionResult floorCollision = CollideWithWorld(*this, camera.position, V3_DOWN, Floor);
+		bool onGround = floorCollision.distance <= playerHeight;
+		if (onGround)
+		{
+			// Move player out of ground
+			XMVECTOR collisionPoint = camera.position + XMVectorScale(V3_DOWN, floorCollision.distance);
+			camera.position = collisionPoint - XMVectorScale(V3_DOWN, playerHeight);
+
+			// Stop falling speed
+			playerVelocity = horizontalPlayerVelocity;
+
+			// Apply jump
+			if (input.KeyDown(VK_SPACE) && lastJumpPressTime + jumpBufferDuration >= engine.TimeSinceStart())
+			{
+				lastJumpPressTime = -1000.f;
+				playerVelocity.m128_f32[1] += playerJumpStrength;
+			}
+			else
+			{
+				// Apply friction when no input
+				if (std::abs(horizontalInput) <= inputDeadzone && std::abs(verticalInput) <= inputDeadzone)
+				{
+					float speedDecrease = playerFriction * engine.m_updateDeltaTime;
+					if (horizontalPlayerSpeed <= speedDecrease)
+					{
+						playerVelocity = V3_ZERO;
+					}
+					playerVelocity = XMVectorScale(XMVector3Normalize(playerVelocity), horizontalPlayerSpeed - speedDecrease);
+				}
+			}
 		}
 		else
 		{
-			displayCoroutine();
+			playerVelocity.m128_f32[1] -= engine.m_updateDeltaTime * playerGravity;
 		}
+
+		// Apply velocity
+		camera.position += playerVelocity * engine.m_updateDeltaTime;
 	}
 
 	// Update Camera
@@ -344,8 +276,10 @@ void Game::UpdateGame(EngineCore& engine)
 	engine.m_sceneConstantBuffer.data.cameraProjection = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
 	engine.m_sceneConstantBuffer.data.postProcessing = { contrast, brightness, saturation, fog };
 	engine.m_sceneConstantBuffer.data.worldCameraPos = camera.position;
-
+	
 	// Update light/shadowmap
+	light.rotation = XMQuaternionRotationRollPitchYaw(45.f / 360.f * XM_2PI, engine.TimeSinceStart(), 0.f);
+
 	engine.m_lightConstantBuffer.data.lightView = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(light.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(light.rotation)));
 
 	XMVECTOR lightSpaceMin{};
@@ -398,6 +332,10 @@ void Game::UpdateGame(EngineCore& engine)
 
 		CreateWorldMatrix(entity->GetBuffer()->worldTransform, entity->scale, entity->rotation, entity->position);
 	}
+
+	// TODO: Don't read input after this point!
+	input.NextFrame();
+	input.accessMutex.unlock();
 
 	// Post Processing
 	XMVECTOR baseClearColor = { .1f, .2f, .4f, 1.f };

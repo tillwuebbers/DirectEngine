@@ -2,6 +2,119 @@
 
 #include <format>
 #include <algorithm>
+#include "../core/Coroutine.h"
+
+/*void DisplayPuzzle()
+{
+	if (input.KeyJustPressed(VK_F1))
+	{
+		puzzleArena.Reset();
+		solver->Solve();
+		if (solver->solved)
+		{
+			displayedPuzzle = solver->puzzle;
+			for (int i = 0; i < displayedPuzzle.pieceCount; i++)
+			{
+				puzzleEntities[i]->position = GetPiecePosition(puzzleEntities[i], displayedPuzzle.pieces[i]);
+			}
+			DisplayPuzzleSolution(&displayCoroutine, this, &engine);
+
+			int depthOffsets[1024]{0};
+			for (int i = 0; i < solver->currentPendingIndex; i++)
+			{
+				SlidingPuzzle& puzzle = solver->pendingPositions[i];
+				int depth = puzzle.path.moveCount;
+				Entity* entity = graphDisplayEntities[i];
+				entity->position = { (float)depth * 1.1f, 0.f, 3.5f + depthOffsets[depth]++ * 1.1f };
+				entity->scale = { .5f, .5f, .5f };
+				engine.m_entities[entity->dataIndex].visible = true;
+				if (puzzle.distance == 0)
+				{
+					entity->GetBuffer(engine).color = { 207.f / 256.f, 159.f / 256.f, 27.f / 256.f };
+				}
+				else
+				{
+					entity->GetBuffer(engine).color = { .5f, .5f, .5f };
+				}
+			}
+		}
+	}
+}*/
+
+/*CoroutineReturn DisplayPuzzleSolution(std::coroutine_handle<>* handle, Game* game, EngineCore* engine)
+{
+	CoroutineAwaiter awaiter{ handle };
+
+	for (int i = 0; i < game->solver->solvedPosition.path.moveCount; i++)
+	{
+		float moveStartTime = engine->TimeSinceStart();
+		PuzzleMove& move = game->solver->solvedPosition.path.moves[i];
+		PuzzlePiece& piece = game->displayedPuzzle.pieces[move.pieceIndex];
+
+		XMVECTOR startPos = GetPiecePosition(game->puzzleEntities[move.pieceIndex], piece);
+		piece.x += move.x;
+		piece.y += move.y;
+		XMVECTOR endPos = GetPiecePosition(game->puzzleEntities[move.pieceIndex], piece);
+
+		float timeInStep = 0.f;
+		do
+		{
+			co_await awaiter;
+			timeInStep = engine->TimeSinceStart() - moveStartTime;
+			if (timeInStep > SOLUTION_PLAYBACK_SPEED) timeInStep = SOLUTION_PLAYBACK_SPEED;
+
+			float progress = timeInStep / SOLUTION_PLAYBACK_SPEED;
+			float progressSq = progress * progress;
+			float progressCb = progressSq * progress;
+			float smoothProgress = 3.f * progressSq - 2.f * progressCb;
+			game->puzzleEntities[move.pieceIndex]->position = XMVectorLerp(startPos, endPos, smoothProgress);
+
+		} while (timeInStep < SOLUTION_PLAYBACK_SPEED);
+	}
+}*/
+
+/*XMVECTOR GetPiecePosition(Entity* entity, const PuzzlePiece& piece)
+{
+	XMFLOAT3 scale;
+	XMStoreFloat3(&scale, entity->scale);
+	return { (float)piece.x * (1.f + BLOCK_DISPLAY_GAP) + scale.x / 2.f - 0.5f, 0.f, (float)piece.y * (1.f + BLOCK_DISPLAY_GAP) + scale.z / 2.f - 0.5f };
+}*/
+
+void CreateTestPuzzle(SlidingPuzzle& displayedPuzzle)
+{
+	displayedPuzzle = {};
+	displayedPuzzle.width = 3;
+	displayedPuzzle.height = 3;
+	displayedPuzzle.pieceCount = 2;
+
+	PuzzlePiece& p = displayedPuzzle.pieces[0];
+	p.width = 2;
+	p.height = 2;
+	p.startX = 0;
+	p.startY = 0;
+	p.targetX = 1;
+	p.targetY = 1;
+	p.canMoveHorizontal = true;
+	p.canMoveVertical = true;
+	p.hasTarget = true;
+	p.typeHash = 0;
+	p.x = p.startX;
+	p.y = p.startY;
+
+	PuzzlePiece& p2 = displayedPuzzle.pieces[1];
+	p2.width = 1;
+	p2.height = 1;
+	p2.startX = 2;
+	p2.startY = 2;
+	p2.targetX = 0;
+	p2.targetY = 0;
+	p2.canMoveHorizontal = true;
+	p2.canMoveVertical = true;
+	p2.hasTarget = true;
+	p2.typeHash = 0;
+	p2.x = p2.startX;
+	p2.y = p2.startY;
+}
 
 void SetBitShape(uint64_t& bitboard, const PuzzlePiece& piece)
 {

@@ -153,6 +153,7 @@ void Game::DrawUI(EngineCore& engine)
 			ImGui::NewLine();
 
 			ImGui::Checkbox("Show Bounds", &engine.renderAABB);
+			ImGui::Checkbox("Noclip", &noclip);
 		}
 		ImGui::End();
 	}
@@ -214,12 +215,25 @@ void Game::DrawUI(EngineCore& engine)
 			ImGui::SliderFloat("Brightness", &brightness, -1., 1., "%.2f");
 			ImGui::SliderFloat("Saturation", &saturation, 0., 3., "%.2f");
 			ImGui::SliderFloat("Fog", &fog, 0., 3., "%.2f");
-			//ImGui::SliderFloat("neartest", &neartest, -100., 100., "%.0f");
-			//ImGui::SliderFloat("fartest", &fartest, -100., 100., "%.0f");
 		}
 		ImGui::End();
 	}
 	engine.EndProfile("Game UI");
+
+	if (showMovementWindow)
+	{
+		if (ImGui::Begin("Movement Window", &showMovementWindow))
+		{
+			ImGui::SliderFloat("Player Height", &playerHeight, 0.1, 5., "%.1f");
+			ImGui::SliderFloat("Acceleration", &playerAcceleration, 1., 200., "%.0f");
+			ImGui::SliderFloat("Friction", &playerFriction, 1., 200., "%.0f");
+			ImGui::SliderFloat("Gravity", &playerGravity, 1., 100., "%.0f");
+			ImGui::SliderFloat("Max Speed", &playerMaxSpeed, 1., 100., "%.0f");
+			ImGui::SliderFloat("Jump Strength", &playerJumpStrength, 1., 1000., "%.0f");
+			ImGui::SliderFloat("Jump Buffer Duration", &jumpBufferDuration, 0.01, 1., "%.2f");
+		}
+		ImGui::End();
+	}
 
 	// Profiler
 	if (!pauseProfiler)

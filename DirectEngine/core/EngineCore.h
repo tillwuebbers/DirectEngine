@@ -207,7 +207,7 @@ public:
 
     // TODO: don't init this in game
     D3D12_VERTEX_BUFFER_VIEW cubeVertexView;
-    bool renderAABB = true;
+    bool renderAABB = false;
     
     // Time
     std::chrono::steady_clock::time_point m_startTime;

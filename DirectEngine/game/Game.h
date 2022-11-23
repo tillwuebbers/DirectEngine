@@ -6,7 +6,6 @@
 #include "Log.h"
 #include "Mesh.h"
 #include "../core/EngineCore.h"
-#include "../core/Coroutine.h"
 
 #include "imgui.h"
 #include "ImGuiProfilerRenderer.h"
@@ -24,6 +23,7 @@ enum CollisionLayers : uint64_t
 {
 	None,
 	ClickTest,
+	Floor,
 };
 
 struct WindowUpdate
@@ -74,7 +74,9 @@ public:
 	bool showDebugUI = true;
 	bool showDebugImage = true;
 	bool showPostProcessImage = true;
+	bool showMovementWindow = true;
 	bool scrollLog = true;
+	bool noclip = true;
 
 	WindowUpdate windowUpdateData{};
 	std::mutex windowUdpateDataMutex;
@@ -93,6 +95,18 @@ public:
 
 	float playerPitch = 0.f;
 	float playerYaw = 0.f;
+	XMVECTOR playerVelocity = { 0.f, 0.f, 0.f };
+
+	float playerHeight = 1.5f;
+	float playerAcceleration = 100.f;
+	float playerFriction = 100.f;
+	float playerMaxSpeed = 15.f;
+	float playerJumpStrength = 15.f;
+	float playerGravity = 30.f;
+	float inputDeadzone = 0.05f;
+
+	float jumpBufferDuration = 1.f;
+	float lastJumpPressTime = -1000.f;
 
 	XMVECTOR clearColor = { .1f, .2f, .4f, 1.f };
 	float contrast = 1.;
@@ -100,15 +114,6 @@ public:
 	float saturation = 1.;
 	float fog = 0.;
 
-	PuzzleSolver* solver;
-	Entity* puzzleEntities[MAX_PIECE_COUNT];
-	Entity* graphDisplayEntities[1024];
-
-	MemoryArena puzzleArena{};
-	SlidingPuzzle displayedPuzzle;
-	std::coroutine_handle<> displayCoroutine = nullptr;
-
-	Game();
 	void StartGame(EngineCore& engine) override;
 	void UpdateGame(EngineCore& engine) override;
 	void DrawUI(EngineCore& engine);
