@@ -21,11 +21,11 @@ void CalculateDirectionVectors(XMVECTOR& outForward, XMVECTOR& outRight, XMVECTO
 	outRight = XMVector3Transform(right, camRotation);
 }
 
-CollisionResult CollideWithWorld(Game& game, const XMVECTOR rayOrigin, const XMVECTOR rayDirection, uint64_t matchingLayers)
+CollisionResult Game::CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, uint64_t matchingLayers)
 {
 	CollisionResult result{ nullptr, std::numeric_limits<float>::max() };
 
-	for (Entity* entity = (Entity*)game.entityArena.base; entity != (Entity*)(game.entityArena.base + game.entityArena.used); entity++)
+	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 	{
 		if ((entity->collisionLayers & matchingLayers) != 0)
 		{
@@ -92,9 +92,9 @@ void Game::StartGame(EngineCore& engine)
 	kaijuEntity->GetData()->aabbLocalPosition = { 0.f, 5.f, 0.f };
 	kaijuEntity->GetData()->aabbLocalSize = { 4.f, 10.f, 2.f };
 
-	Entity* cubeEntity = CreateEntity(engine, memeMaterialIndex, cubeMeshView);
-	cubeEntity->position = { 0.f, 0.5f, 0.f };
-	cubeEntity->collisionLayers |= Floor;
+	testEnemy = CreateEntity(engine, memeMaterialIndex, cubeMeshView);
+	testEnemy->position = { 10.f, 0.5f, 5.f };
+	testEnemy->collisionLayers |= Dead;
 
 	Entity* groundEntity = CreateQuadEntity(engine, groundMaterialIndex, 100.f, 100.f);
 	groundEntity->GetBuffer()->color = { 1.f, 1.f, 1.f };
@@ -137,7 +137,7 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 	if (input.KeyDown(VK_LBUTTON))
 	{
-		CollisionResult collision = CollideWithWorld(*this, camera.position, camForward, ClickTest);
+		CollisionResult collision = CollideWithWorld(camera.position, camForward, ClickTest);
 		if (collision.entity != nullptr)
 		{
 			collision.entity->GetBuffer()->isSelected = { 1 };
@@ -162,7 +162,7 @@ void Game::UpdateGame(EngineCore& engine)
 
 	if (!showEscMenu)
 	{
-		const float maxPitch = XM_PI * 0.5;
+		const float maxPitch = XM_PI * 0.49;
 
 		playerYaw += input.mouseDeltaX * 0.003f;
 		playerPitch += input.mouseDeltaY * 0.003f;
@@ -229,7 +229,7 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 
 		// Ground collision
-		CollisionResult floorCollision = CollideWithWorld(*this, camera.position, V3_DOWN, Floor);
+		CollisionResult floorCollision = CollideWithWorld(camera.position, V3_DOWN, Floor);
 		bool onGround = floorCollision.distance <= playerHeight;
 		if (onGround)
 		{
@@ -267,6 +267,23 @@ void Game::UpdateGame(EngineCore& engine)
 
 		// Apply velocity
 		camera.position += playerVelocity * engine.m_updateDeltaTime;
+	}
+
+	// danger cube watch out
+	XMVECTOR toPlayer = XMVector3Normalize(camera.position - testEnemy->position);
+	testEnemyVelocity += XMVectorScale(toPlayer, engine.m_updateDeltaTime * enemyAcceleration);
+	float testEnemySpeed = XMVector3Length(testEnemyVelocity).m128_f32[0];
+	if (testEnemySpeed > enemyMaxSpeed)
+	{
+		testEnemyVelocity = XMVectorScale(XMVector3Normalize(testEnemyVelocity), enemyMaxSpeed);
+	}
+	testEnemy->position += testEnemyVelocity * engine.m_updateDeltaTime;
+
+	// Kinda hacky enemy collision detection
+	CollisionResult enemyCollision = CollideWithWorld(camera.position, V3_DOWN, Dead);
+	if (enemyCollision.distance <= 0.f)
+	{
+		Warn("U R DED!!");
 	}
 
 	// Update Camera

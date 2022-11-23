@@ -21,9 +21,10 @@ const float SOLUTION_PLAYBACK_SPEED = 0.5f;
 
 enum CollisionLayers : uint64_t
 {
-	None,
-	ClickTest,
-	Floor,
+	None = 0,
+	ClickTest = 1,
+	Floor = 2,
+	Dead = 4,
 };
 
 struct WindowUpdate
@@ -76,7 +77,7 @@ public:
 	bool showPostProcessImage = true;
 	bool showMovementWindow = true;
 	bool scrollLog = true;
-	bool noclip = true;
+	bool noclip = false;
 
 	WindowUpdate windowUpdateData{};
 	std::mutex windowUdpateDataMutex;
@@ -93,6 +94,9 @@ public:
 	Texture memeTexture{};
 	Texture kaijuTexture{};
 
+	Entity* testEnemy;
+	XMVECTOR testEnemyVelocity{};
+
 	float playerPitch = 0.f;
 	float playerYaw = 0.f;
 	XMVECTOR playerVelocity = { 0.f, 0.f, 0.f };
@@ -108,6 +112,9 @@ public:
 	float jumpBufferDuration = 1.f;
 	float lastJumpPressTime = -1000.f;
 
+	float enemyAcceleration = 200.f;
+	float enemyMaxSpeed = 15.f;
+
 	XMVECTOR clearColor = { .1f, .2f, .4f, 1.f };
 	float contrast = 1.;
 	float brightness = 0.;
@@ -117,6 +124,8 @@ public:
 	void StartGame(EngineCore& engine) override;
 	void UpdateGame(EngineCore& engine) override;
 	void DrawUI(EngineCore& engine);
+
+	CollisionResult CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, uint64_t matchingLayers);
 
 	Entity* CreateEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView);
 	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height);
