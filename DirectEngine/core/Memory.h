@@ -27,5 +27,5 @@ public:
     ~MemoryArena();
 };
 
-#define NewObject(arena, type, ...) new(arena.Allocate(sizeof(type))) type(__VA_ARGS__);
-#define NewArray(arena, type, count, ...) new(arena.Allocate(sizeof(type) * count)) type[count](__VA_ARGS__);
+#define NewObject(arena, type, ...) new((arena).Allocate(sizeof(type))) type(__VA_ARGS__);
+#define NewArray(arena, type, count, ...) new((arena).Allocate(sizeof(type) * (count))) type[count](__VA_ARGS__);

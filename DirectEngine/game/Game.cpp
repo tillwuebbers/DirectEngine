@@ -92,9 +92,12 @@ void Game::StartGame(EngineCore& engine)
 	kaijuEntity->GetData()->aabbLocalPosition = { 0.f, 5.f, 0.f };
 	kaijuEntity->GetData()->aabbLocalSize = { 4.f, 10.f, 2.f };
 
-	testEnemy = CreateEntity(engine, memeMaterialIndex, cubeMeshView);
-	testEnemy->position = { 10.f, 0.5f, 5.f };
-	testEnemy->collisionLayers |= Dead;
+	for (int i = 0; i < MAX_ENENMY_COUNT; i++)
+	{
+		enemies[i] = CreateEntity(engine, memeMaterialIndex, cubeMeshView);
+		enemies[i]->collisionLayers |= Dead;
+		enemies[i]->GetData()->visible = false;
+	}
 
 	Entity* groundEntity = CreateQuadEntity(engine, groundMaterialIndex, 100.f, 100.f);
 	groundEntity->GetBuffer()->color = { 1.f, 1.f, 1.f };
@@ -269,21 +272,49 @@ void Game::UpdateGame(EngineCore& engine)
 		camera.position += playerVelocity * engine.m_updateDeltaTime;
 	}
 
-	// danger cube watch out
-	XMVECTOR toPlayer = XMVector3Normalize(camera.position - testEnemy->position);
-	testEnemyVelocity += XMVectorScale(toPlayer, engine.m_updateDeltaTime * enemyAcceleration);
-	float testEnemySpeed = XMVector3Length(testEnemyVelocity).m128_f32[0];
-	if (testEnemySpeed > enemyMaxSpeed)
+	// danger cubes watch out
+	if (engine.TimeSinceStart() >= lastEnemySpawn + enemySpawnRate)
 	{
-		testEnemyVelocity = XMVectorScale(XMVector3Normalize(testEnemyVelocity), enemyMaxSpeed);
+		lastEnemySpawn = engine.TimeSinceStart();
+
+		bool enemySpawned = false;
+		for (int i = 0; i < MAX_ENENMY_COUNT; i++)
+		{
+			if (!enemyActive[i])
+			{
+				enemyActive[i] = true;
+				enemies[i]->GetData()->visible = true;
+				enemies[i]->position = {};
+
+				enemySpawned = true;
+				break;
+			}
+		}
+
+		if (!enemySpawned)
+		{
+			Warn("Too many enemies!");
+		}
 	}
-	testEnemy->position += testEnemyVelocity * engine.m_updateDeltaTime;
+
+	for (int i = 0; i < MAX_ENENMY_COUNT; i++)
+	{
+		XMVECTOR toPlayer = XMVector3Normalize(camera.position - enemies[i]->position);
+		enemyVelocities[i] += XMVectorScale(toPlayer, engine.m_updateDeltaTime * enemyAcceleration);
+		float testEnemySpeed = XMVector3Length(enemyVelocities[i]).m128_f32[0];
+		if (testEnemySpeed > enemyMaxSpeed)
+		{
+			enemyVelocities[i] = XMVectorScale(XMVector3Normalize(enemyVelocities[i]), enemyMaxSpeed);
+		}
+		enemies[i]->position += enemyVelocities[i] * engine.m_updateDeltaTime;
+	}
 
 	// Kinda hacky enemy collision detection
 	CollisionResult enemyCollision = CollideWithWorld(camera.position, V3_DOWN, Dead);
 	if (enemyCollision.distance <= 0.f)
 	{
 		Warn("U R DED!!");
+		enemyCollision.entity->GetData()->visible = false;
 	}
 
 	// Update Camera
@@ -382,20 +413,20 @@ EngineInput& Game::GetInput()
 	return input;
 }
 
-Entity* Game::CreateEntity(EngineCore& engine, size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView)
+Entity* Game::CreateEntity(EngineCore& engine, size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, MemoryArena* arena)
 {
-	Entity* entity = NewObject(entityArena, Entity);
+	Entity* entity = NewObject(arena == nullptr ? entityArena : *arena, Entity);
 	entity->engine = &engine;
 	entity->materialIndex = materialIndex;
 	entity->dataIndex = engine.CreateEntity(materialIndex, meshView);
 	return entity;
 }
 
-Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height)
+Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, MemoryArena* arena)
 {
 	MeshFile file = CreateQuad(width, height, vertexUploadArena, indexUploadArena);
 	auto meshView = engine.CreateMesh(materialIndex, file.vertices, file.vertexCount);
-	Entity* entity = CreateEntity(engine, materialIndex, meshView);
+	Entity* entity = CreateEntity(engine, materialIndex, meshView, arena);
 	entity->position = { -width / 2.f, 0.f, -width / 2.f };
 	entity->GetData()->aabbLocalPosition = { width / 2.f, -.05f, width / 2.f };
 	entity->GetData()->aabbLocalSize = { width, .1f, width };

@@ -124,7 +124,6 @@ class EngineCore
 {
 public:
     static const UINT FrameCount = 3;
-    static const size_t MAX_DESCRIPTORS = 48;
 
     EngineCore(UINT width, UINT height, IGame* game);
 

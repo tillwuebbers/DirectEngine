@@ -84,6 +84,7 @@ public:
 
 	MemoryArena globalArena{};
 	MemoryArena entityArena{};
+	MemoryArena dynamicGameArena{};
 	MemoryArena vertexUploadArena{};
 	MemoryArena indexUploadArena{};
 
@@ -94,8 +95,9 @@ public:
 	Texture memeTexture{};
 	Texture kaijuTexture{};
 
-	Entity* testEnemy;
-	XMVECTOR testEnemyVelocity{};
+	Entity* enemies[MAX_ENENMY_COUNT];
+	XMVECTOR enemyVelocities[MAX_ENENMY_COUNT]{};
+	bool enemyActive[MAX_ENENMY_COUNT]{};
 
 	float playerPitch = 0.f;
 	float playerYaw = 0.f;
@@ -109,11 +111,13 @@ public:
 	float playerGravity = 35.f;
 	float inputDeadzone = 0.05f;
 
-	float jumpBufferDuration = 1.f;
-	float lastJumpPressTime = -1000.f;
-
 	float enemyAcceleration = 200.f;
 	float enemyMaxSpeed = 15.f;
+	float enemySpawnRate = 5.f;
+
+	float jumpBufferDuration = 1.f;
+	float lastJumpPressTime = -1000.f;
+	float lastEnemySpawn = 0.f;
 
 	XMVECTOR clearColor = { .1f, .2f, .4f, 1.f };
 	float contrast = 1.;
@@ -127,8 +131,8 @@ public:
 
 	CollisionResult CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, uint64_t matchingLayers);
 
-	Entity* CreateEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView);
-	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height);
+	Entity* CreateEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, MemoryArena* arena = nullptr);
+	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, MemoryArena* arena = nullptr);
 	void UpdateCursorState();
 
 	float* GetClearColor() override;
