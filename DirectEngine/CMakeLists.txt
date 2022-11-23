@@ -9,6 +9,8 @@ add_executable (${PROJECT_NAME} WIN32
                 "DirectEngine.cpp"
                 "DirectEngine.h"
                 "Helpers.h"
+                "core/Audio.h"
+                "core/Audio.cpp"
                 "core/Coroutine.h"
                 "core/Common.h"
                 "core/Constants.h"
@@ -88,6 +90,12 @@ endif()
 # assets
 file(COPY "Montserrat-Regular.ttf" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY "remixicon.ttf" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
+add_custom_command(
+        TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_CURRENT_SOURCE_DIR}/audio
+                ${CMAKE_CURRENT_BINARY_DIR}/audio)
 
 add_custom_command(
         TARGET ${PROJECT_NAME} POST_BUILD

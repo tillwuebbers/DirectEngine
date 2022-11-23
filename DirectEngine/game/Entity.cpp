@@ -20,3 +20,9 @@ XMVECTOR Entity::WorldToLocal(XMVECTOR worldPosition)
 	XMVECTOR det;
 	return XMVector4Transform(worldPosition, XMMatrixInverse(&det, GetBuffer()->worldTransform));
 }
+
+void Entity::Disable()
+{
+	isActive = false;
+	GetData()->visible = false;
+}

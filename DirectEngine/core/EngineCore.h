@@ -17,6 +17,7 @@
 #include "Input.h"
 #include "ShadowMap.h"
 #include "Texture.h"
+#include "Audio.h"
 
 #include "../game/IGame.h"
 #include "../game/Mesh.h"
@@ -213,6 +214,8 @@ public:
     // Audio
     IXAudio2* m_audio;
     IXAudio2MasteringVoice* m_audioMasteringVoice;
+    IXAudio2SourceVoice* m_audioSource;
+    AudioBuffer* m_testAudioBuffer;
 
     // Time
     std::chrono::steady_clock::time_point m_startTime;

@@ -27,7 +27,7 @@ CollisionResult Game::CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR 
 
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 	{
-		if ((entity->collisionLayers & matchingLayers) != 0)
+		if (entity->isActive && (entity->collisionLayers & matchingLayers) != 0)
 		{
 			EntityData* entityData = entity->GetData();
 
@@ -95,18 +95,16 @@ void Game::StartGame(EngineCore& engine)
 	for (int i = 0; i < MAX_ENENMY_COUNT; i++)
 	{
 		Entity* enemy = enemies[i] = CreateEntity(engine, memeMaterialIndex, cubeMeshView);
+		enemy->Disable();
 		enemy->isEnemy = true;
-		enemy->isActive = false;
 		enemy->collisionLayers |= Dead;
-		enemy->GetData()->visible = false;
 	}
 
 	for (int i = 0; i < MAX_PROJECTILE_COUNT; i++)
 	{
 		Entity* projectile = projectiles[i] = CreateEntity(engine, groundMaterialIndex, cubeMeshView);
+		projectile->Disable();
 		projectile->isProjectile = true;
-		projectile->isActive = false;
-		projectile->GetData()->visible = false;
 		projectile->scale = { .1f, .1f, .1f };
 	}
 
@@ -338,9 +336,12 @@ void Game::UpdateGame(EngineCore& engine)
 	CollisionResult enemyCollision = CollideWithWorld(camera.position, V3_DOWN, Dead);
 	if (enemyCollision.distance <= 0.f && enemyCollision.entity != nullptr)
 	{
-		Warn("U R DED!!");
-		enemyCollision.entity->isActive = false;
-		enemyCollision.entity->GetData()->visible = false;
+		Warn("DED");
+		engine.m_audioSource->Stop();
+		engine.m_audioSource->FlushSourceBuffers();
+		ThrowIfFailed(engine.m_audioSource->SubmitSourceBuffer(&engine.m_testAudioBuffer->buffer));
+		ThrowIfFailed(engine.m_audioSource->Start(0));
+		enemyCollision.entity->Disable();
 	}
 
 	// Update Projectiles
@@ -351,8 +352,7 @@ void Game::UpdateGame(EngineCore& engine)
 
 		if (engine.TimeSinceStart() > projectile->spawnTime + projectileLifetime)
 		{
-			projectile->isActive = false;
-			projectile->GetData()->visible = false;
+			projectile->Disable();
 			continue;
 		}
 
@@ -361,8 +361,7 @@ void Game::UpdateGame(EngineCore& engine)
 		CollisionResult enemyCollision = CollideWithWorld(projectile->position, V3_DOWN, Dead);
 		if (enemyCollision.distance <= 0.f && enemyCollision.entity != nullptr)
 		{
-			enemyCollision.entity->isActive = false;
-			enemyCollision.entity->GetData()->visible = false;
+			enemyCollision.entity->Disable();
 		}
 	}
 

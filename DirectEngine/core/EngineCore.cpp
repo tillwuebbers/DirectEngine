@@ -45,9 +45,13 @@ void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
     LoadPipeline();
     LoadAssets();
 
+    // Audio
     ThrowIfFailed(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
     ThrowIfFailed(XAudio2Create(&m_audio, 0, XAUDIO2_DEFAULT_PROCESSOR));
     ThrowIfFailed(m_audio->CreateMasteringVoice(&m_audioMasteringVoice));
+
+    m_testAudioBuffer = LoadAudioFile(L"audio/chord.wav", engineArena);
+    ThrowIfFailed(m_audio->CreateSourceVoice(&m_audioSource, (WAVEFORMATEX*)&m_testAudioBuffer->wfx));
 
     m_startTime = std::chrono::high_resolution_clock::now();
     m_frameStartTime = m_startTime;
