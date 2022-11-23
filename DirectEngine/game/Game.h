@@ -98,11 +98,11 @@ public:
 	XMVECTOR playerVelocity = { 0.f, 0.f, 0.f };
 
 	float playerHeight = 1.5f;
-	float playerAcceleration = 100.f;
-	float playerFriction = 100.f;
-	float playerMaxSpeed = 15.f;
+	float playerAcceleration = 125.f;
+	float playerFriction = 125.f;
+	float playerMaxSpeed = 20.f;
 	float playerJumpStrength = 15.f;
-	float playerGravity = 30.f;
+	float playerGravity = 35.f;
 	float inputDeadzone = 0.05f;
 
 	float jumpBufferDuration = 1.f;

@@ -94,6 +94,7 @@ void Game::StartGame(EngineCore& engine)
 
 	Entity* cubeEntity = CreateEntity(engine, memeMaterialIndex, cubeMeshView);
 	cubeEntity->position = { 0.f, 0.5f, 0.f };
+	cubeEntity->collisionLayers |= Floor;
 
 	Entity* groundEntity = CreateQuadEntity(engine, groundMaterialIndex, 100.f, 100.f);
 	groundEntity->GetBuffer()->color = { 1.f, 1.f, 1.f };

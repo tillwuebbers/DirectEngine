@@ -153,7 +153,6 @@ void Game::DrawUI(EngineCore& engine)
 			ImGui::NewLine();
 
 			ImGui::Checkbox("Show Bounds", &engine.renderAABB);
-			ImGui::Checkbox("Noclip", &noclip);
 		}
 		ImGui::End();
 	}
@@ -222,8 +221,9 @@ void Game::DrawUI(EngineCore& engine)
 
 	if (showMovementWindow)
 	{
-		if (ImGui::Begin("Movement Window", &showMovementWindow))
+		if (ImGui::Begin("Movement", &showMovementWindow))
 		{
+			ImGui::Checkbox("Noclip", &noclip);
 			ImGui::SliderFloat("Player Height", &playerHeight, 0.1, 5., "%.1f");
 			ImGui::SliderFloat("Acceleration", &playerAcceleration, 1., 200., "%.0f");
 			ImGui::SliderFloat("Friction", &playerFriction, 1., 200., "%.0f");
