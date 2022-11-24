@@ -1,7 +1,7 @@
 ﻿# CMakeList.txt : CMake project for DirectEngine, include source and define
 # project specific logic here.
 #
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.12)
 
 
 # Add source to this project's executable.
@@ -85,7 +85,7 @@ else()
     file(COPY "${XAUDIO2_DIR}/release/bin/x64/xaudio2_9redist.dll" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
     target_link_libraries(${PROJECT_NAME} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib" "${XAUDIO2_DIR}/release/lib/x64/xaudio2_9redist.lib")
 endif()
-
+target_compile_options(${PROJECT_NAME} PRIVATE /W3 /w34456 /w34189 /w44305 /w44244 /w44267)
 
 # assets
 file(COPY "Montserrat-Regular.ttf" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

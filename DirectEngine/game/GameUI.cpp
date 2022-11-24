@@ -23,7 +23,7 @@ void Game::DrawUI(EngineCore& engine)
 		const float hAlign = (engine.m_width - buttonWidth) / 2.f;
 		const float vAlign = (engine.m_height - (buttonHeight * 3 + ImGui::GetStyle().ItemSpacing.y * 2)) / 2.f;
 
-		ImGui::SetNextWindowSize(ImVec2(engine.m_width, engine.m_height));
+		ImGui::SetNextWindowSize(ImVec2(static_cast<float>(engine.m_width), static_cast<float>(engine.m_height)));
 		ImGui::SetNextWindowPos(ImVec2());
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(hAlign, vAlign));

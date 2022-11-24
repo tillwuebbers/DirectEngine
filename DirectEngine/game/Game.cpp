@@ -67,9 +67,9 @@ void Game::StartGame(EngineCore& engine)
 	ShaderDescription groundShader{ L"ground.hlsl", "VSMain", "PSMain", L"Ground" };
 
 	// Textures
-	engine.CreateTexture(diffuseTexture, L"textures/ground-diffuse-bc1.dds", L"Diffuse Texture");
-	engine.CreateTexture(memeTexture, L"textures/cat.dds", L"yea");
-	engine.CreateTexture(kaijuTexture, L"textures/kaiju.dds", L"kaiju");
+	engine.CreateTexture(diffuseTexture, L"textures/ground-diffuse-bc1.dds");
+	engine.CreateTexture(memeTexture, L"textures/cat.dds");
+	engine.CreateTexture(kaijuTexture, L"textures/kaiju.dds");
 
 	// Materials
 	size_t dirtMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &diffuseTexture }, defaultShader);
@@ -358,10 +358,10 @@ void Game::UpdateGame(EngineCore& engine)
 
 		projectile->position += projectile->velocity * engine.m_updateDeltaTime;
 
-		CollisionResult enemyCollision = CollideWithWorld(projectile->position, V3_DOWN, Dead);
-		if (enemyCollision.distance <= 0.f && enemyCollision.entity != nullptr)
+		CollisionResult projectileEnemyCollision = CollideWithWorld(projectile->position, V3_DOWN, Dead);
+		if (projectileEnemyCollision.distance <= 0.f && projectileEnemyCollision.entity != nullptr)
 		{
-			enemyCollision.entity->Disable();
+			projectileEnemyCollision.entity->Disable();
 		}
 	}
 

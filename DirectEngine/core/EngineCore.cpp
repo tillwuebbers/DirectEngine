@@ -560,16 +560,16 @@ void EngineCore::LoadAssets()
     }
 }
 
-void EngineCore::CreateTexture(Texture& outTexture, const wchar_t* filePath, const wchar_t* debugName)
+void EngineCore::CreateTexture(Texture& outTexture, const wchar_t* filePath)
 {
     TextureData header = ParseDDSHeader(filePath);
     std::unique_ptr<uint8_t[]> data{};
     std::vector<D3D12_SUBRESOURCE_DATA> subresources{};
     LoadDDSTextureFromFile(m_device.Get(), filePath, &outTexture.buffer, data, subresources);
-    UploadTexture(header, subresources, outTexture, debugName);
+    UploadTexture(header, subresources, outTexture);
 }
 
-void EngineCore::UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture, const wchar_t* name)
+void EngineCore::UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture)
 {
     D3D12_RESOURCE_DESC textureDesc = {};
     textureDesc.MipLevels = textureData.mipmapCount;
@@ -721,7 +721,6 @@ void EngineCore::OnUpdate()
 void EngineCore::OnRender()
 {
     BeginProfile("Commands", ImColor::HSV(.0, .5, 1.));
-    double test = TimeSinceStart();
 
     if (m_wantedWindowMode != m_windowMode)
     {
@@ -1241,17 +1240,17 @@ void EngineCore::EndProfile(std::string name)
     m_profilerTaskData[m_profilerTasks[name]].endTime = TimeSinceFrameStart();
 }
 
-inline double EngineCore::TimeSinceStart()
+double EngineCore::TimeSinceStart()
 {
     return NanosecondsToSeconds(std::chrono::high_resolution_clock::now() - m_startTime);
 }
 
-inline double EngineCore::TimeSinceFrameStart()
+double EngineCore::TimeSinceFrameStart()
 {
     return NanosecondsToSeconds(std::chrono::high_resolution_clock::now() - m_frameStartTime);
 }
 
-inline double NanosecondsToSeconds(std::chrono::nanoseconds clock)
+double NanosecondsToSeconds(std::chrono::nanoseconds clock)
 {
     return clock.count() / 1e+9;
 }

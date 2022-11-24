@@ -230,8 +230,8 @@ public:
     PipelineConfig* CreatePipeline(ShaderDescription shaderDesc, size_t textureCount, bool wireframe);
     void CreatePipelineState(PipelineConfig* config);
     void LoadAssets();
-    void CreateTexture(Texture& outTexture, const wchar_t* filePath, const wchar_t* debugName);
-    void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture, const wchar_t* name);
+    void CreateTexture(Texture& outTexture, const wchar_t* filePath);
+    void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
     size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride, std::vector<Texture*> textures, ShaderDescription shaderDesc);
     D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount);
     size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);

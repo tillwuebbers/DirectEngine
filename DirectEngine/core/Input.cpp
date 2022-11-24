@@ -34,8 +34,8 @@ void EngineInput::UpdateMousePosition()
 	ImVec2 pos = ImGui::GetIO().MousePos;
 	mouseX = pos.x;
 	mouseY = pos.y;
-	mouseDeltaX = mouseDeltaAccX;
-	mouseDeltaY = mouseDeltaAccY;
+	mouseDeltaX = static_cast<float>(mouseDeltaAccX);
+	mouseDeltaY = static_cast<float>(mouseDeltaAccY);
 	mouseDeltaAccX = 0;
 	mouseDeltaAccY = 0;
 }
