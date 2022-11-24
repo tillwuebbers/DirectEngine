@@ -50,9 +50,23 @@ void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
     ThrowIfFailed(XAudio2Create(&m_audio, 0, XAUDIO2_DEFAULT_PROCESSOR));
     ThrowIfFailed(m_audio->CreateMasteringVoice(&m_audioMasteringVoice));
 
-    m_testAudioBuffer = LoadAudioFile(L"audio/chord.wav", engineArena);
-    ThrowIfFailed(m_audio->CreateSourceVoice(&m_audioSource, (WAVEFORMATEX*)&m_testAudioBuffer->wfx));
+    DWORD channelMask;
+    m_audioMasteringVoice->GetChannelMask(&channelMask);
+    X3DAudioInitialize(channelMask, 343., m_3daudio);
+    m_audioMasteringVoice->GetVoiceDetails(&m_audioVoiceDetails);
 
+    m_audioDspSettingsMono.SrcChannelCount = 1;
+    m_audioDspSettingsMono.DstChannelCount = m_audioVoiceDetails.InputChannels;
+    m_audioDspSettingsMono.pMatrixCoefficients = NewArray(engineArena, FLOAT32, m_audioVoiceDetails.InputChannels);
+
+    m_audioDspSettingsStereo.SrcChannelCount = 2;
+    m_audioDspSettingsStereo.DstChannelCount = m_audioVoiceDetails.InputChannels;
+    m_audioDspSettingsStereo.pMatrixCoefficients = NewArray(engineArena, FLOAT32, m_audioVoiceDetails.InputChannels);
+
+    AudioBuffer* testAudio = LoadAudioFile(L"audio/chord.wav", engineArena);
+    m_defaultAudioFormat = (WAVEFORMATEX*)&testAudio->wfx;
+
+    // Time
     m_startTime = std::chrono::high_resolution_clock::now();
     m_frameStartTime = m_startTime;
 

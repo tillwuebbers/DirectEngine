@@ -76,6 +76,7 @@ public:
 	bool showDebugImage = ISDEBUG;
 	bool showPostProcessWindow = ISDEBUG;
 	bool showMovementWindow = ISDEBUG;
+	bool showAudioWindow = ISDEBUG;
 	bool scrollLog = true;
 	bool noclip = false;
 
@@ -84,7 +85,6 @@ public:
 
 	MemoryArena globalArena{};
 	MemoryArena entityArena{};
-	MemoryArena dynamicGameArena{};
 	MemoryArena vertexUploadArena{};
 	MemoryArena indexUploadArena{};
 
@@ -97,6 +97,10 @@ public:
 
 	Entity* enemies[MAX_ENENMY_COUNT];
 	Entity* projectiles[MAX_PROJECTILE_COUNT];
+
+	AudioSource playerAudioSource{};
+	X3DAUDIO_EMITTER playerAudioEmitter{};
+	X3DAUDIO_LISTENER playerAudioListener{};
 
 	float playerPitch = 0.f;
 	float playerYaw = 0.f;
@@ -129,6 +133,8 @@ public:
 	float saturation = 1.;
 	float fog = 0.;
 
+	AudioBuffer* soundFiles[8];
+
 	void StartGame(EngineCore& engine) override;
 	void UpdateGame(EngineCore& engine) override;
 	void DrawUI(EngineCore& engine);
@@ -138,6 +144,8 @@ public:
 	Entity* CreateEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, MemoryArena* arena = nullptr);
 	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, MemoryArena* arena = nullptr);
 	void UpdateCursorState();
+
+	void PlaySound(EngineCore& engine, AudioSource* audioSource, AudioFile file);
 
 	float* GetClearColor() override;
 	EngineInput& GetInput() override;

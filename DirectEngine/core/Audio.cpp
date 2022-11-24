@@ -1,5 +1,7 @@
 // FROM https://learn.microsoft.com/en-us/windows/win32/xaudio2/how-to--load-audio-data-files-in-xaudio2
 #include "Audio.h"
+#include "../Helpers.h"
+#include <assert.h>
 
 HRESULT FindChunk(HANDLE hFile, DWORD fourcc, DWORD& dwChunkSize, DWORD& dwChunkDataPosition)
 {
@@ -97,4 +99,24 @@ AudioBuffer* LoadAudioFile(const wchar_t* path, MemoryArena& arena)
     audioBuffer->buffer.Flags = XAUDIO2_END_OF_STREAM; // tell the source voice not to expect any data after this buffer
 
     return audioBuffer;
+}
+
+void AudioSource::PlaySound(IXAudio2* xaudio, AudioBuffer* audioBuffer)
+{
+    WAVEFORMATEX* format = (WAVEFORMATEX*)&audioBuffer->wfx;
+
+    audioEmitter.ChannelCount = format->nChannels;
+    audioEmitter.CurveDistanceScaler = audioEmitter.DopplerScaler = 1.f;
+
+    if (format->nChannels == 2)
+    {
+        channelPositions[0] = LEFT_AZIMUTH;
+        channelPositions[1] = RIGHT_AZIMUTH;
+        audioEmitter.pChannelAzimuths = channelPositions;
+        audioEmitter.ChannelRadius = .1f;
+    }
+
+    ThrowIfFailed(xaudio->CreateSourceVoice(&source, format));
+    ThrowIfFailed(source->SubmitSourceBuffer(&audioBuffer->buffer));
+    ThrowIfFailed(source->Start(0));
 }

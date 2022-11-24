@@ -213,9 +213,12 @@ public:
     
     // Audio
     IXAudio2* m_audio;
+    X3DAUDIO_HANDLE m_3daudio;
     IXAudio2MasteringVoice* m_audioMasteringVoice;
-    IXAudio2SourceVoice* m_audioSource;
-    AudioBuffer* m_testAudioBuffer;
+    XAUDIO2_VOICE_DETAILS m_audioVoiceDetails;
+    X3DAUDIO_DSP_SETTINGS m_audioDspSettingsMono{};
+    X3DAUDIO_DSP_SETTINGS m_audioDspSettingsStereo{};
+    WAVEFORMATEX* m_defaultAudioFormat;
 
     // Time
     std::chrono::steady_clock::time_point m_startTime;

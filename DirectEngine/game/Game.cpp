@@ -4,6 +4,8 @@
 #include <format>
 #include <limits>
 
+#include "../core/Audio.h"
+
 #include "../core/vkcodes.h"
 #include "remixicon.h"
 
@@ -118,6 +120,11 @@ void Game::StartGame(EngineCore& engine)
 	playerPitch = XM_PI;
 
 	light.position = { 10.f, 10.f, 10.f };
+
+	// Audio
+	soundFiles[(size_t)AudioFile::PlayerDamage] = LoadAudioFile(L"audio/chord.wav", globalArena);
+	soundFiles[(size_t)AudioFile::EnemyDeath] = LoadAudioFile(L"audio/tada.wav", globalArena);
+	soundFiles[(size_t)AudioFile::Shoot] = LoadAudioFile(L"audio/laser.wav", globalArena);
 
 	// Finish setup
 	engine.UploadVertices();
@@ -337,10 +344,7 @@ void Game::UpdateGame(EngineCore& engine)
 	if (enemyCollision.distance <= 0.f && enemyCollision.entity != nullptr)
 	{
 		Warn("DED");
-		engine.m_audioSource->Stop();
-		engine.m_audioSource->FlushSourceBuffers();
-		ThrowIfFailed(engine.m_audioSource->SubmitSourceBuffer(&engine.m_testAudioBuffer->buffer));
-		ThrowIfFailed(engine.m_audioSource->Start(0));
+		PlaySound(engine, &playerAudioSource, AudioFile::PlayerDamage);
 		enemyCollision.entity->Disable();
 	}
 
@@ -362,6 +366,7 @@ void Game::UpdateGame(EngineCore& engine)
 		if (projectileEnemyCollision.distance <= 0.f && projectileEnemyCollision.entity != nullptr)
 		{
 			projectileEnemyCollision.entity->Disable();
+			PlaySound(engine, &projectileEnemyCollision.entity->audioSource, AudioFile::EnemyDeath);
 		}
 	}
 
@@ -378,11 +383,18 @@ void Game::UpdateGame(EngineCore& engine)
 			projectile->position = camera.position + XMVECTOR{ 0.05f, -.2f, .1f };
 			projectile->velocity = camForward * projectileSpeed + playerVelocity;
 			projectile->GetData()->visible = true;
+			PlaySound(engine, &projectile->audioSource, AudioFile::Shoot);
 
 			lastProjectileSpawn = engine.TimeSinceStart();
 			break;
 		}
 	}
+
+	// Player Audio
+	XMStoreFloat3(&playerAudioListener.OrientFront, camForward);
+	XMStoreFloat3(&playerAudioListener.OrientTop, XMVector3Cross(camForward, camRight));
+	XMStoreFloat3(&playerAudioListener.Position, camera.position);
+	XMStoreFloat3(&playerAudioListener.Velocity, playerVelocity);
 
 	// Update entities
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
@@ -396,6 +408,31 @@ void Game::UpdateGame(EngineCore& engine)
 		entity->GetBuffer()->aabbLocalSize = entity->GetData()->aabbLocalSize;
 
 		CreateWorldMatrix(entity->GetBuffer()->worldTransform, entity->scale, entity->rotation, entity->position);
+
+		XMVECTOR entityForwards;
+		XMVECTOR entityRight;
+		CalculateDirectionVectors(entityForwards, entityRight, entity->rotation);
+		XMVECTOR entityUp = XMVector3Cross(entityForwards, entityRight);
+
+		IXAudio2SourceVoice* audioSourceVoice = entity->audioSource.source;
+		if (audioSourceVoice != nullptr)
+		{
+			X3DAUDIO_EMITTER& emitter = entity->audioSource.audioEmitter;
+			XMStoreFloat3(&emitter.OrientFront, entityForwards);
+			XMStoreFloat3(&emitter.OrientTop, entityUp);
+			XMStoreFloat3(&emitter.Position, entity->position);
+			XMStoreFloat3(&emitter.Velocity, entity->velocity);
+
+			XAUDIO2_VOICE_DETAILS audioSourceDetails;
+			audioSourceVoice->GetVoiceDetails(&audioSourceDetails);
+
+			X3DAUDIO_DSP_SETTINGS* dspSettings = emitter.ChannelCount == 1 ? &engine.m_audioDspSettingsMono : &engine.m_audioDspSettingsStereo;
+
+			X3DAudioCalculate(engine.m_3daudio, &playerAudioListener, &entity->audioSource.audioEmitter, X3DAUDIO_CALCULATE_MATRIX | X3DAUDIO_CALCULATE_DOPPLER | X3DAUDIO_CALCULATE_LPF_DIRECT | X3DAUDIO_CALCULATE_REVERB, dspSettings);
+			audioSourceVoice->SetOutputMatrix(engine.m_audioMasteringVoice, audioSourceDetails.InputChannels, engine.m_audioVoiceDetails.InputChannels, dspSettings->pMatrixCoefficients);
+			audioSourceVoice->SetFrequencyRatio(dspSettings->DopplerFactor);
+			// TODO: low pass filter + reverb
+		}
 	}
 
 	// Update light/shadowmap
@@ -507,6 +544,11 @@ void Game::UpdateCursorState()
 	{
 		flags |= ImGuiConfigFlags_NoMouse;
 	}
+}
+
+void Game::PlaySound(EngineCore& engine, AudioSource* audioSource, AudioFile file)
+{
+	audioSource->PlaySound(engine.m_audio, soundFiles[(size_t)file]);
 }
 
 void Game::Log(const std::string& message)

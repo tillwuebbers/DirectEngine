@@ -160,6 +160,11 @@ void Game::DrawUI(EngineCore& engine)
 			{
 				showPostProcessWindow = !showPostProcessWindow;
 			}
+			ImGui::SameLine();
+			if (ImGui::Button("Audio"))
+			{
+				showAudioWindow = !showAudioWindow;
+			}
 
 			ImGui::NewLine();
 
@@ -228,8 +233,23 @@ void Game::DrawUI(EngineCore& engine)
 		}
 		ImGui::End();
 	}
-	engine.EndProfile("Game UI");
 
+	// Audio
+	if (showAudioWindow)
+	{
+		if (ImGui::Begin("Audio", &showAudioWindow))
+		{
+			float volume = 0.f;
+			engine.m_audioMasteringVoice->GetVolume(&volume);
+			if (ImGui::SliderFloat("Global volume", &volume, 0., 1., "%.2f"))
+			{
+				engine.m_audioMasteringVoice->SetVolume(volume);
+			}
+		}
+		ImGui::End();
+	}
+
+	// Movement
 	if (showMovementWindow)
 	{
 		if (ImGui::Begin("Movement", &showMovementWindow))
@@ -245,6 +265,7 @@ void Game::DrawUI(EngineCore& engine)
 		}
 		ImGui::End();
 	}
+	engine.EndProfile("Game UI");
 
 	// Profiler
 	if (!pauseProfiler)

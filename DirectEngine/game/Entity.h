@@ -26,6 +26,8 @@ public:
 	float spawnTime = -1000.f;
 	XMVECTOR velocity = {};
 
+	AudioSource audioSource;
+
 	EntityData* GetData();
 	EntityConstantBuffer* GetBuffer();
 	XMVECTOR LocalToWorld(XMVECTOR localPosition);
