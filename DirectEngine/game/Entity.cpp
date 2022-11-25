@@ -1,28 +1,29 @@
 #include "Entity.h"
 
-EntityData* Entity::GetData()
+EntityData& Entity::GetData()
 {
-	return engine->m_materials[materialIndex].entities[dataIndex];
+	return *engine->m_materials[materialIndex].entities[dataIndex];
 }
 
-EntityConstantBuffer* Entity::GetBuffer()
+EntityConstantBuffer& Entity::GetBuffer()
 {
-	return &GetData()->constantBuffer.data;
+	return GetData().constantBuffer.data;
 }
 
 XMVECTOR Entity::LocalToWorld(XMVECTOR localPosition)
 {
-	return XMVector4Transform(localPosition, GetBuffer()->worldTransform);
+	EntityConstantBuffer buffer = GetBuffer();
+	return XMVector4Transform(localPosition, buffer.worldTransform);
 }
 
 XMVECTOR Entity::WorldToLocal(XMVECTOR worldPosition)
 {
 	XMVECTOR det;
-	return XMVector4Transform(worldPosition, XMMatrixInverse(&det, GetBuffer()->worldTransform));
+	return XMVector4Transform(worldPosition, XMMatrixInverse(&det, GetBuffer().worldTransform));
 }
 
 void Entity::Disable()
 {
 	isActive = false;
-	GetData()->visible = false;
+	GetData().visible = false;
 }

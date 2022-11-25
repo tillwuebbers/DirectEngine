@@ -13,6 +13,8 @@ add_executable (${PROJECT_NAME} WIN32
                 "core/Audio.cpp"
                 "core/Coroutine.h"
                 "core/Common.h"
+                "core/ComStack.cpp"
+                "core/ComStack.h"
                 "core/Constants.h"
                 "core/DDS.h"
                 "core/EngineCore.cpp"
@@ -45,7 +47,7 @@ add_executable (${PROJECT_NAME} WIN32
                 "game/Log.h"
                 "game/Log.cpp"
                 "game/Mesh.h"
-                "game/Mesh.cpp" "core/ComStack.cpp" "core/ComStack.h")
+                "game/Mesh.cpp")
 
 
 # imgui

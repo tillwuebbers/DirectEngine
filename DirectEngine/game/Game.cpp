@@ -31,10 +31,10 @@ CollisionResult Game::CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR 
 	{
 		if (entity->isActive && (entity->collisionLayers & matchingLayers) != 0)
 		{
-			EntityData* entityData = entity->GetData();
+			EntityData& entityData = entity->GetData();
 
-			XMVECTOR entityCenterWorld = entity->position + entity->LocalToWorld(entityData->aabbLocalPosition);
-			XMVECTOR entitySizeWorld = entity->LocalToWorld(entityData->aabbLocalSize);
+			XMVECTOR entityCenterWorld = entity->position + entity->LocalToWorld(entityData.aabbLocalPosition);
+			XMVECTOR entitySizeWorld = entity->LocalToWorld(entityData.aabbLocalSize);
 
 			XMVECTOR boxMin = entityCenterWorld - entitySizeWorld / 2.f;
 			XMVECTOR boxMax = entityCenterWorld + entitySizeWorld / 2.f;
@@ -92,9 +92,9 @@ void Game::StartGame(EngineCore& engine)
 
 	// Entities
 	Entity* kaijuEntity = CreateEntity(engine, kaijuMaterialIndex, kaijuMeshView);
-	kaijuEntity->GetBuffer()->color = { 1.f, 1.f, 1.f };
-	kaijuEntity->GetData()->aabbLocalPosition = { 0.f, 5.f, 0.f };
-	kaijuEntity->GetData()->aabbLocalSize = { 4.f, 10.f, 2.f };
+	kaijuEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
+	kaijuEntity->GetData().aabbLocalPosition = { 0.f, 5.f, 0.f };
+	kaijuEntity->GetData().aabbLocalSize = { 4.f, 10.f, 2.f };
 
 	for (int i = 0; i < MAX_ENENMY_COUNT; i++)
 	{
@@ -117,7 +117,7 @@ void Game::StartGame(EngineCore& engine)
 	laser->Disable();
 
 	Entity* groundEntity = CreateQuadEntity(engine, groundMaterialIndex, 100.f, 100.f);
-	groundEntity->GetBuffer()->color = { 1.f, 1.f, 1.f };
+	groundEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
 	groundEntity->checkForShadowBounds = false;
 	groundEntity->collisionLayers |= Floor;
 
@@ -151,7 +151,7 @@ void Game::UpdateGame(EngineCore& engine)
 	// Reset per frame values
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 	{
-		entity->GetBuffer()->isSelected = { 0 };
+		entity->GetBuffer().isSelected = { 0 };
 	}
 
 	// Debug Controls
@@ -165,7 +165,7 @@ void Game::UpdateGame(EngineCore& engine)
 		CollisionResult collision = CollideWithWorld(camera.position, camForward, ClickTest);
 		if (collision.entity != nullptr)
 		{
-			collision.entity->GetBuffer()->isSelected = { 1 };
+			collision.entity->GetBuffer().isSelected = { 1 };
 		}
 	}
 	if (input.KeyComboJustPressed(VK_KEY_D, VK_CONTROL))
@@ -316,7 +316,7 @@ void Game::UpdateGame(EngineCore& engine)
 			if (!enemy->isActive)
 			{
 				enemy->isActive = true;
-				enemy->GetData()->visible = true;
+				enemy->GetData().visible = true;
 				enemy->position = {};
 
 				enemySpawned = true;
@@ -403,7 +403,7 @@ void Game::UpdateGame(EngineCore& engine)
 			projectile->position = camera.position + PLAYER_HAND_OFFSET;
 			projectile->rotation = camera.rotation;
 			projectile->velocity = camForward * projectileSpeed + playerVelocity;
-			projectile->GetData()->visible = true;
+			projectile->GetData().visible = true;
 			PlaySound(engine, &projectile->audioSource, AudioFile::Shoot);
 
 			lastProjectileSpawn = engine.TimeSinceStart();
@@ -416,7 +416,7 @@ void Game::UpdateGame(EngineCore& engine)
 	{
 		laser->isActive = true;
 		laser->spawnTime = engine.TimeSinceStart();
-		laser->GetData()->visible = true;
+		laser->GetData().visible = true;
 
 		XMVECTOR handPosition = camera.position + XMVector3Transform(PLAYER_HAND_OFFSET, engine.m_sceneConstantBuffer.data.cameraView);
 		laser->position = handPosition + camForward * LASER_LENGTH / 2.f;
@@ -453,10 +453,10 @@ void Game::UpdateGame(EngineCore& engine)
 			entity->rotation = XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart()));
 		}
 
-		entity->GetBuffer()->aabbLocalPosition = entity->GetData()->aabbLocalPosition;
-		entity->GetBuffer()->aabbLocalSize = entity->GetData()->aabbLocalSize;
+		entity->GetBuffer().aabbLocalPosition = entity->GetData().aabbLocalPosition;
+		entity->GetBuffer().aabbLocalSize = entity->GetData().aabbLocalSize;
 
-		CreateWorldMatrix(entity->GetBuffer()->worldTransform, entity->scale, entity->rotation, entity->position);
+		CreateWorldMatrix(entity->GetBuffer().worldTransform, entity->scale, entity->rotation, entity->position);
 
 		XMVECTOR entityForwards;
 		XMVECTOR entityRight;
@@ -505,8 +505,8 @@ void Game::UpdateGame(EngineCore& engine)
 	{
 		if (!entity->checkForShadowBounds) continue;
 
-		XMVECTOR aabbWorldPosition = XMVector3Transform(entity->GetData()->aabbLocalPosition, entity->GetBuffer()->worldTransform);
-		XMVECTOR aabbWorldSize = XMVector3Transform(entity->GetData()->aabbLocalSize, entity->GetBuffer()->worldTransform);
+		XMVECTOR aabbWorldPosition = XMVector3Transform(entity->GetData().aabbLocalPosition, entity->GetBuffer().worldTransform);
+		XMVECTOR aabbWorldSize = XMVector3Transform(entity->GetData().aabbLocalSize, entity->GetBuffer().worldTransform);
 
 		for (int i = 0; i < _countof(testPositionBuffer); i++)
 		{
@@ -575,8 +575,8 @@ Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float w
 	auto meshView = engine.CreateMesh(materialIndex, file.vertices, file.vertexCount);
 	Entity* entity = CreateEntity(engine, materialIndex, meshView, arena);
 	entity->position = { -width / 2.f, 0.f, -width / 2.f };
-	entity->GetData()->aabbLocalPosition = { width / 2.f, -.05f, width / 2.f };
-	entity->GetData()->aabbLocalSize = { width, .1f, width };
+	entity->GetData().aabbLocalPosition = { width / 2.f, -.05f, width / 2.f };
+	entity->GetData().aabbLocalSize = { width, .1f, width };
 	return entity;
 }
 

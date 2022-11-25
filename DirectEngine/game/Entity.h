@@ -28,8 +28,8 @@ public:
 
 	AudioSource audioSource;
 
-	EntityData* GetData();
-	EntityConstantBuffer* GetBuffer();
+	EntityData& GetData();
+	EntityConstantBuffer& GetBuffer();
 	XMVECTOR LocalToWorld(XMVECTOR localPosition);
 	XMVECTOR WorldToLocal(XMVECTOR worldPosition);
 	void Disable();
