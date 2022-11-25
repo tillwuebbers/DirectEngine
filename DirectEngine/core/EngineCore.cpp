@@ -995,6 +995,8 @@ void EngineCore::OnResize(UINT width, UINT height)
     m_width = width;
     m_height = height;
 
+    if (m_width == 0 || m_height == 0) return;
+
     m_aspectRatio = (float)m_width / (float)m_height;
     m_viewport = CD3DX12_VIEWPORT{ 0.f, 0.f, static_cast<float>(m_width), static_cast<float>(m_height) };
     m_scissorRect = CD3DX12_RECT{ 0, 0, static_cast<LONG>(m_width), static_cast<LONG>(m_height) };

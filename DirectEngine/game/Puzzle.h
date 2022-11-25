@@ -4,11 +4,14 @@
 #include "../core/Memory.h"
 #include <stdint.h>
 
-const int MAX_PUZZLE_SIZE = 8;
-const int MAX_PIECE_COUNT = 64;
-const int MAX_PENDING_COUNT = 1024;
-const int MAX_PATH_LENGTH = 1024;
-const int MAX_KNOWN_POSITIONS = 1024;
+#define BLOCK_DISPLAY_GAP 0.1f
+#define SOLUTION_PLAYBACK_SPEED 0.5f
+
+#define MAX_PUZZLE_SIZE 8
+#define MAX_PIECE_COUNT 64
+#define MAX_PENDING_COUNT 1024
+#define MAX_PATH_LENGTH 1024
+#define MAX_KNOWN_POSITIONS 1024
 
 struct PuzzlePiece
 {

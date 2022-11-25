@@ -6,6 +6,7 @@ cbuffer SceneConstantBuffer : register(b0)
 	float4x4 cameraView;
 	float4x4 cameraProjection;
 	float4 postProcessing;
+	float3 fogColor;
 	float3 worldCameraPos;
 	float4 time;
 };
@@ -115,7 +116,7 @@ float3 PostProcess(float3 baseColor, float3 worldPosition)
 	float cameraDistance = length(worldCameraPos - worldPosition);
 	float fogPart = cameraDistance * fog * .01;
 	float fogFactor = pow(2., -fogPart * fogPart);
-	color = lerp(color, float3(.3, .3, .3), clamp(1. - fogFactor, 0., 1.));
+	color = lerp(color, fogColor, clamp(1. - fogFactor, 0., 1.));
 
 	float constrast = postProcessing.x;
 	float brightness = postProcessing.y;

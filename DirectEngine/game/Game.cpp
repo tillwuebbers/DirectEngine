@@ -67,6 +67,7 @@ void Game::StartGame(EngineCore& engine)
 	// Shaders
 	ShaderDescription defaultShader{ L"entity.hlsl", "VSMain", "PSMain", L"Main" };
 	ShaderDescription groundShader{ L"ground.hlsl", "VSMain", "PSMain", L"Ground" };
+	ShaderDescription laserShader{ L"laser.hlsl", "VSMain", "PSMain", L"Laser" };
 
 	// Textures
 	engine.CreateTexture(diffuseTexture, L"textures/ground-diffuse-bc1.dds");
@@ -74,10 +75,11 @@ void Game::StartGame(EngineCore& engine)
 	engine.CreateTexture(kaijuTexture, L"textures/kaiju.dds");
 
 	// Materials
-	size_t dirtMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &diffuseTexture }, defaultShader);
+	//size_t dirtMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &diffuseTexture }, defaultShader);
 	size_t memeMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &memeTexture }, defaultShader);
 	size_t kaijuMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &kaijuTexture }, defaultShader);
 	size_t groundMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, groundShader);
+	size_t laserMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, laserShader);
 
 	// Meshes
 	MeshFile cubeMeshFile = LoadMeshFromFile("models/cube.obj", "models/", debugLog, vertexUploadArena, indexUploadArena);
@@ -104,11 +106,15 @@ void Game::StartGame(EngineCore& engine)
 
 	for (int i = 0; i < MAX_PROJECTILE_COUNT; i++)
 	{
-		Entity* projectile = projectiles[i] = CreateEntity(engine, groundMaterialIndex, cubeMeshView);
+		Entity* projectile = projectiles[i] = CreateEntity(engine, laserMaterialIndex, cubeMeshView);
 		projectile->Disable();
 		projectile->isProjectile = true;
 		projectile->scale = { .1f, .1f, .1f };
 	}
+
+	laser = CreateEntity(engine, laserMaterialIndex, cubeMeshView);
+	laser->checkForShadowBounds = false;
+	laser->Disable();
 
 	Entity* groundEntity = CreateQuadEntity(engine, groundMaterialIndex, 100.f, 100.f);
 	groundEntity->GetBuffer()->color = { 1.f, 1.f, 1.f };
@@ -295,6 +301,7 @@ void Game::UpdateGame(EngineCore& engine)
 	engine.m_sceneConstantBuffer.data.cameraView = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
 	engine.m_sceneConstantBuffer.data.cameraProjection = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
 	engine.m_sceneConstantBuffer.data.postProcessing = { contrast, brightness, saturation, fog };
+	engine.m_sceneConstantBuffer.data.fogColor = clearColor;
 	engine.m_sceneConstantBuffer.data.worldCameraPos = camera.position;
 
 	// Spawn enemies
@@ -365,9 +372,15 @@ void Game::UpdateGame(EngineCore& engine)
 		CollisionResult projectileEnemyCollision = CollideWithWorld(projectile->position, V3_DOWN, Dead);
 		if (projectileEnemyCollision.distance <= 0.f && projectileEnemyCollision.entity != nullptr)
 		{
+			projectile->Disable();
 			projectileEnemyCollision.entity->Disable();
 			PlaySound(engine, &projectileEnemyCollision.entity->audioSource, AudioFile::EnemyDeath);
 		}
+	}
+
+	if (engine.TimeSinceStart() > laser->spawnTime + laserLifetime)
+	{
+		laser->Disable();
 	}
 
 	// Shoot!
@@ -380,13 +393,42 @@ void Game::UpdateGame(EngineCore& engine)
 
 			projectile->isActive = true;
 			projectile->spawnTime = engine.TimeSinceStart();
-			projectile->position = camera.position + XMVECTOR{ 0.05f, -.2f, .1f };
+			projectile->position = camera.position + PLAYER_HAND_OFFSET;
+			projectile->rotation = camera.rotation;
 			projectile->velocity = camForward * projectileSpeed + playerVelocity;
 			projectile->GetData()->visible = true;
 			PlaySound(engine, &projectile->audioSource, AudioFile::Shoot);
 
 			lastProjectileSpawn = engine.TimeSinceStart();
 			break;
+		}
+	}
+
+	// Laser
+	if (input.KeyDown(VK_RBUTTON) && engine.TimeSinceStart() > lastLaserSpawn + laserSpawnRate)
+	{
+		laser->isActive = true;
+		laser->spawnTime = engine.TimeSinceStart();
+		laser->GetData()->visible = true;
+
+		XMVECTOR handPosition = camera.position + XMVector3Transform(PLAYER_HAND_OFFSET, engine.m_sceneConstantBuffer.data.cameraView);
+		laser->position = handPosition + camForward * LASER_LENGTH / 2.f;
+		laser->rotation = camera.rotation;
+		laser->scale = { .1f, .1f, LASER_LENGTH };
+		
+		lastLaserSpawn = engine.TimeSinceStart();
+		PlaySound(engine, &playerAudioSource, AudioFile::Shoot);
+
+		bool keepHitting = true;
+		while (keepHitting)
+		{
+			CollisionResult collision = CollideWithWorld(handPosition, camForward, Dead);
+			keepHitting = collision.distance <= LASER_LENGTH;
+			if (keepHitting)
+			{
+				collision.entity->Disable();
+				PlaySound(engine, &collision.entity->audioSource, AudioFile::EnemyDeath);
+			}
 		}
 	}
 
@@ -478,9 +520,13 @@ void Game::UpdateGame(EngineCore& engine)
 	engine.m_lightConstantBuffer.data.lightProjection = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(lsMin.x, lsMax.x, lsMin.y, lsMax.y, lsMin.z - 10., lsMax.z + 10.));
 
 	// Post Processing
-	XMVECTOR baseClearColor = { .1f, .2f, .4f, 1.f };
-	XMVECTOR fogColor = { .3f, .3f, .3f, 1.f };
-	clearColor = XMVectorLerp(baseClearColor, fogColor, std::min(1.f, std::max(0.f, fog)));
+	XMVECTOR camPos2d = camera.position;
+	camPos2d.m128_f32[1] = 0.f;
+	float distanceFromSpawn = XMVector3Length(camPos2d).m128_f32[0];
+	float maxDistance = 40.f;
+	fog = distanceFromSpawn * 3.f / maxDistance;
+	float colorLerp = std::min(1.f, distanceFromSpawn / maxDistance);
+	clearColor = XMVectorLerp(baseClearColor, fogColor, colorLerp);
 
 	engine.EndProfile("Game Update");
 	// Draw UI

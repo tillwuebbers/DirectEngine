@@ -16,8 +16,10 @@
 #include <DirectXMath.h>
 using namespace DirectX;
 
-const float BLOCK_DISPLAY_GAP = 0.1f;
-const float SOLUTION_PLAYBACK_SPEED = 0.5f;
+#define MAX_ENENMY_COUNT 16
+#define MAX_PROJECTILE_COUNT 64
+#define PLAYER_HAND_OFFSET XMVECTOR{ 0.05f, -.2f, .1f }
+#define LASER_LENGTH 100.f
 
 enum CollisionLayers : uint64_t
 {
@@ -97,6 +99,7 @@ public:
 
 	Entity* enemies[MAX_ENENMY_COUNT];
 	Entity* projectiles[MAX_PROJECTILE_COUNT];
+	Entity* laser;
 
 	AudioSource playerAudioSource{};
 	X3DAUDIO_EMITTER playerAudioEmitter{};
@@ -121,13 +124,19 @@ public:
 	float projectileSpeed = 100.f;
 	float projectileSpawnRate = .1f;
 	float projectileLifetime = 1.f;
+	float laserSpawnRate = .5f;
+	float laserLifetime = .4f;
 
 	float jumpBufferDuration = 1.f;
 	float lastJumpPressTime = -1000.f;
 	float lastEnemySpawn = 0.f;
 	float lastProjectileSpawn = -1000.f;
+	float lastLaserSpawn = -1000.f;
 
+	XMVECTOR baseClearColor = { .1f, .2f, .4f, 1.f };
 	XMVECTOR clearColor = { .1f, .2f, .4f, 1.f };
+	XMVECTOR fogColor = { .03f, .01f, .01f, 1.f };
+	
 	float contrast = 1.;
 	float brightness = 0.;
 	float saturation = 1.;

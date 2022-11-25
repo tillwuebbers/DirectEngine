@@ -230,6 +230,8 @@ void Game::DrawUI(EngineCore& engine)
 			ImGui::SliderFloat("Brightness", &brightness, -1., 1., "%.2f");
 			ImGui::SliderFloat("Saturation", &saturation, 0., 3., "%.2f");
 			ImGui::SliderFloat("Fog", &fog, 0., 3., "%.2f");
+			ImGui::ColorEdit3("Clear Color", &baseClearColor.m128_f32[0]);
+			ImGui::ColorEdit3("Fog Color", &fogColor.m128_f32[0]);
 		}
 		ImGui::End();
 	}
