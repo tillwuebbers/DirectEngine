@@ -13,7 +13,7 @@ void ShadowMap::SetSize(UINT newWidth, UINT newHeight)
 	scissorRect = CD3DX12_RECT{ 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
 }
 
-void ShadowMap::Build(ID3D12Device* device)
+void ShadowMap::Build(ID3D12Device* device, ComStack& comStack)
 {
 	D3D12_RESOURCE_DESC texDesc;
 	ZeroMemory(&texDesc, sizeof(D3D12_RESOURCE_DESC));
@@ -35,7 +35,7 @@ void ShadowMap::Build(ID3D12Device* device)
 	optClear.DepthStencil.Stencil = 0;
 
 	auto heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-	ThrowIfFailed(device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &optClear, IID_PPV_ARGS(&textureResource)));
+	ThrowIfFailed(device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &optClear, NewComObject(comStack, &textureResource)));
 	textureResource->SetName(L"Shadowmap Texture");
 
 	// Shader resource view for sampling
@@ -47,7 +47,7 @@ void ShadowMap::Build(ID3D12Device* device)
 	srvDesc.Texture2D.MipLevels = 1;
 	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 	srvDesc.Texture2D.PlaneSlice = 0;
-	device->CreateShaderResourceView(textureResource.Get(), &srvDesc, shaderResourceViewHandle.cpuHandle);
+	device->CreateShaderResourceView(textureResource, &srvDesc, shaderResourceViewHandle.cpuHandle);
 
 	// Depth stencil view for depth buffer write
 	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
@@ -55,5 +55,5 @@ void ShadowMap::Build(ID3D12Device* device)
 	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 	dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	dsvDesc.Texture2D.MipSlice = 0;
-	device->CreateDepthStencilView(textureResource.Get(), &dsvDesc, depthStencilViewCPU);
+	device->CreateDepthStencilView(textureResource, &dsvDesc, depthStencilViewCPU);
 }

@@ -45,7 +45,7 @@ add_executable (${PROJECT_NAME} WIN32
                 "game/Log.h"
                 "game/Log.cpp"
                 "game/Mesh.h"
-                "game/Mesh.cpp")
+                "game/Mesh.cpp" "core/ComStack.cpp" "core/ComStack.h")
 
 
 # imgui

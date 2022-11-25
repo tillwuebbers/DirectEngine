@@ -1,9 +1,9 @@
-#define WIN32_LEAN_AND_MEAN
-#include "Windows.h"
-
 #include "Memory.h"
 #include <assert.h>
 #include <cstdlib>
+
+#define WIN32_LEAN_AND_MEAN
+#include "Windows.h"
 
 MemoryArena::MemoryArena(size_t capacity) :
 	capacity(capacity),

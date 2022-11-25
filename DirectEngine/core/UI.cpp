@@ -37,7 +37,7 @@ void SetupImgui(HWND hwnd, EngineCore* engine, int framesInFlight)
 
 	// Setup Platform/Renderer backends
 	ImGui_ImplWin32_Init(hwnd);
-	ImGui_ImplDX12_Init(engine->m_device.Get(), framesInFlight, DISPLAY_FORMAT, g_pd3dSrvDescHeap, g_pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(), g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
+	ImGui_ImplDX12_Init(engine->m_device, framesInFlight, DISPLAY_FORMAT, g_pd3dSrvDescHeap, g_pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(), g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
 
 	// Create debug texture
 	UINT increment = engine->m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -66,7 +66,7 @@ void SetupImgui(HWND hwnd, EngineCore* engine, int framesInFlight)
 	srvDesc.Format = IMGUI_DEBUG_TEXTURE_FORMAT;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MipLevels = 1;
-	engine->m_device->CreateShaderResourceView(g_debugTexture.buffer.Get(), &srvDesc, g_debugTexture.handle.cpuHandle);
+	engine->m_device->CreateShaderResourceView(g_debugTexture.buffer, &srvDesc, g_debugTexture.handle.cpuHandle);
 
 	// Load Fonts
 	io.Fonts->AddFontFromFileTTF("Montserrat-Regular.ttf", 16.0f);
@@ -144,12 +144,12 @@ void DrawImgui(ID3D12GraphicsCommandList* commandList, D3D12_CPU_DESCRIPTOR_HAND
 
 void CopyDebugImage(ID3D12GraphicsCommandList* commandList, ID3D12Resource* resource)
 {
-	CD3DX12_RESOURCE_BARRIER barrierWrite = CD3DX12_RESOURCE_BARRIER::Transition(g_debugTexture.buffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+	CD3DX12_RESOURCE_BARRIER barrierWrite = CD3DX12_RESOURCE_BARRIER::Transition(g_debugTexture.buffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
 	commandList->ResourceBarrier(1, &barrierWrite);
 
-	commandList->CopyResource(g_debugTexture.buffer.Get(), resource);
+	commandList->CopyResource(g_debugTexture.buffer, resource);
 
-	CD3DX12_RESOURCE_BARRIER barrierDraw = CD3DX12_RESOURCE_BARRIER::Transition(g_debugTexture.buffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	CD3DX12_RESOURCE_BARRIER barrierDraw = CD3DX12_RESOURCE_BARRIER::Transition(g_debugTexture.buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	commandList->ResourceBarrier(1, &barrierDraw);
 }
 

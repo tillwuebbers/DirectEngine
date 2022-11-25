@@ -71,7 +71,7 @@ HRESULT ReadChunkData(HANDLE hFile, void* buffer, DWORD buffersize, DWORD buffer
 
 AudioBuffer* LoadAudioFile(const wchar_t* path, MemoryArena& arena)
 {
-    AudioBuffer* audioBuffer = (AudioBuffer*)arena.Allocate(sizeof(AudioBuffer));
+    AudioBuffer* audioBuffer = NewObject(arena, AudioBuffer);
 
     HANDLE audioFile = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 

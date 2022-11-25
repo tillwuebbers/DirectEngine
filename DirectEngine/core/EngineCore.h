@@ -2,6 +2,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include "Windows.h"
+#include "ComStack.h"
 
 #include <d3d12.h>
 #include <d3dx12.h>
@@ -9,6 +10,7 @@
 #include <DirectXMath.h>
 #include <chrono>
 #include <unordered_map>
+#include <array>
 
 #include <xaudio2Redist.h>
 
@@ -56,7 +58,7 @@ struct FrameDebugData
 template<typename T>
 struct ConstantBuffer
 {
-    ComPtr<ID3D12Resource> resources[MAX_FRAME_QUEUE] = {};
+    ID3D12Resource* resources[MAX_FRAME_QUEUE] = {};
     DescriptorHandle handles[MAX_FRAME_QUEUE] = {};
     uint8_t* mappedData[MAX_FRAME_QUEUE] = {};
     T data;
@@ -117,10 +119,12 @@ struct MaterialData
     size_t vertexCount = 0;
     size_t maxVertexCount = 0;
     size_t vertexStride = 0;
-    ComPtr<ID3D12Resource> vertexUploadBuffer;
-    ComPtr<ID3D12Resource> vertexBuffer;
-    std::vector<EntityData> entities{};
-    std::vector<Texture*> textures{};
+    ID3D12Resource* vertexUploadBuffer;
+    ID3D12Resource* vertexBuffer;
+    EntityData* entities[MAX_ENTITIES_PER_MATERIAL] = {};
+    size_t entityCount = 0;
+    Texture* textures[MAX_TEXTURES_PER_MATERIAL] = {};
+    size_t textureCount = 0;
     PipelineConfig* pipeline;
 };
 
@@ -142,6 +146,9 @@ public:
     bool m_gameStarted = false;
     bool m_quit = false;
 
+    ComStack comPointers = {};
+    ComStack comPointersSizeDependent = {};
+    ComStack comPointersTextureUpload = {};
     MemoryArena engineArena = {};
     MemoryArena frameArena = {};
 
@@ -152,17 +159,18 @@ public:
     // Pipeline objects
     CD3DX12_VIEWPORT m_viewport;
     CD3DX12_RECT m_scissorRect;
-    ComPtr<IDXGISwapChain3> m_swapChain = nullptr;
-    ComPtr<ID3D12Device> m_device = nullptr;
-    ComPtr<ID3D12Resource> m_renderTargets[FrameCount];
-    ComPtr<ID3D12CommandAllocator> m_uploadCommandAllocators[FrameCount];
-    ComPtr<ID3D12CommandAllocator> m_renderCommandAllocators[FrameCount];
-    ComPtr<ID3D12CommandQueue> m_commandQueue = nullptr;
-    ComPtr<ID3D12DescriptorHeap> m_rtvHeap = nullptr;
-    ComPtr<ID3D12DescriptorHeap> m_cbvHeap = nullptr;
-    ComPtr<ID3D12DescriptorHeap> m_depthStencilHeap = nullptr;
-    ComPtr<ID3D12GraphicsCommandList> m_uploadCommandList = {};
-    ComPtr<ID3D12GraphicsCommandList> m_renderCommandList = {};
+    ID3D12Device* m_device = nullptr;
+    ID3D12CommandQueue* m_commandQueue = nullptr;
+    IDXGISwapChain3* m_swapChain = nullptr;
+    ID3D12DescriptorHeap* m_rtvHeap = nullptr;
+    ID3D12DescriptorHeap* m_cbvHeap = nullptr;
+    ID3D12DescriptorHeap* m_depthStencilHeap = nullptr;
+    ID3D12CommandAllocator* m_uploadCommandAllocators[FrameCount] = {};
+    ID3D12CommandAllocator* m_renderCommandAllocators[FrameCount] = {};
+    ID3D12Resource* m_renderTargets[FrameCount] = {};
+    ID3D12Resource* m_depthStencilBuffer = nullptr;
+    ID3D12GraphicsCommandList* m_uploadCommandList = nullptr;
+    ID3D12GraphicsCommandList* m_renderCommandList = nullptr;
     bool m_scheduleUpload = false;
     UINT m_rtvDescriptorSize;
     UINT m_dsvDescriptorSize;
@@ -172,16 +180,16 @@ public:
     // App resources
     ConstantBuffer<SceneConstantBuffer> m_sceneConstantBuffer = {};
     ConstantBuffer<LightConstantBuffer> m_lightConstantBuffer = {};
-    ComPtr<ID3D12Resource> m_depthStencilBuffer = nullptr;
     ShadowMap* m_shadowmap = nullptr;
-    ComPtr<ID3D12Resource> m_debugTexture = nullptr;
-    std::vector<ComPtr<ID3D12Resource>> m_textureUploadHeaps = {};
-    std::vector<MaterialData> m_materials = {};
+    ID3D12Resource* m_textureUploadHeaps[MAX_TEXTURE_UPLOADS] = {};
+    size_t m_textureUploadIndex = 0;
+    MaterialData m_materials[MAX_MATERIALS] = {};
+    size_t m_materialCount = 0;
 
     // Synchronization objects
     UINT m_frameIndex = 0;
     HANDLE m_fenceEvent = nullptr;
-    ComPtr<ID3D12Fence> m_fence = nullptr;
+    ID3D12Fence* m_fence = nullptr;
     UINT64 m_fenceValues[FrameCount];
     HANDLE m_frameWaitableObject;
 
@@ -289,7 +297,7 @@ public:
         {
             CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
             CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(constantBufferSize);
-            ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&buffers.resources[i])));
+            ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, NewComObject(comPointers, &buffers.resources[i])));
 
             // Describe and create a constant buffer view.
             D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};

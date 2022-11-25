@@ -15,16 +15,6 @@ inline void ThrowIfFailed(HRESULT hr)
     }
 }
 
-// Resets all elements in a ComPtr array.
-template<class T>
-void ResetComPtrArray(T* comPtrArray)
-{
-    for (auto& i : *comPtrArray)
-    {
-        i.Reset();
-    }
-}
-
 inline std::string HrToString(HRESULT hr)
 {
     char s_str[64] = {};

@@ -2,7 +2,7 @@
 
 EntityData* Entity::GetData()
 {
-	return &engine->m_materials[materialIndex].entities[dataIndex];
+	return engine->m_materials[materialIndex].entities[dataIndex];
 }
 
 EntityConstantBuffer* Entity::GetBuffer()

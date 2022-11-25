@@ -1,9 +1,5 @@
 #pragma once
 
-#define WIN32_LEAN_AND_MEAN
-#include "Windows.h"
-using Microsoft::WRL::ComPtr;
-
 #include <d3d12.h>
 #include <d3dx12.h>
 
@@ -15,7 +11,7 @@ struct DescriptorHandle
 
 struct Texture
 {
-    ComPtr<ID3D12Resource> buffer = nullptr;
+    ID3D12Resource* buffer = nullptr;
     DescriptorHandle handle;
 };
 
@@ -33,8 +29,8 @@ struct PipelineConfig
     ShaderDescription shaderDescription;
     size_t textureSlotCount;
 
-    ComPtr<ID3D12PipelineState> pipelineState;
-    ComPtr<ID3D12RootSignature> rootSignature;
+    ID3D12PipelineState* pipelineState;
+    ID3D12RootSignature* rootSignature;
 
     HRESULT creationError;
 };
