@@ -369,8 +369,15 @@ void Game::UpdateGame(EngineCore& engine)
 
 		projectile->position += projectile->velocity * engine.m_updateDeltaTime;
 
+		CollisionResult projectileFloorCollision = CollideWithWorld(projectile->position, V3_DOWN, Floor);
+		if (projectileFloorCollision.distance <= 0.f)
+		{
+			projectile->velocity.m128_f32[1] *= -1.f;
+			projectile->position = projectile->position + V3_DOWN * projectileFloorCollision.distance;
+		}
+
 		CollisionResult projectileEnemyCollision = CollideWithWorld(projectile->position, V3_DOWN, Dead);
-		if (projectileEnemyCollision.distance <= 0.f && projectileEnemyCollision.entity != nullptr)
+		if (projectileEnemyCollision.distance <= 0.f)
 		{
 			projectile->Disable();
 			projectileEnemyCollision.entity->Disable();
