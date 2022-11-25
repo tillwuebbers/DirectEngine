@@ -159,6 +159,7 @@ public:
     // Pipeline objects
     CD3DX12_VIEWPORT m_viewport;
     CD3DX12_RECT m_scissorRect;
+
     ID3D12Device* m_device = nullptr;
     ID3D12CommandQueue* m_commandQueue = nullptr;
     IDXGISwapChain3* m_swapChain = nullptr;
@@ -236,7 +237,6 @@ public:
 
     void RegisterWindowClass(HINSTANCE hInst, const wchar_t* windowClassName, WNDPROC wndProc);
     void CreateGameWindow(const wchar_t* windowClassName, HINSTANCE hInst, uint32_t width, uint32_t height);
-    void GetHardwareAdapter(IDXGIFactory1* pFactory, IDXGIAdapter1** ppAdapter, bool requestHighPerformanceAdapter);
     void LoadPipeline();
     void LoadSizeDependentResources();
     PipelineConfig* CreatePipeline(ShaderDescription shaderDesc, size_t textureCount, bool wireframe);

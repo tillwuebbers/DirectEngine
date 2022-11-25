@@ -58,7 +58,7 @@ void SetupImgui(HWND hwnd, EngineCore* engine, int framesInFlight)
 	texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 
 	auto heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-	ThrowIfFailed(engine->m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, NULL, IID_PPV_ARGS(&g_debugTexture.buffer)));
+	ThrowIfFailed(engine->m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, NULL, NewComObject(engine->comPointers, &g_debugTexture.buffer)));
 	g_debugTexture.buffer->SetName(L"Imgui debug texture");
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
@@ -165,4 +165,5 @@ void DestroyImgui()
 		g_pd3dSrvDescHeap->Release();
 		g_pd3dSrvDescHeap = nullptr;
 	}
+	ImGui_ImplDX12_Shutdown();
 }
