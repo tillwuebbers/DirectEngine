@@ -31,6 +31,8 @@ struct EngineUpdate
 	bool quit;
 };
 
+bool cursorVisible = true;
+
 EngineCore* engineCore;
 
 EngineUpdate updateData{};
@@ -143,7 +145,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	if (engineCore == nullptr) return 0;
 
-	ImGuiInputBlock blockedInputs = ParseImGuiInputs(hwnd, message, wParam, lParam);
+	ImGuiInputBlock blockedInputs{};
+	if (cursorVisible)
+	{
+		blockedInputs = ParseImGuiInputs(hwnd, message, wParam, lParam);
+	}
 
 	switch (message)
 	{
@@ -193,7 +199,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 		if (!blockedInputs.blockMouse) SetInputDown(VK_LBUTTON);
 		return 0;
 	case WM_LBUTTONUP:
-		// TODO: this blocks sometimes even if cursor is hidden
 		if (!blockedInputs.blockMouse) SetInputUp(VK_LBUTTON);
 		return 0;
 	case WM_RBUTTONDOWN:
@@ -238,23 +243,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 		RAWINPUT* raw = (RAWINPUT*)lpb;
 		if (raw->header.dwType == RIM_TYPEMOUSE)
 		{
-			/*std::wstring output = std::format(L"Mouse: usFlags={} ulButtons={} usButtonFlags={} usButtonData={} ulRawButtons={} lLastX={} lLastY={} ulExtraInformation={}\r\n",
-				raw->data.mouse.usFlags,
-				raw->data.mouse.ulButtons,
-				raw->data.mouse.usButtonFlags,
-				raw->data.mouse.usButtonData,
-				raw->data.mouse.ulRawButtons,
-				raw->data.mouse.lLastX,
-				raw->data.mouse.lLastY,
-				raw->data.mouse.ulExtraInformation);*/
-
 			EngineInput& input = engineCore->m_game->GetInput();
 			input.accessMutex.lock();
 			input.mouseDeltaAccX += raw->data.mouse.lLastX;
 			input.mouseDeltaAccY += raw->data.mouse.lLastY;
 			input.accessMutex.unlock();
-
-			//OutputDebugString(output.c_str());
 		}
 		break;
 	}
@@ -340,10 +333,12 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 				if (info.flags == 0 && game.windowUpdateData.cursorVisible)
 				{
 					ShowCursor(true);
+					cursorVisible = true;
 				}
 				else if (info.flags != 0 && !game.windowUpdateData.cursorVisible)
 				{
 					ShowCursor(false);
+					cursorVisible = false;
 				}
 			}
 			game.windowUdpateDataMutex.unlock();
