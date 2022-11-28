@@ -26,6 +26,7 @@ struct ShaderDescription
 struct PipelineConfig
 {
     bool wireframe;
+    bool ignoreDepth;
     ShaderDescription shaderDescription;
     size_t textureSlotCount;
 

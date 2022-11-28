@@ -30,6 +30,7 @@ cbuffer EntityConstantBuffer : register(b2)
 cbuffer BoneMatricesBuffer : register(b3)
 {
 	float4x4 boneMatrices[128];
+	float4x4 jointTransforms[128];
 };
 
 Texture2D shadowmapTexture : register(t4);

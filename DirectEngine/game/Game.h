@@ -150,7 +150,7 @@ public:
 
 	CollisionResult CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, uint64_t matchingLayers);
 
-	Entity* CreateEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, XMMATRIX* bones = nullptr, size_t boneCount = 0, MemoryArena* arena = nullptr);
+	Entity* CreateEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, XMMATRIX* bones = nullptr, size_t boneCount = 0, TransformHierachy* hierachy = nullptr, MemoryArena* arena = nullptr);
 	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, MemoryArena* arena = nullptr);
 	void UpdateCursorState();
 

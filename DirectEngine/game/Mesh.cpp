@@ -59,7 +59,7 @@ TransformNode* CreateMatrices(Model& model, int currentIndex, TransformNode* par
 
 	if (currentIndex == 54)
 	{
-		transformNode.local = XMMatrixMultiply(XMMatrixRotationX(0.2f), transformNode.local);
+		transformNode.local = XMMatrixMultiply(XMMatrixRotationX(.2f), transformNode.local);
 	}
 
 	if (parent != nullptr)

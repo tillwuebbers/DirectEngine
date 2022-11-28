@@ -319,14 +319,14 @@ void EngineCore::LoadSizeDependentResources()
     }
 }
 
-PipelineConfig* EngineCore::CreatePipeline(ShaderDescription shaderDesc, size_t textureCount, bool wireframe = false)
+PipelineConfig* EngineCore::CreatePipeline(ShaderDescription shaderDesc, size_t textureCount, size_t constantBufferCount, size_t rootConstantCount, bool wireframe = false, bool ignoreDepth = false)
 {
     PipelineConfig* config = NewObject(engineArena, PipelineConfig);
     config->shaderDescription = shaderDesc;
     config->textureSlotCount = textureCount;
     config->wireframe = wireframe;
+    config->ignoreDepth = ignoreDepth;
     config->creationError = ERROR_SUCCESS;
-
 
     {
         D3D12_FEATURE_DATA_ROOT_SIGNATURE featureData = {};
@@ -337,8 +337,8 @@ PipelineConfig* EngineCore::CreatePipeline(ShaderDescription shaderDesc, size_t 
             featureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
         }
 
-        std::vector<CD3DX12_DESCRIPTOR_RANGE1> ranges{CUSTOM_START + textureCount};
-        std::vector<CD3DX12_ROOT_PARAMETER1> rootParameters{CUSTOM_START + textureCount };
+        std::vector<CD3DX12_DESCRIPTOR_RANGE1> ranges{CUSTOM_START + textureCount + constantBufferCount};
+        std::vector<CD3DX12_ROOT_PARAMETER1> rootParameters{CUSTOM_START + textureCount + constantBufferCount + rootConstantCount};
 
         ranges[SCENE].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, SCENE, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         ranges[LIGHT].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, LIGHT, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
@@ -357,6 +357,19 @@ PipelineConfig* EngineCore::CreatePipeline(ShaderDescription shaderDesc, size_t 
             int offset = CUSTOM_START + i;
             ranges[offset].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, offset, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
             rootParameters[offset].InitAsDescriptorTable(1, &ranges[offset], D3D12_SHADER_VISIBILITY_PIXEL);
+        }
+
+        for (int i = 0; i < constantBufferCount; i++)
+        {
+            int offset = CUSTOM_START + config->textureSlotCount + i;
+            ranges[offset].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, offset, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+            rootParameters[offset].InitAsDescriptorTable(1, &ranges[offset], D3D12_SHADER_VISIBILITY_ALL);
+        }
+
+        for (int i = 0; i < rootConstantCount; i++)
+        {
+            int offset = CUSTOM_START + config->textureSlotCount + constantBufferCount + i;
+            rootParameters[offset].InitAsConstants(1, offset);
         }
 
         D3D12_STATIC_SAMPLER_DESC rawSampler = {};
@@ -497,7 +510,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
     psoDesc.RasterizerState = rasterizerDesc;
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-    psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+    psoDesc.DepthStencilState.DepthFunc = config->ignoreDepth ? D3D12_COMPARISON_FUNC_ALWAYS : D3D12_COMPARISON_FUNC_LESS_EQUAL;
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     psoDesc.NumRenderTargets = 1;
@@ -511,8 +524,9 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
 
 void EngineCore::LoadAssets()
 {
-    m_shadowConfig = CreatePipeline({ L"shadow.hlsl", "VSShadow", "PSShadow", L"Shadow" }, 0);
-    m_wireframeConfig = CreatePipeline({ L"aabb.hlsl", "VSWire", "PSWire", L"Wireframe" }, 0, true);
+    m_shadowConfig = CreatePipeline({ L"shadow.hlsl", "VSShadow", "PSShadow", L"Shadow" }, 0, 0, 0);
+    m_boneDebugConfig = CreatePipeline({ L"bones.hlsl", "VSMain", "PSMain", L"Bones" }, 0, 0, 1, true, true);
+    m_wireframeConfig = CreatePipeline({ L"aabb.hlsl", "VSWire", "PSWire", L"Wireframe" }, 0, 0, 0, true);
 
     // Create the render command list
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_renderCommandAllocators[m_frameIndex], nullptr, NewComObject(comPointers, &m_renderCommandList)));
@@ -627,7 +641,7 @@ size_t EngineCore::CreateMaterial(const size_t maxVertices, const size_t vertexS
     {
         data.textures[i] = textures[i];
     }
-    data.pipeline = CreatePipeline(shaderDesc, textures.size());
+    data.pipeline = CreatePipeline(shaderDesc, textures.size(), 0, 0);
 
     // Create buffer for upload
     CD3DX12_HEAP_PROPERTIES tempHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
@@ -669,7 +683,7 @@ D3D12_VERTEX_BUFFER_VIEW EngineCore::CreateMesh(const size_t materialIndex, cons
     return view;
 }
 
-size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, XMMATRIX* bones, size_t boneCount)
+size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, XMMATRIX* bones, size_t boneCount, TransformHierachy* hierachy)
 {
     MaterialData& material = m_materials[materialIndex];
 
@@ -683,6 +697,7 @@ size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_
 
     entity->defaultBoneMatrices = bones;
     entity->boneCount = boneCount;
+    entity->transformHierachy = hierachy;
 
     CreateConstantBuffers<EntityConstantBuffer>(entity->constantBuffer, std::format(L"Entity {} Constant Buffer", entity->entityIndex).c_str());
     CreateConstantBuffers<BoneMatricesBuffer>(entity->boneConstantBuffer, std::format(L"Entity {} Bone Buffer", entity->entityIndex).c_str());
@@ -809,6 +824,7 @@ void EngineCore::PopulateCommandList()
     Transition(renderList, m_renderTargets[m_frameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
     RenderScene(renderList);
+    if (renderBones) RenderBones(renderList);
     RenderWireframe(renderList);
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
@@ -907,6 +923,52 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
     }
 }
 
+void EngineCore::RenderBones(ID3D12GraphicsCommandList* renderList)
+{
+    // Set necessary state.
+    renderList->SetPipelineState(m_boneDebugConfig->pipelineState);
+    renderList->SetGraphicsRootSignature(m_boneDebugConfig->rootSignature);
+    renderList->RSSetViewports(1, &m_viewport);
+    renderList->RSSetScissorRects(1, &m_scissorRect);
+
+    // Load heaps
+    ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap };
+    renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+    renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
+    renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
+    renderList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+
+    // Record commands.
+    renderList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+    renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    for (int drawIdx = 0; drawIdx < m_materialCount; drawIdx++)
+    {
+        MaterialData& data = m_materials[drawIdx];
+
+        for (int entityIndex = 0; entityIndex < data.entityCount; entityIndex++)
+        {
+            EntityData* entity = data.entities[entityIndex];
+
+            if (entity->visible)
+            {
+                for (int boneIndex = 0; boneIndex < entity->boneCount; boneIndex++)
+                {
+                    renderList->IASetVertexBuffers(0, 1, &cubeVertexView);
+                    renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
+                    renderList->SetGraphicsRootDescriptorTable(BONES, entity->boneConstantBuffer.handles[m_frameIndex].gpuHandle);
+                    renderList->SetGraphicsRoot32BitConstant(CUSTOM_START, boneIndex, 0);
+                    renderList->DrawInstanced(cubeVertexView.SizeInBytes / cubeVertexView.StrideInBytes, 1, 0, 0);
+                }
+            }
+        }
+    }
+}
+
 void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList)
 {
     // Set necessary state.
@@ -939,14 +1001,14 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList)
         {
             EntityData* entity = data.entities[entityIndex];
 
-            if (renderAABB)
+            if (entity->visible && renderAABB)
             {
                 renderList->IASetVertexBuffers(0, 1, &cubeVertexView);
                 renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
                 renderList->SetGraphicsRootDescriptorTable(BONES, entity->boneConstantBuffer.handles[m_frameIndex].gpuHandle);
                 renderList->DrawInstanced(cubeVertexView.SizeInBytes / cubeVertexView.StrideInBytes, 1, 0, 0);
             }
-            
+
             if (entity->visible && entity->wireframe)
             {
                 renderList->IASetVertexBuffers(0, 1, &entity->vertexBufferView);
@@ -1069,6 +1131,16 @@ void EngineCore::OnShaderReload()
         _com_error err(m_shadowConfig->creationError);
 
         m_shaderError.append("Failed to create shadow pipeline state: ");
+        m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
+        return;
+    }
+
+    CreatePipelineState(m_boneDebugConfig);
+    if (FAILED(m_boneDebugConfig->creationError))
+    {
+        _com_error err(m_boneDebugConfig->creationError);
+
+        m_shaderError.append("Failed to create bone pipeline state: ");
         m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
         return;
     }

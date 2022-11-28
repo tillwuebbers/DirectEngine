@@ -106,6 +106,7 @@ static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size m
 struct BoneMatricesBuffer
 {
     XMMATRIX bones[MAX_BONES];
+    XMMATRIX jointTransforms[MAX_BONES];
 };
 static_assert((sizeof(BoneMatricesBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
@@ -121,6 +122,7 @@ struct EntityData
     ConstantBuffer<BoneMatricesBuffer> boneConstantBuffer = {};
     XMMATRIX* defaultBoneMatrices;
     size_t boneCount;
+    TransformHierachy* transformHierachy;
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
 };
 
@@ -186,6 +188,7 @@ public:
     UINT m_rtvDescriptorSize;
     UINT m_dsvDescriptorSize;
     PipelineConfig* m_shadowConfig;
+    PipelineConfig* m_boneDebugConfig;
     PipelineConfig* m_wireframeConfig;
 
     // App resources
@@ -230,6 +233,7 @@ public:
     // TODO: don't init this in game
     D3D12_VERTEX_BUFFER_VIEW cubeVertexView;
     bool renderAABB = false;
+    bool renderBones = true;
     
     // Audio
     IXAudio2* m_audio;
@@ -249,19 +253,20 @@ public:
     void CreateGameWindow(const wchar_t* windowClassName, HINSTANCE hInst, uint32_t width, uint32_t height);
     void LoadPipeline();
     void LoadSizeDependentResources();
-    PipelineConfig* CreatePipeline(ShaderDescription shaderDesc, size_t textureCount, bool wireframe);
+    PipelineConfig* CreatePipeline(ShaderDescription shaderDesc, size_t textureCount, size_t constantBufferCount, size_t rootConstantCount, bool wireframe, bool ignoreDepth);
     void CreatePipelineState(PipelineConfig* config);
     void LoadAssets();
     void CreateTexture(Texture& outTexture, const wchar_t* filePath);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
     size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride, std::vector<Texture*> textures, ShaderDescription shaderDesc);
     D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount);
-    size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex, XMMATRIX* bones, size_t boneCount);
+    size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex, XMMATRIX* bones, size_t boneCount, TransformHierachy* hierachy);
     void UploadVertices();
     CD3DX12_GPU_DESCRIPTOR_HANDLE* GetConstantBufferHandle(int offset);
     void RenderShadows(ID3D12GraphicsCommandList* renderList);
     void RenderScene(ID3D12GraphicsCommandList* renderList);
     void RenderWireframe(ID3D12GraphicsCommandList* renderList);
+    void RenderBones(ID3D12GraphicsCommandList* renderList);
     void PopulateCommandList();
     void MoveToNextFrame();
     void WaitForGpu();
