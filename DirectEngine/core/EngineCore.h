@@ -105,7 +105,7 @@ static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size m
 
 struct BoneMatricesBuffer
 {
-    XMMATRIX bones[32];
+    XMMATRIX bones[MAX_BONES];
 };
 static_assert((sizeof(BoneMatricesBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
@@ -118,6 +118,9 @@ struct EntityData
     size_t entityIndex = 0;
     size_t materialIndex = 0;
     ConstantBuffer<EntityConstantBuffer> constantBuffer = {};
+    ConstantBuffer<BoneMatricesBuffer> boneConstantBuffer = {};
+    XMMATRIX* defaultBoneMatrices;
+    size_t boneCount;
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
 };
 
@@ -188,7 +191,6 @@ public:
     // App resources
     ConstantBuffer<SceneConstantBuffer> m_sceneConstantBuffer = {};
     ConstantBuffer<LightConstantBuffer> m_lightConstantBuffer = {};
-    ConstantBuffer<BoneMatricesBuffer> m_boneMatricesBuffer = {};
     ShadowMap* m_shadowmap = nullptr;
     ID3D12Resource* m_textureUploadHeaps[MAX_TEXTURE_UPLOADS] = {};
     size_t m_textureUploadIndex = 0;
@@ -254,7 +256,7 @@ public:
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
     size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride, std::vector<Texture*> textures, ShaderDescription shaderDesc);
     D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount);
-    size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
+    size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex, XMMATRIX* bones, size_t boneCount);
     void UploadVertices();
     CD3DX12_GPU_DESCRIPTOR_HANDLE* GetConstantBufferHandle(int offset);
     void RenderShadows(ID3D12GraphicsCommandList* renderList);

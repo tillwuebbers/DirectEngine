@@ -33,7 +33,7 @@ add_executable (${PROJECT_NAME} WIN32
                 "imgui/remixicon.h"
                 "imgui/ImGuiProfilerRenderer.h"
                 "imgui/ProfilerTask.h"
-                "import/tiny_obj_loader.h"
+                
                 "import/tiny_gltf.h"
                 "import/json.hpp"
                 "import/stb_image.h"

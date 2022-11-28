@@ -20,18 +20,32 @@ struct Vertex
 	XMFLOAT4 color;
 	XMFLOAT3 normal;
 	XMFLOAT2 uv;
-	uint64_t boneWeights;
-	uint64_t boneIndices;
+	uint32_t boneWeights;
+	uint32_t boneIndices;
+};
+
+struct TransformNode
+{
+	XMMATRIX local;
+	XMMATRIX global;
+	TransformNode* children[MAX_CHILDREN];
+	size_t childCount;
+};
+
+struct TransformHierachy
+{
+	TransformNode nodes[MAX_BONES];
+	TransformNode* root;
 };
 
 struct MeshFile
 {
 	Vertex* vertices;
 	size_t vertexCount;
-	uint64_t* indices;
-	size_t indexCount;
+	XMMATRIX* bones;
+	size_t boneCount;
+	TransformHierachy* hierachy;
 };
 
-MeshFile CreateQuad(float width, float height, MemoryArena& vertexArena, MemoryArena& indexArena);
-MeshFile LoadObjFromFile(const std::string& filePath, const std::string& materialPath, RingLog& debugLog, MemoryArena& vertexArena, MemoryArena& indexArena);
-MeshFile LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, MemoryArena& vertexArena);
+MeshFile CreateQuad(float width, float height, MemoryArena& vertexArena);
+MeshFile LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, MemoryArena& vertexArena, MemoryArena& boneArena);

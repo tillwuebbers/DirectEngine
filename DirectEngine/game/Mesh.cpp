@@ -2,9 +2,6 @@
 
 #include <format>
 
-#define TINYOBJLOADER_IMPLEMENTATION
-#include "../import/tiny_obj_loader.h"
-
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -12,7 +9,7 @@
 #include "../import/tiny_gltf.h"
 using namespace tinygltf;
 
-MeshFile CreateQuad(float width, float height, MemoryArena& vertexArena, MemoryArena& indexArena)
+MeshFile CreateQuad(float width, float height, MemoryArena& vertexArena)
 {
 	const size_t VERTEX_COUNT = 6;
 
@@ -27,94 +24,6 @@ MeshFile CreateQuad(float width, float height, MemoryArena& vertexArena, MemoryA
 	return MeshFile{ vertices, VERTEX_COUNT, nullptr, 0 };
 }
 
-MeshFile LoadObjFromFile(const std::string& filePath, const std::string& materialPath, RingLog& debugLog, MemoryArena& vertexArena, MemoryArena& indexArena)
-{
-	tinyobj::ObjReaderConfig reader_config;
-	reader_config.mtl_search_path = materialPath;
-	tinyobj::ObjReader reader;
-
-	if (!reader.ParseFromFile(filePath, reader_config))
-	{
-		if (!reader.Error().empty())
-		{
-			debugLog.Error(std::format("OBJ {} error: {}", filePath, reader.Error()));
-		}
-	}
-
-	if (!reader.Warning().empty())
-	{
-		debugLog.Warn(std::format("OBJ {} warning: {}", filePath, reader.Warning()));
-	}
-
-	auto& attrib = reader.GetAttrib();
-	auto& shapes = reader.GetShapes();
-	auto& materials = reader.GetMaterials();
-
-	const uint64_t colorCount = attrib.colors.size() / 3;
-	const uint64_t normalCount = attrib.colors.size() / 3;
-	const uint64_t texcoordCount = attrib.colors.size() / 2;
-	const uint64_t vertexCount = attrib.vertices.size() / 3;
-	const uint64_t indexCount = reader.GetShapes()[0].mesh.indices.size();
-
-	debugLog.Log(std::format("Loaded OBJ {}: {} shapes, {} materials", filePath, shapes.size(), materials.size()));
-	debugLog.Log(std::format("{} colors, {} normals, {} texcoords, {} vertices", colorCount, normalCount, texcoordCount, vertexCount));
-
-	Vertex* vertices = NewArray(vertexArena, Vertex, indexCount);
-	size_t vertexCounter = 0;
-
-	// Loop over shapes
-	for (size_t shapeIdx = 0; shapeIdx < shapes.size(); shapeIdx++)
-	{
-		// Loop over faces(polygon)
-		size_t index_offset = 0;
-		for (size_t faceIdx = 0; faceIdx < shapes[shapeIdx].mesh.num_face_vertices.size(); faceIdx++)
-		{
-			size_t fv = size_t(shapes[shapeIdx].mesh.num_face_vertices[faceIdx]);
-
-			// Loop over vertices in the face.
-			for (size_t v = 0; v < fv; v++)
-			{
-				// access to vertex
-				tinyobj::index_t idx = shapes[shapeIdx].mesh.indices[index_offset + v];
-				assert(vertexCounter < indexCount);
-				Vertex& vert = vertices[vertexCounter];
-				vertexCounter++;
-
-				vert.position.x = attrib.vertices[3 * size_t(idx.vertex_index) + 0];
-				vert.position.y = attrib.vertices[3 * size_t(idx.vertex_index) + 1];
-				vert.position.z = attrib.vertices[3 * size_t(idx.vertex_index) + 2];
-
-				if (idx.normal_index >= 0) {
-					vert.normal.x = attrib.normals[3 * size_t(idx.normal_index) + 0];
-					vert.normal.y = attrib.normals[3 * size_t(idx.normal_index) + 1];
-					vert.normal.z = attrib.normals[3 * size_t(idx.normal_index) + 2];
-				}
-
-				if (idx.texcoord_index >= 0) {
-					vert.uv.x = attrib.texcoords[2 * size_t(idx.texcoord_index) + 0];
-					vert.uv.y = attrib.texcoords[2 * size_t(idx.texcoord_index) + 1];
-				}
-
-				vert.color.x = attrib.colors[3 * size_t(idx.vertex_index) + 0];
-				vert.color.y = attrib.colors[3 * size_t(idx.vertex_index) + 1];
-				vert.color.z = attrib.colors[3 * size_t(idx.vertex_index) + 2];
-				vert.color.w = 1.0f;
-
-				//uint8_t w0 = attrib.skin_weights[];
-
-				//vertices[idx.vertex_index] = vert;
-				//indices.push_back(idx.vertex_index);
-			}
-			index_offset += fv;
-
-			// per-face material
-			//shapes[shapeIdx].mesh.material_ids[faceIdx];
-		}
-	}
-
-	return MeshFile{ vertices, indexCount, nullptr, 0 };
-}
-
 template <typename T>
 const T* ReadBuffer(Model& model, Accessor& accessor)
 {
@@ -123,9 +32,56 @@ const T* ReadBuffer(Model& model, Accessor& accessor)
 	return reinterpret_cast<T*>(&buffer.data[bufferView.byteOffset + accessor.byteOffset]);
 }
 
-MeshFile LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, MemoryArena& vertexArena)
+XMVECTOR LoadTranslation(std::vector<double>& translationVec)
 {
+	if (translationVec.size() == 0) return { 1.f, 1.f, 1.f };
+	return { static_cast<float>(translationVec[0]), static_cast<float>(translationVec[1]), static_cast<float>(translationVec[2]) };
+}
 
+XMVECTOR LoadRotation(std::vector<double>& quaternionVec)
+{
+	if (quaternionVec.size() == 0) return XMQuaternionIdentity();
+	return { static_cast<float>(quaternionVec[0]), static_cast<float>(quaternionVec[1]), static_cast<float>(quaternionVec[2]), static_cast<float>(quaternionVec[3]) };
+}
+
+XMVECTOR LoadScale(std::vector<double>& scaleVec)
+{
+	if (scaleVec.size() == 0) return { 1.f, 1.f, 1.f };
+	return { static_cast<float>(scaleVec[0]), static_cast<float>(scaleVec[1]), static_cast<float>(scaleVec[2]) };
+}
+
+TransformNode* CreateMatrices(Model& model, int currentIndex, TransformNode* parent, TransformNode* nodeList)
+{
+	Node& node = model.nodes[currentIndex];
+
+	TransformNode& transformNode = nodeList[currentIndex];
+	transformNode.local = DirectX::XMMatrixAffineTransformation(LoadScale(node.scale), XMVECTOR{}, LoadRotation(node.rotation), LoadTranslation(node.translation));
+
+	if (currentIndex == 54)
+	{
+		transformNode.local = XMMatrixMultiply(XMMatrixRotationX(0.2f), transformNode.local);
+	}
+
+	if (parent != nullptr)
+	{
+		transformNode.global = XMMatrixMultiply(transformNode.local, parent->global);
+	}
+	else
+	{
+		transformNode.global = transformNode.local;
+	}
+
+	for (int childIndex : node.children)
+	{
+		assert(transformNode.childCount < MAX_CHILDREN);
+		transformNode.children[transformNode.childCount] = CreateMatrices(model, childIndex, &transformNode, nodeList);
+		transformNode.childCount++;
+	}
+	return &nodeList[currentIndex];
+}
+
+MeshFile LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, MemoryArena& vertexArena, MemoryArena& boneArena)
+{
 	Model model;
 	TinyGLTF loader;
 	std::string err;
@@ -133,20 +89,48 @@ MeshFile LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memory
 
 	bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, filePath);
 
-	if (!warn.empty()) {
+	if (!warn.empty())
+	{
 		OutputDebugStringA(std::format("Warn: {}\n", warn).c_str());
 	}
 
-	if (!err.empty()) {
+	if (!err.empty())
+	{
 		OutputDebugStringA(std::format("Err: {}\n", err).c_str());
 	}
 
-	if (!ret) {
+	if (!ret)
+	{
 		OutputDebugStringA(std::format("Failed to parse glTF\n").c_str());
 	}
 
-	Vertex* vertices;
 	size_t vertexCount = 0;
+	Vertex* vertices;
+
+	size_t boneCount = model.skins[0].joints.size();
+	XMMATRIX* bones = NewArray(boneArena, XMMATRIX, boneCount);
+
+	Accessor& inverseBindAccessor = model.accessors[model.skins[0].inverseBindMatrices];
+	assert(inverseBindAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+	assert(inverseBindAccessor.type == TINYGLTF_TYPE_MAT4);
+	const float* inverseBindMatrices = ReadBuffer<float>(model, inverseBindAccessor);
+
+	TransformHierachy* hierachy = NewObject(boneArena, TransformHierachy);
+	hierachy->root = CreateMatrices(model, model.skins[0].joints[0], nullptr, hierachy->nodes);
+
+	for (int i = 0; i < boneCount; i++)
+	{
+		const float* ibmData = &inverseBindMatrices[i * 16];
+		XMMATRIX inverseBindMatrix = XMMATRIX(
+			static_cast<float>(ibmData[0]), static_cast<float>(ibmData[1]), static_cast<float>(ibmData[2]), static_cast<float>(ibmData[3]),
+			static_cast<float>(ibmData[4]), static_cast<float>(ibmData[5]), static_cast<float>(ibmData[6]), static_cast<float>(ibmData[7]),
+			static_cast<float>(ibmData[8]), static_cast<float>(ibmData[9]), static_cast<float>(ibmData[10]), static_cast<float>(ibmData[11]),
+			static_cast<float>(ibmData[12]), static_cast<float>(ibmData[13]), static_cast<float>(ibmData[14]), static_cast<float>(ibmData[15])
+		);
+
+		bones[i] = XMMatrixMultiply(hierachy->nodes[model.skins[0].joints[i]].global, inverseBindMatrix);
+	}
+
 	for (Mesh& mesh : model.meshes)
 	{
 		// TODO: support multiple primitives
@@ -228,5 +212,5 @@ MeshFile LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memory
 		}
 	}
 
-	return MeshFile{ vertices, vertexCount, nullptr, 0 };
+	return MeshFile{ vertices, vertexCount, bones, boneCount, hierachy };
 }

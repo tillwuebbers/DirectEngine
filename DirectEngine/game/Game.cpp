@@ -83,22 +83,22 @@ void Game::StartGame(EngineCore& engine)
 
 	// Meshes
 	// TODO: why does mesh need material index, and why doesn't it matter if it's wrong?
-	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", debugLog, vertexUploadArena);
+	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", debugLog, vertexUploadArena, boneUploadArena);
 	auto cubeMeshView = engine.CreateMesh(memeMaterialIndex, cubeMeshFile.vertices, cubeMeshFile.vertexCount);
 	engine.cubeVertexView = cubeMeshView;
 
-	MeshFile kaijuMeshFile = LoadGltfFromFile("models/kaiju.glb", debugLog, vertexUploadArena);
+	MeshFile kaijuMeshFile = LoadGltfFromFile("models/kaiju.glb", debugLog, vertexUploadArena, boneUploadArena);
 	auto kaijuMeshView = engine.CreateMesh(kaijuMaterialIndex, kaijuMeshFile.vertices, kaijuMeshFile.vertexCount);
 
 	// Entities
-	Entity* kaijuEntity = CreateEntity(engine, kaijuMaterialIndex, kaijuMeshView);
+	Entity* kaijuEntity = CreateEntity(engine, kaijuMaterialIndex, kaijuMeshView, kaijuMeshFile.bones, kaijuMeshFile.boneCount);
 	kaijuEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
 	kaijuEntity->GetData().aabbLocalPosition = { 0.f, 5.f, 0.f };
 	kaijuEntity->GetData().aabbLocalSize = { 4.f, 10.f, 2.f };
 
 	for (int i = 0; i < MAX_ENENMY_COUNT; i++)
 	{
-		Entity* enemy = enemies[i] = CreateEntity(engine, memeMaterialIndex, cubeMeshView);
+		Entity* enemy = enemies[i] = CreateEntity(engine, memeMaterialIndex, cubeMeshView, cubeMeshFile.bones, cubeMeshFile.boneCount);
 		enemy->Disable();
 		enemy->isEnemy = true;
 		enemy->collisionLayers |= Dead;
@@ -448,13 +448,21 @@ void Game::UpdateGame(EngineCore& engine)
 	// Update entities
 	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 	{
+		EntityData& entityData = entity->GetData();
+
 		if (entity->isSpinning)
 		{
 			entity->rotation = XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart()));
 		}
 
-		entity->GetBuffer().aabbLocalPosition = entity->GetData().aabbLocalPosition;
-		entity->GetBuffer().aabbLocalSize = entity->GetData().aabbLocalSize;
+		for (int i = 0; i < entityData.boneCount; i++)
+		{
+			assert(i < MAX_BONES);
+			entityData.boneConstantBuffer.data.bones[i] = XMMatrixTranspose(entityData.defaultBoneMatrices[i]);
+		}
+
+		entity->GetBuffer().aabbLocalPosition = entityData.aabbLocalPosition;
+		entity->GetBuffer().aabbLocalSize = entityData.aabbLocalSize;
 
 		CreateWorldMatrix(entity->GetBuffer().worldTransform, entity->scale, entity->rotation, entity->position);
 
@@ -526,12 +534,6 @@ void Game::UpdateGame(EngineCore& engine)
 
 	engine.m_lightConstantBuffer.data.lightProjection = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(lsMin.x, lsMax.x, lsMin.y, lsMax.y, lsMin.z - 10., lsMax.z + 10.));
 
-	// Update Bones
-	for (int i = 0; i < _countof(engine.m_boneMatricesBuffer.data.bones); i++)
-	{
-		engine.m_boneMatricesBuffer.data.bones[i] = XMMatrixRotationX(sin(engine.TimeSinceStart()));
-	}
-
 	// Post Processing
 	XMVECTOR camPos2d = camera.position;
 	camPos2d.m128_f32[1] = 0.f;
@@ -566,20 +568,20 @@ EngineInput& Game::GetInput()
 	return input;
 }
 
-Entity* Game::CreateEntity(EngineCore& engine, size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, MemoryArena* arena)
+Entity* Game::CreateEntity(EngineCore& engine, size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, XMMATRIX* bones, size_t boneCount, MemoryArena* arena)
 {
 	Entity* entity = NewObject(arena == nullptr ? entityArena : *arena, Entity);
 	entity->engine = &engine;
 	entity->materialIndex = materialIndex;
-	entity->dataIndex = engine.CreateEntity(materialIndex, meshView);
+	entity->dataIndex = engine.CreateEntity(materialIndex, meshView, bones, boneCount);
 	return entity;
 }
 
 Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, MemoryArena* arena)
 {
-	MeshFile file = CreateQuad(width, height, vertexUploadArena, indexUploadArena);
+	MeshFile file = CreateQuad(width, height, vertexUploadArena);
 	auto meshView = engine.CreateMesh(materialIndex, file.vertices, file.vertexCount);
-	Entity* entity = CreateEntity(engine, materialIndex, meshView, arena);
+	Entity* entity = CreateEntity(engine, materialIndex, meshView, nullptr, 0, arena);
 	entity->position = { -width / 2.f, 0.f, -width / 2.f };
 	entity->GetData().aabbLocalPosition = { width / 2.f, -.05f, width / 2.f };
 	entity->GetData().aabbLocalSize = { width, .1f, width };

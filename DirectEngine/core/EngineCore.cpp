@@ -476,8 +476,8 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
         { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 28, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 40, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "BONE_WEIGHTS", 0, DXGI_FORMAT_R8G8B8A8_UINT, 0, 48, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "BONE_INDICES", 0, DXGI_FORMAT_R8G8B8A8_UINT, 0, 52, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "BONE_WEIGHTS", 0, DXGI_FORMAT_R32_UINT, 0, 48, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "BONE_INDICES", 0, DXGI_FORMAT_R32_UINT, 0, 52, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
     };
 
     // Rasterizer
@@ -526,12 +526,10 @@ void EngineCore::LoadAssets()
     // Shader values for scene
     CreateConstantBuffers<SceneConstantBuffer>(m_sceneConstantBuffer, L"Scene Constant Buffer");
     CreateConstantBuffers<LightConstantBuffer>(m_lightConstantBuffer, L"Light Constant Buffer");
-    CreateConstantBuffers<BoneMatricesBuffer>(m_boneMatricesBuffer, L"Bone Matrices Buffer");
     for (int i = 0; i < FrameCount; i++)
     {
         m_sceneConstantBuffer.UploadData(i);
         m_lightConstantBuffer.UploadData(i);
-        m_boneMatricesBuffer.UploadData(i);
     }
 
     m_shadowmap = NewObject(engineArena, ShadowMap, DXGI_FORMAT_R24G8_TYPELESS);
@@ -671,7 +669,7 @@ D3D12_VERTEX_BUFFER_VIEW EngineCore::CreateMesh(const size_t materialIndex, cons
     return view;
 }
 
-size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView)
+size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, XMMATRIX* bones, size_t boneCount)
 {
     MaterialData& material = m_materials[materialIndex];
 
@@ -683,7 +681,11 @@ size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_
     entity->materialIndex = materialIndex;
     entity->vertexBufferView = meshView;
 
+    entity->defaultBoneMatrices = bones;
+    entity->boneCount = boneCount;
+
     CreateConstantBuffers<EntityConstantBuffer>(entity->constantBuffer, std::format(L"Entity {} Constant Buffer", entity->entityIndex).c_str());
+    CreateConstantBuffers<BoneMatricesBuffer>(entity->boneConstantBuffer, std::format(L"Entity {} Bone Buffer", entity->entityIndex).c_str());
 
     return entity->entityIndex;
 }
@@ -786,13 +788,14 @@ void EngineCore::PopulateCommandList()
 
     m_sceneConstantBuffer.UploadData(m_frameIndex);
     m_lightConstantBuffer.UploadData(m_frameIndex);
-    m_boneMatricesBuffer.UploadData(m_frameIndex);
 
     for (int matIndex = 0; matIndex < m_materialCount; matIndex++)
     {
         for (int entityIndex = 0; entityIndex < m_materials[matIndex].entityCount; entityIndex++)
         {
-            m_materials[matIndex].entities[entityIndex]->constantBuffer.UploadData(m_frameIndex);
+            EntityData* entityData = m_materials[matIndex].entities[entityIndex];
+            entityData->constantBuffer.UploadData(m_frameIndex);
+            entityData->boneConstantBuffer.UploadData(m_frameIndex);
         }
     }
 
@@ -832,7 +835,6 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
 
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
-    renderList->SetGraphicsRootDescriptorTable(BONES, m_boneMatricesBuffer.handles[m_frameIndex].gpuHandle);
 
     // Barrier to transition shadow map
     Transition(renderList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
@@ -855,6 +857,7 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
             if (!entity->visible) continue;
             renderList->IASetVertexBuffers(0, 1, &entity->vertexBufferView);
             renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
+            renderList->SetGraphicsRootDescriptorTable(BONES, entity->boneConstantBuffer.handles[m_frameIndex].gpuHandle);
             renderList->DrawInstanced(entity->vertexBufferView.SizeInBytes / entity->vertexBufferView.StrideInBytes, 1, 0, 0);
         }
     }
@@ -874,7 +877,6 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
 
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
-    renderList->SetGraphicsRootDescriptorTable(BONES, m_boneMatricesBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
 
     // Record commands.
@@ -899,6 +901,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
             if (!entity->visible || entity->wireframe) continue;
             renderList->IASetVertexBuffers(0, 1, &entity->vertexBufferView);
             renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
+            renderList->SetGraphicsRootDescriptorTable(BONES, entity->boneConstantBuffer.handles[m_frameIndex].gpuHandle);
             renderList->DrawInstanced(entity->vertexBufferView.SizeInBytes / entity->vertexBufferView.StrideInBytes, 1, 0, 0);
         }
     }
@@ -918,7 +921,6 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList)
 
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
-    renderList->SetGraphicsRootDescriptorTable(BONES, m_boneMatricesBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
@@ -941,6 +943,7 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList)
             {
                 renderList->IASetVertexBuffers(0, 1, &cubeVertexView);
                 renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
+                renderList->SetGraphicsRootDescriptorTable(BONES, entity->boneConstantBuffer.handles[m_frameIndex].gpuHandle);
                 renderList->DrawInstanced(cubeVertexView.SizeInBytes / cubeVertexView.StrideInBytes, 1, 0, 0);
             }
             
@@ -948,6 +951,7 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList)
             {
                 renderList->IASetVertexBuffers(0, 1, &entity->vertexBufferView);
                 renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
+                renderList->SetGraphicsRootDescriptorTable(BONES, entity->boneConstantBuffer.handles[m_frameIndex].gpuHandle);
                 renderList->DrawInstanced(entity->vertexBufferView.SizeInBytes / entity->vertexBufferView.StrideInBytes, 1, 0, 0);
             }
         }
