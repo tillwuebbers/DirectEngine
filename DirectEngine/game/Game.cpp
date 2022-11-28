@@ -82,12 +82,12 @@ void Game::StartGame(EngineCore& engine)
 	size_t laserMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, laserShader);
 
 	// Meshes
-	MeshFile cubeMeshFile = LoadMeshFromFile("models/cube.obj", "models/", debugLog, vertexUploadArena, indexUploadArena);
 	// TODO: why does mesh need material index, and why doesn't it matter if it's wrong?
+	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", debugLog, vertexUploadArena);
 	auto cubeMeshView = engine.CreateMesh(memeMaterialIndex, cubeMeshFile.vertices, cubeMeshFile.vertexCount);
 	engine.cubeVertexView = cubeMeshView;
 
-	MeshFile kaijuMeshFile = LoadMeshFromFile("models/kaiju.obj", "models/", debugLog, vertexUploadArena, indexUploadArena);
+	MeshFile kaijuMeshFile = LoadGltfFromFile("models/kaiju.glb", debugLog, vertexUploadArena);
 	auto kaijuMeshView = engine.CreateMesh(kaijuMaterialIndex, kaijuMeshFile.vertices, kaijuMeshFile.vertexCount);
 
 	// Entities
