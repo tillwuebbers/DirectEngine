@@ -526,6 +526,12 @@ void Game::UpdateGame(EngineCore& engine)
 
 	engine.m_lightConstantBuffer.data.lightProjection = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(lsMin.x, lsMax.x, lsMin.y, lsMax.y, lsMin.z - 10., lsMax.z + 10.));
 
+	// Update Bones
+	for (int i = 0; i < _countof(engine.m_boneMatricesBuffer.data.bones); i++)
+	{
+		engine.m_boneMatricesBuffer.data.bones[i] = XMMatrixRotationX(sin(engine.TimeSinceStart()));
+	}
+
 	// Post Processing
 	XMVECTOR camPos2d = camera.position;
 	camPos2d.m128_f32[1] = 0.f;

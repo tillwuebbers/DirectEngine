@@ -343,11 +343,13 @@ PipelineConfig* EngineCore::CreatePipeline(ShaderDescription shaderDesc, size_t 
         ranges[SCENE].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, SCENE, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         ranges[LIGHT].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, LIGHT, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         ranges[ENTITY].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, ENTITY, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+        ranges[BONES].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, BONES, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         ranges[SHADOWMAP].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, SHADOWMAP, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         
         rootParameters[SCENE].InitAsDescriptorTable(1, &ranges[SCENE], D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[LIGHT].InitAsDescriptorTable(1, &ranges[LIGHT], D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[ENTITY].InitAsDescriptorTable(1, &ranges[ENTITY], D3D12_SHADER_VISIBILITY_VERTEX);
+        rootParameters[BONES].InitAsDescriptorTable(1, &ranges[BONES], D3D12_SHADER_VISIBILITY_VERTEX);
         rootParameters[SHADOWMAP].InitAsDescriptorTable(1, &ranges[SHADOWMAP], D3D12_SHADER_VISIBILITY_PIXEL);
         
         for (int i = 0; i < config->textureSlotCount; i++)
@@ -453,6 +455,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
     if (vsErrors)
     {
         m_shaderError = std::format("Vertex Shader Errors:\n{}\n", (LPCSTR)vsErrors->GetBufferPointer());
+        OutputDebugString(std::format(L"{}\n", shaderPath).c_str());
         OutputDebugStringA(m_shaderError.c_str());
     }
     if (FAILED(config->creationError)) return;
@@ -461,6 +464,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
     if (psErrors)
     {
         m_shaderError = std::format("Pixel Shader Errors:\n{}\n", (LPCSTR)psErrors->GetBufferPointer());
+        OutputDebugString(std::format(L"{}\n", shaderPath).c_str());
         OutputDebugStringA(m_shaderError.c_str());
     }
     if (FAILED(config->creationError)) return;
@@ -501,7 +505,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
     psoDesc.SampleDesc.Count = 1;
     psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
-    config->creationError = m_device->CreateGraphicsPipelineState(&psoDesc, NewComObject(comPointers, &config->pipelineState));
+    config->creationError = m_device->CreateGraphicsPipelineState(&psoDesc, NewComObjectReplace(comPointers, &config->pipelineState));
     config->pipelineState->SetName(config->shaderDescription.debugName);
 }
 
@@ -522,10 +526,12 @@ void EngineCore::LoadAssets()
     // Shader values for scene
     CreateConstantBuffers<SceneConstantBuffer>(m_sceneConstantBuffer, L"Scene Constant Buffer");
     CreateConstantBuffers<LightConstantBuffer>(m_lightConstantBuffer, L"Light Constant Buffer");
+    CreateConstantBuffers<BoneMatricesBuffer>(m_boneMatricesBuffer, L"Bone Matrices Buffer");
     for (int i = 0; i < FrameCount; i++)
     {
         m_sceneConstantBuffer.UploadData(i);
         m_lightConstantBuffer.UploadData(i);
+        m_boneMatricesBuffer.UploadData(i);
     }
 
     m_shadowmap = NewObject(engineArena, ShadowMap, DXGI_FORMAT_R24G8_TYPELESS);
@@ -780,6 +786,7 @@ void EngineCore::PopulateCommandList()
 
     m_sceneConstantBuffer.UploadData(m_frameIndex);
     m_lightConstantBuffer.UploadData(m_frameIndex);
+    m_boneMatricesBuffer.UploadData(m_frameIndex);
 
     for (int matIndex = 0; matIndex < m_materialCount; matIndex++)
     {
@@ -825,6 +832,7 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
 
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
+    renderList->SetGraphicsRootDescriptorTable(BONES, m_boneMatricesBuffer.handles[m_frameIndex].gpuHandle);
 
     // Barrier to transition shadow map
     Transition(renderList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
@@ -866,6 +874,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
 
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
+    renderList->SetGraphicsRootDescriptorTable(BONES, m_boneMatricesBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
 
     // Record commands.
@@ -909,6 +918,7 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList)
 
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
+    renderList->SetGraphicsRootDescriptorTable(BONES, m_boneMatricesBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
@@ -1031,6 +1041,7 @@ void EngineCore::OnResize(UINT width, UINT height)
 void EngineCore::OnShaderReload()
 {
     WaitForGpu();
+
     std::wstring_convert<std::codecvt_utf8<wchar_t>> utf8_conv;
 
     for (int i = 0; i < m_materialCount; i++)

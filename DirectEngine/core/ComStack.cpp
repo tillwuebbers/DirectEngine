@@ -1,15 +1,23 @@
 #include "ComStack.h"
 #include <format>
 
-void** ComStack::AddPointer(void** pointer)
+// By default there's something wrong if we write the same com pointer twice, only allow this when explicitly set
+void** ComStack::AddPointer(void** pointer, bool replace)
 {
 	assert(pointer != nullptr);
-	assert(pointerIndex < MAX_COM_POINTERS);
 	for (int i = 0; i < pointerIndex; i++)
 	{
-		assert((void*)comPointers[i] != (void*)pointer);
+		bool match = (void*)comPointers[i] == (void*)pointer;
+		assert(!match || replace);
+		if (match)
+		{
+			(*comPointers[i])->Release();
+			comPointers[i] = (IUnknown**)pointer;
+			return pointer;
+		}
 	}
 
+	assert(pointerIndex < MAX_COM_POINTERS);
 	comPointers[pointerIndex] = (IUnknown**)pointer;
 
 	pointerIndex++;
@@ -22,6 +30,6 @@ void ComStack::Clear()
 	{
 		pointerIndex--;
 		IUnknown* unknown = *comPointers[pointerIndex];
-		ULONG pointerCount = unknown->Release();
+		unknown->Release();
 	}
 }

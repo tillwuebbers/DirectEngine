@@ -46,8 +46,9 @@ enum RootSignatureOffset : UINT
     SCENE = 0,
     LIGHT = 1,
     ENTITY = 2,
-    SHADOWMAP = 3,
-    CUSTOM_START = 4,
+    BONES = 3,
+    SHADOWMAP = 4,
+    CUSTOM_START = 5,
 };
 
 struct FrameDebugData
@@ -101,6 +102,12 @@ struct EntityConstantBuffer
 };
 const int debugbuffersize = sizeof(EntityConstantBuffer) % 256;
 static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
+
+struct BoneMatricesBuffer
+{
+    XMMATRIX bones[32];
+};
+static_assert((sizeof(BoneMatricesBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
 struct EntityData
 {
@@ -181,6 +188,7 @@ public:
     // App resources
     ConstantBuffer<SceneConstantBuffer> m_sceneConstantBuffer = {};
     ConstantBuffer<LightConstantBuffer> m_lightConstantBuffer = {};
+    ConstantBuffer<BoneMatricesBuffer> m_boneMatricesBuffer = {};
     ShadowMap* m_shadowmap = nullptr;
     ID3D12Resource* m_textureUploadHeaps[MAX_TEXTURE_UPLOADS] = {};
     size_t m_textureUploadIndex = 0;

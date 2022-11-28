@@ -27,7 +27,12 @@ cbuffer EntityConstantBuffer : register(b2)
 	bool isSelected;
 };
 
-Texture2D shadowmapTexture : register(t3);
+cbuffer BoneMatricesBuffer : register(b3)
+{
+	float4x4 boneMatrices[32];
+};
+
+Texture2D shadowmapTexture : register(t4);
 
 struct PSInputDefault
 {
