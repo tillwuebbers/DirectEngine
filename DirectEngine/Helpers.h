@@ -5,11 +5,22 @@
 
 #include <stdexcept>
 
+#include "openxr/openxr.h"
+
 // From DXSampleHelper.h 
 // Source: https://github.com/Microsoft/DirectX-Graphics-Samples
 inline void ThrowIfFailed(HRESULT hr)
 {
     if (FAILED(hr))
+    {
+        throw std::exception();
+    }
+}
+
+inline void ThrowIfFailed(XrResult result)
+{
+    // TODO
+    if (false)
     {
         throw std::exception();
     }

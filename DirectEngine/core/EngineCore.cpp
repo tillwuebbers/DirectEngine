@@ -20,6 +20,7 @@
 #include "UI.h"
 #include "EngineCore.h"
 #include "../directx-tex/DDSTextureLoader12.h"
+#include "XR.h"
 
 EngineCore::EngineCore(UINT width, UINT height, IGame* game) :
     m_frameIndex(0),
@@ -35,16 +36,22 @@ EngineCore::EngineCore(UINT width, UINT height, IGame* game) :
 
 void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
 {
+    ThrowIfFailed(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
+
+    // openxr
+    InitXR();
+
+    // window
     CheckTearingSupport();
     const wchar_t* windowClassName = L"DX12WindowClass";
     RegisterWindowClass(hInst, windowClassName, wndProc);
     CreateGameWindow(windowClassName, hInst, m_width, m_height);
 
+    // directx
     LoadPipeline();
     LoadAssets();
 
     // Audio
-    ThrowIfFailed(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
     ThrowIfFailed(XAudio2Create(&m_audio, 0, XAUDIO2_DEFAULT_PROCESSOR));
     ThrowIfFailed(m_audio->CreateMasteringVoice(&m_audioMasteringVoice));
 

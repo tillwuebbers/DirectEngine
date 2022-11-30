@@ -33,7 +33,6 @@ add_executable (${PROJECT_NAME} WIN32
                 "imgui/remixicon.h"
                 "imgui/ImGuiProfilerRenderer.h"
                 "imgui/ProfilerTask.h"
-                
                 "import/tiny_gltf.h"
                 "import/json.hpp"
                 "import/stb_image.h"
@@ -51,7 +50,7 @@ add_executable (${PROJECT_NAME} WIN32
                 "game/Log.h"
                 "game/Log.cpp"
                 "game/Mesh.h"
-                "game/Mesh.cpp")
+                "game/Mesh.cpp" "core/XR.h" "core/XR.cpp")
 
 
 # imgui
@@ -83,13 +82,18 @@ set(XAUDIO2_DIR ${CMAKE_CURRENT_SOURCE_DIR}/xaudio2)
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${XAUDIO2_DIR}/include)
 
+# openxr
+set(OPENXR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/openxr-sdk)
+add_subdirectory(${OPENXR_DIR})
+target_include_directories(${PROJECT_NAME} PUBLIC ${OPENXR_DIR}/include)
+
 # build the thing
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     file(COPY "${XAUDIO2_DIR}/debug/bin/x64/xaudio2_9redist.dll" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-    target_link_libraries(${PROJECT_NAME} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib" "${XAUDIO2_DIR}/debug/lib/x64/xaudio2_9redist.lib")
+    target_link_libraries(${PROJECT_NAME} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib" "${CMAKE_CURRENT_BINARY_DIR}/openxr-sdk/src/loader/openxr_loaderd.lib" "${XAUDIO2_DIR}/debug/lib/x64/xaudio2_9redist.lib")
 else()
     file(COPY "${XAUDIO2_DIR}/release/bin/x64/xaudio2_9redist.dll" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-    target_link_libraries(${PROJECT_NAME} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib" "${XAUDIO2_DIR}/release/lib/x64/xaudio2_9redist.lib")
+    target_link_libraries(${PROJECT_NAME} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib" "openxr_loaderd.lib" "${CMAKE_CURRENT_BINARY_DIR}/openxr-sdk/src/loader/openxr_loaderd.lib" "${XAUDIO2_DIR}/release/lib/x64/xaudio2_9redist.lib")
 endif()
 target_compile_options(${PROJECT_NAME} PRIVATE /W3 /w34456 /w34189 /w44305 /w44244 /w44267)
 

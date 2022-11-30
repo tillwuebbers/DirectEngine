@@ -4,3 +4,6 @@
 [submodule "DirectEngine/dxtk"]
 	path = DirectEngine/dxtk
 	url = https://github.com/microsoft/DirectXTK12
+[submodule "DirectEngine/openxr-sdk"]
+	path = DirectEngine/openxr-sdk
+	url = https://github.com/KhronosGroup/OpenXR-SDK/
