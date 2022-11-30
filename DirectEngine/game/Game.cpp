@@ -91,14 +91,14 @@ void Game::StartGame(EngineCore& engine)
 	auto kaijuMeshView = engine.CreateMesh(kaijuMaterialIndex, kaijuMeshFile.vertices, kaijuMeshFile.vertexCount);
 
 	// Entities
-	Entity* kaijuEntity = CreateEntity(engine, kaijuMaterialIndex, kaijuMeshView, kaijuMeshFile.bones, kaijuMeshFile.boneCount, kaijuMeshFile.hierachy);
+	Entity* kaijuEntity = CreateEntity(engine, kaijuMaterialIndex, kaijuMeshView, kaijuMeshFile.boneCount, kaijuMeshFile.hierachy);
 	kaijuEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
 	kaijuEntity->GetData().aabbLocalPosition = { 0.f, 5.f, 0.f };
 	kaijuEntity->GetData().aabbLocalSize = { 4.f, 10.f, 2.f };
 
 	for (int i = 0; i < MAX_ENENMY_COUNT; i++)
 	{
-		Entity* enemy = enemies[i] = CreateEntity(engine, memeMaterialIndex, cubeMeshView, cubeMeshFile.bones, cubeMeshFile.boneCount, cubeMeshFile.hierachy);
+		Entity* enemy = enemies[i] = CreateEntity(engine, memeMaterialIndex, cubeMeshView, cubeMeshFile.boneCount, cubeMeshFile.hierachy);
 		enemy->Disable();
 		enemy->isEnemy = true;
 		enemy->collisionLayers |= Dead;
@@ -455,12 +455,19 @@ void Game::UpdateGame(EngineCore& engine)
 			entity->rotation = XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart()));
 		}
 
+		if (entityData.transformHierachy != nullptr)
+		{
+			TransformNode& testNode = entityData.transformHierachy->nodes[53];
+			testNode.currentLocal = XMMatrixMultiply(XMMatrixRotationX(sin(engine.TimeSinceStart())), testNode.baseLocal);
+			entityData.transformHierachy->UpdateNode(&testNode);
+		}
+
 		for (int i = 0; i < entityData.boneCount; i++)
 		{
 			assert(i < MAX_BONES);
-			entityData.boneConstantBuffer.data.bones[i] = XMMatrixTranspose(entityData.defaultBoneMatrices[i]);
 			if (entityData.transformHierachy != nullptr)
 			{
+				entityData.boneConstantBuffer.data.inverseJointBinds[i] = XMMatrixTranspose(entityData.transformHierachy->nodes[i].inverseBind);
 				entityData.boneConstantBuffer.data.jointTransforms[i] = XMMatrixTranspose(entityData.transformHierachy->nodes[i].global);
 			}
 		}
@@ -572,12 +579,12 @@ EngineInput& Game::GetInput()
 	return input;
 }
 
-Entity* Game::CreateEntity(EngineCore& engine, size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, XMMATRIX* bones, size_t boneCount, TransformHierachy* hierachy, MemoryArena* arena)
+Entity* Game::CreateEntity(EngineCore& engine, size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, size_t boneCount, TransformHierachy* hierachy, MemoryArena* arena)
 {
 	Entity* entity = NewObject(arena == nullptr ? entityArena : *arena, Entity);
 	entity->engine = &engine;
 	entity->materialIndex = materialIndex;
-	entity->dataIndex = engine.CreateEntity(materialIndex, meshView, bones, boneCount, hierachy);
+	entity->dataIndex = engine.CreateEntity(materialIndex, meshView, boneCount, hierachy);
 	return entity;
 }
 
@@ -585,7 +592,7 @@ Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float w
 {
 	MeshFile file = CreateQuad(width, height, vertexUploadArena);
 	auto meshView = engine.CreateMesh(materialIndex, file.vertices, file.vertexCount);
-	Entity* entity = CreateEntity(engine, materialIndex, meshView, nullptr, 0, nullptr, arena);
+	Entity* entity = CreateEntity(engine, materialIndex, meshView, 0, nullptr, arena);
 	entity->position = { -width / 2.f, 0.f, -width / 2.f };
 	entity->GetData().aabbLocalPosition = { width / 2.f, -.05f, width / 2.f };
 	entity->GetData().aabbLocalSize = { width, .1f, width };

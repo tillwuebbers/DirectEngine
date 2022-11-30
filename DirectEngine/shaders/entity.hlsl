@@ -2,27 +2,13 @@
 
 Texture2D diffuseTexture : register(t5);
 
-PSInputDefault VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL, float2 uv : UV, uint boneWeights: BONE_WEIGHTS, uint boneIndices: BONE_INDICES)
+PSInputDefault VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL, float2 uv : UV, float4 boneWeights: BONE_WEIGHTS, uint4 boneIndices: BONE_INDICES)
 {
-	float boneWeightArray[4];
-	boneWeightArray[0] = ( boneWeights        & 0x000000FF) / 255.;
-	boneWeightArray[1] = ((boneWeights >> 8)  & 0x000000FF) / 255.;
-	boneWeightArray[2] = ((boneWeights >> 16) & 0x000000FF) / 255.;
-	boneWeightArray[3] = ((boneWeights >> 24) & 0x000000FF) / 255.;
-
-	uint boneIndexArray[4];
-	boneIndexArray[0] =  boneIndices        & 0x000000FF;
-	boneIndexArray[1] = (boneIndices >> 8)  & 0x000000FF;
-	boneIndexArray[2] = (boneIndices >> 16) & 0x000000FF;
-	boneIndexArray[3] = (boneIndices >> 24) & 0x000000FF;
-
-	float4 skinnedPos = float4(0., 0., 0., 0.);
-	for (int i = 0; i < 4; i++)
-	{
-		uint boneIndex = boneIndexArray[i];
-		float4x4 boneMatrix = boneMatrices[boneIndex];
-		skinnedPos += boneWeightArray[i] * mul(position, boneMatrix);
-	}
+	float4 skinnedPos = boneWeights.x * float4(mul(float4(position.xyz, 1.0), mul(inverseJointBinds[boneIndices.x], jointTransforms[boneIndices.x])).xyz, 1.0);
+	skinnedPos       += boneWeights.y * float4(mul(float4(position.xyz, 1.0), mul(inverseJointBinds[boneIndices.y], jointTransforms[boneIndices.y])).xyz, 1.0);
+	skinnedPos       += boneWeights.z * float4(mul(float4(position.xyz, 1.0), mul(inverseJointBinds[boneIndices.z], jointTransforms[boneIndices.z])).xyz, 1.0);
+	skinnedPos       += boneWeights.w * float4(mul(float4(position.xyz, 1.0), mul(inverseJointBinds[boneIndices.w], jointTransforms[boneIndices.w])).xyz, 1.0);
+	skinnedPos.w = 1.0;
 
 	PSInputDefault result = VSCalcDefault(skinnedPos, normal, uv);
 

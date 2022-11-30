@@ -14,14 +14,14 @@ MeshFile CreateQuad(float width, float height, MemoryArena& vertexArena)
 	const size_t VERTEX_COUNT = 6;
 
 	Vertex* vertices = NewArray(vertexArena, Vertex, VERTEX_COUNT);
-	vertices[0] = { { 0.f  , 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f}, 0, 0 };
-	vertices[1] = { { width, 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f}, 0, 0 };
-	vertices[2] = { { width, 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f}, 0, 0 };
-	vertices[3] = { { 0.f  , 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f}, 0, 0 };
-	vertices[4] = { { 0.f  , 0.f, height }, {}, {0.f, 1.f, 0.f }, {0.f, 1.f}, 0, 0 };
-	vertices[5] = { { width, 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f}, 0, 0 };
+	vertices[0] = { { 0.f  , 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f}, {}, {} };
+	vertices[1] = { { width, 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f}, {}, {} };
+	vertices[2] = { { width, 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f}, {}, {} };
+	vertices[3] = { { 0.f  , 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f}, {}, {} };
+	vertices[4] = { { 0.f  , 0.f, height }, {}, {0.f, 1.f, 0.f }, {0.f, 1.f}, {}, {} };
+	vertices[5] = { { width, 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f}, {}, {} };
 
-	return MeshFile{ vertices, VERTEX_COUNT, nullptr, 0 };
+	return MeshFile{ vertices, VERTEX_COUNT, 0, nullptr };
 }
 
 template <typename T>
@@ -50,31 +50,42 @@ XMVECTOR LoadScale(std::vector<double>& scaleVec)
 	return { static_cast<float>(scaleVec[0]), static_cast<float>(scaleVec[1]), static_cast<float>(scaleVec[2]) };
 }
 
-TransformNode* CreateMatrices(Model& model, int currentIndex, TransformNode* parent, TransformNode* nodeList)
+TransformNode* CreateMatrices(Model& model, int currentIndex, TransformNode* parent, TransformNode* nodeList, const float* inverseBindMatrixData)
 {
 	Node& node = model.nodes[currentIndex];
 
 	TransformNode& transformNode = nodeList[currentIndex];
-	transformNode.local = DirectX::XMMatrixAffineTransformation(LoadScale(node.scale), XMVECTOR{}, LoadRotation(node.rotation), LoadTranslation(node.translation));
+	transformNode.baseLocal = DirectX::XMMatrixAffineTransformation(LoadScale(node.scale), XMVECTOR{}, LoadRotation(node.rotation), LoadTranslation(node.translation));
+	transformNode.currentLocal = transformNode.baseLocal;
+	transformNode.parent = parent;
 
-	if (currentIndex == 54)
+	std::vector<int>& joints = model.skins[0].joints;
+	auto joint = std::find(joints.begin(), joints.end(), currentIndex);
+	if (joint != joints.end())
 	{
-		transformNode.local = XMMatrixMultiply(XMMatrixRotationX(.2f), transformNode.local);
+		int jointIndex = joint - joints.begin();
+		const float* ibmData = &inverseBindMatrixData[jointIndex * 16];
+		transformNode.inverseBind = XMMATRIX(
+			static_cast<float>(ibmData[0]), static_cast<float>(ibmData[1]), static_cast<float>(ibmData[2]), static_cast<float>(ibmData[3]),
+			static_cast<float>(ibmData[4]), static_cast<float>(ibmData[5]), static_cast<float>(ibmData[6]), static_cast<float>(ibmData[7]),
+			static_cast<float>(ibmData[8]), static_cast<float>(ibmData[9]), static_cast<float>(ibmData[10]), static_cast<float>(ibmData[11]),
+			static_cast<float>(ibmData[12]), static_cast<float>(ibmData[13]), static_cast<float>(ibmData[14]), static_cast<float>(ibmData[15])
+		);
 	}
 
 	if (parent != nullptr)
 	{
-		transformNode.global = XMMatrixMultiply(transformNode.local, parent->global);
+		transformNode.global = XMMatrixMultiply(transformNode.currentLocal, parent->global);
 	}
 	else
 	{
-		transformNode.global = transformNode.local;
+		transformNode.global = transformNode.currentLocal;
 	}
 
 	for (int childIndex : node.children)
 	{
 		assert(transformNode.childCount < MAX_CHILDREN);
-		transformNode.children[transformNode.childCount] = CreateMatrices(model, childIndex, &transformNode, nodeList);
+		transformNode.children[transformNode.childCount] = CreateMatrices(model, childIndex, &transformNode, nodeList, inverseBindMatrixData);
 		transformNode.childCount++;
 	}
 	return &nodeList[currentIndex];
@@ -108,7 +119,6 @@ MeshFile LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memory
 	Vertex* vertices;
 
 	size_t boneCount = model.skins[0].joints.size();
-	XMMATRIX* bones = NewArray(boneArena, XMMATRIX, boneCount);
 
 	Accessor& inverseBindAccessor = model.accessors[model.skins[0].inverseBindMatrices];
 	assert(inverseBindAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
@@ -116,20 +126,7 @@ MeshFile LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memory
 	const float* inverseBindMatrices = ReadBuffer<float>(model, inverseBindAccessor);
 
 	TransformHierachy* hierachy = NewObject(boneArena, TransformHierachy);
-	hierachy->root = CreateMatrices(model, model.skins[0].joints[0], nullptr, hierachy->nodes);
-
-	for (int i = 0; i < boneCount; i++)
-	{
-		const float* ibmData = &inverseBindMatrices[i * 16];
-		XMMATRIX inverseBindMatrix = XMMATRIX(
-			static_cast<float>(ibmData[0]), static_cast<float>(ibmData[1]), static_cast<float>(ibmData[2]), static_cast<float>(ibmData[3]),
-			static_cast<float>(ibmData[4]), static_cast<float>(ibmData[5]), static_cast<float>(ibmData[6]), static_cast<float>(ibmData[7]),
-			static_cast<float>(ibmData[8]), static_cast<float>(ibmData[9]), static_cast<float>(ibmData[10]), static_cast<float>(ibmData[11]),
-			static_cast<float>(ibmData[12]), static_cast<float>(ibmData[13]), static_cast<float>(ibmData[14]), static_cast<float>(ibmData[15])
-		);
-
-		bones[i] = XMMatrixMultiply(hierachy->nodes[model.skins[0].joints[i]].global, inverseBindMatrix);
-	}
+	hierachy->root = CreateMatrices(model, model.skins[0].joints[0], nullptr, hierachy->nodes, inverseBindMatrices);
 
 	for (Mesh& mesh : model.meshes)
 	{
@@ -191,11 +188,10 @@ MeshFile LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memory
 				vert.uv.x = uvData[idx * 2 + 0];
 				vert.uv.y = uvData[idx * 2 + 1];
 
-				vert.boneIndices = 0;
-				vert.boneIndices |= jointData[idx * 4 + 0];
-				vert.boneIndices |= jointData[idx * 4 + 1] << 8;
-				vert.boneIndices |= jointData[idx * 4 + 2] << 16;
-				vert.boneIndices |= jointData[idx * 4 + 3] << 24;
+				vert.boneIndices.x = jointData[idx * 4 + 0];
+				vert.boneIndices.y = jointData[idx * 4 + 1];
+				vert.boneIndices.z = jointData[idx * 4 + 2];
+				vert.boneIndices.w = jointData[idx * 4 + 3];
 
 				float w0 = weightData[idx * 4 + 0];
 				float w1 = weightData[idx * 4 + 1];
@@ -203,14 +199,27 @@ MeshFile LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memory
 				float w3 = weightData[idx * 4 + 3];
 				assert(abs(1. - (w0 + w1 + w2 + w3)) < 0.01);
 
-				vert.boneWeights = 0;
-				vert.boneWeights |= static_cast<uint8_t>(w0 * 255.);
-				vert.boneWeights |= static_cast<uint8_t>(w1 * 255.) << 8;
-				vert.boneWeights |= static_cast<uint8_t>(w2 * 255.) << 16;
-				vert.boneWeights |= static_cast<uint8_t>(w3 * 255.) << 24;
+				vert.boneWeights.x = w0;
+				vert.boneWeights.y = w1;
+				vert.boneWeights.z = w2;
+				vert.boneWeights.w = w3;
 			}
 		}
 	}
 
-	return MeshFile{ vertices, vertexCount, bones, boneCount, hierachy };
+	return MeshFile{ vertices, vertexCount, boneCount, hierachy };
+}
+
+void TransformHierachy::UpdateNode(TransformNode* node)
+{
+	assert(node != nullptr);
+	if (node->parent != nullptr)
+	{
+		node->global = XMMatrixMultiply(node->currentLocal, node->parent->global);
+	}
+
+	for (int i = 0; i < node->childCount; i++)
+	{
+		UpdateNode(node->children[i]);
+	}
 }

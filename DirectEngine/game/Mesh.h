@@ -20,14 +20,17 @@ struct Vertex
 	XMFLOAT4 color;
 	XMFLOAT3 normal;
 	XMFLOAT2 uv;
-	uint32_t boneWeights;
-	uint32_t boneIndices;
+	XMFLOAT4 boneWeights;
+	XMUINT4 boneIndices;
 };
 
 struct TransformNode
 {
-	XMMATRIX local;
+	XMMATRIX inverseBind;
+	XMMATRIX baseLocal;
+	XMMATRIX currentLocal;
 	XMMATRIX global;
+	TransformNode* parent;
 	TransformNode* children[MAX_CHILDREN];
 	size_t childCount;
 };
@@ -36,13 +39,14 @@ struct TransformHierachy
 {
 	TransformNode nodes[MAX_BONES];
 	TransformNode* root;
+
+	void UpdateNode(TransformNode* node);
 };
 
 struct MeshFile
 {
 	Vertex* vertices;
 	size_t vertexCount;
-	XMMATRIX* bones;
 	size_t boneCount;
 	TransformHierachy* hierachy;
 };

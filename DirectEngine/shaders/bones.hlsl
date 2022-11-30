@@ -10,7 +10,6 @@ PSInputDefault VSMain(float4 position : POSITION, float4 vertColor : COLOR, floa
 	PSInputDefault result;
 
 	const float displayScale = .2;
-	// TODO: the inverse bind matrix ruins this (i think)
 	float4 bonePos = mul(position * float4(displayScale, displayScale, displayScale, 1.), jointTransforms[boneIndex]);
 
 	float4 worldPos = mul(bonePos, worldTransform);

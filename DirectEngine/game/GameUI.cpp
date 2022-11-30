@@ -169,6 +169,7 @@ void Game::DrawUI(EngineCore& engine)
 			ImGui::NewLine();
 
 			ImGui::Checkbox("Show Bounds", &engine.renderAABB);
+			ImGui::Checkbox("Show Bones", &engine.renderBones);
 		}
 		ImGui::End();
 	}

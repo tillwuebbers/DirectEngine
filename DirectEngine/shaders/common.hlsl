@@ -29,7 +29,7 @@ cbuffer EntityConstantBuffer : register(b2)
 
 cbuffer BoneMatricesBuffer : register(b3)
 {
-	float4x4 boneMatrices[128];
+	float4x4 inverseJointBinds[128];
 	float4x4 jointTransforms[128];
 };
 
