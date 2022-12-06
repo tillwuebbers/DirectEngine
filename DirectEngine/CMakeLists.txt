@@ -30,6 +30,8 @@ add_executable (${PROJECT_NAME} WIN32
                 "core/UI.cpp"
                 "core/UI.h"
                 "core/vkcodes.h"
+                "core/XR.h"
+                "core/XR.cpp"
                 "imgui/remixicon.h"
                 "imgui/ImGuiProfilerRenderer.h"
                 "imgui/ProfilerTask.h"
@@ -50,7 +52,7 @@ add_executable (${PROJECT_NAME} WIN32
                 "game/Log.h"
                 "game/Log.cpp"
                 "game/Mesh.h"
-                "game/Mesh.cpp" "core/XR.h" "core/XR.cpp")
+                "game/Mesh.cpp")
 
 
 # imgui
@@ -83,6 +85,8 @@ set(XAUDIO2_DIR ${CMAKE_CURRENT_SOURCE_DIR}/xaudio2)
 target_include_directories(${PROJECT_NAME} PUBLIC ${XAUDIO2_DIR}/include)
 
 # openxr
+add_definitions(-DSTART_WITH_XR)
+add_definitions(-DXR_USE_GRAPHICS_API_D3D12)
 set(OPENXR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/openxr-sdk)
 add_subdirectory(${OPENXR_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${OPENXR_DIR}/include)

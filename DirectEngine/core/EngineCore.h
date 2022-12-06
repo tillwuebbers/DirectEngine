@@ -20,6 +20,7 @@
 #include "ShadowMap.h"
 #include "Texture.h"
 #include "Audio.h"
+#include "XR.h"
 
 #include "../game/IGame.h"
 #include "../game/Mesh.h"
@@ -167,6 +168,11 @@ public:
     HWND m_hwnd;
     std::wstring m_windowName = L"DirectEngine";
 
+    // XR
+#ifdef START_WITH_XR
+    EngineXRState m_xrState{};
+#endif
+
     // Pipeline objects
     CD3DX12_VIEWPORT m_viewport;
     CD3DX12_RECT m_scissorRect;
@@ -204,7 +210,10 @@ public:
     HANDLE m_fenceEvent = nullptr;
     ID3D12Fence* m_fence = nullptr;
     UINT64 m_fenceValues[FrameCount];
+
+#ifndef START_WITH_XR
     HANDLE m_frameWaitableObject;
+#endif
 
     // Viewport dimensions
     UINT m_width;
@@ -250,7 +259,7 @@ public:
 
     void RegisterWindowClass(HINSTANCE hInst, const wchar_t* windowClassName, WNDPROC wndProc);
     void CreateGameWindow(const wchar_t* windowClassName, HINSTANCE hInst, uint32_t width, uint32_t height);
-    void LoadPipeline();
+    void LoadPipeline(LUID* requiredLuid);
     void LoadSizeDependentResources();
     PipelineConfig* CreatePipeline(ShaderDescription shaderDesc, size_t textureCount, size_t constantBufferCount, size_t rootConstantCount, bool wireframe, bool ignoreDepth);
     void CreatePipelineState(PipelineConfig* config);
@@ -261,11 +270,10 @@ public:
     D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount);
     size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex, size_t boneCount, TransformHierachy* hierachy);
     void UploadVertices();
-    CD3DX12_GPU_DESCRIPTOR_HANDLE* GetConstantBufferHandle(int offset);
     void RenderShadows(ID3D12GraphicsCommandList* renderList);
-    void RenderScene(ID3D12GraphicsCommandList* renderList);
-    void RenderWireframe(ID3D12GraphicsCommandList* renderList);
-    void RenderBones(ID3D12GraphicsCommandList* renderList);
+    void RenderScene(ID3D12GraphicsCommandList* renderList, CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle, CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle);
+    void RenderWireframe(ID3D12GraphicsCommandList* renderList, CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle, CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle);
+    void RenderBones(ID3D12GraphicsCommandList* renderList, CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle, CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle);
     void PopulateCommandList();
     void MoveToNextFrame();
     void WaitForGpu();

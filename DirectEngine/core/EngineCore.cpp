@@ -20,7 +20,6 @@
 #include "UI.h"
 #include "EngineCore.h"
 #include "../directx-tex/DDSTextureLoader12.h"
-#include "XR.h"
 
 EngineCore::EngineCore(UINT width, UINT height, IGame* game) :
     m_frameIndex(0),
@@ -38,9 +37,6 @@ void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
 {
     ThrowIfFailed(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
 
-    // openxr
-    InitXR();
-
     // window
     CheckTearingSupport();
     const wchar_t* windowClassName = L"DX12WindowClass";
@@ -48,7 +44,13 @@ void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
     CreateGameWindow(windowClassName, hInst, m_width, m_height);
 
     // directx
-    LoadPipeline();
+#ifdef START_WITH_XR
+    LUID requiredLuid = m_xrState.InitXR(comPointers);
+    LoadPipeline(&requiredLuid);
+    m_xrState.StartXRSession(m_device, m_commandQueue, comPointers);
+#else
+    LoadPipeline(nullptr);
+#endif
     LoadAssets();
 
     // Audio
@@ -134,7 +136,7 @@ void EngineCore::CreateGameWindow(const wchar_t* windowClassName, HINSTANCE hIns
 }
 
 // Load the rendering pipeline dependencies.
-void EngineCore::LoadPipeline()
+void EngineCore::LoadPipeline(LUID* requiredLuid)
 {
     UINT dxgiFactoryFlags = 0;
 
@@ -170,9 +172,15 @@ void EngineCore::LoadPipeline()
             DXGI_ADAPTER_DESC1 desc;
             hardwareAdapter->GetDesc1(&desc);
 
+            // Don't select the Basic Render Driver adapter.
             if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
             {
-                // Don't select the Basic Render Driver adapter.
+                continue;
+            }
+
+            // Check LUID
+            if (requiredLuid != nullptr && (desc.AdapterLuid.HighPart != requiredLuid->HighPart || desc.AdapterLuid.LowPart != requiredLuid->LowPart))
+            {
                 continue;
             }
 
@@ -193,6 +201,12 @@ void EngineCore::LoadPipeline()
                 if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
                 {
                     // Don't select the Basic Render Driver adapter.
+                    continue;
+                }
+
+                // Check LUID
+                if (requiredLuid != nullptr && (desc.AdapterLuid.HighPart != requiredLuid->HighPart || desc.AdapterLuid.LowPart != requiredLuid->LowPart))
+                {
                     continue;
                 }
 
@@ -233,7 +247,10 @@ void EngineCore::LoadPipeline()
     swapChain->Release();
     
     m_swapChain->SetMaximumFrameLatency(1);
+
+#ifndef START_WITH_XR
     m_frameWaitableObject = m_swapChain->GetFrameLatencyWaitableObject();
+#endif
 
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
@@ -297,10 +314,10 @@ void EngineCore::LoadSizeDependentResources()
         // Create a RTV for each frame.
         for (UINT n = 0; n < FrameCount; n++)
         {
-            ThrowIfFailed(m_swapChain->GetBuffer(n, NewComObject(comPointersSizeDependent, &m_renderTargets[n])));
-            m_device->CreateRenderTargetView(m_renderTargets[n], &rtvDesc, rtvHandle);
-            m_renderTargets[n]->SetName(std::format(L"Engine Render Target {}", n).c_str());
-            rtvHandle.Offset(1, m_rtvDescriptorSize);
+            //ThrowIfFailed(m_swapChain->GetBuffer(n, NewComObject(comPointersSizeDependent, &m_renderTargets[n])));
+            //m_device->CreateRenderTargetView(m_renderTargets[n], &rtvDesc, rtvHandle);
+            //m_renderTargets[n]->SetName(std::format(L"Engine Render Target {}", n).c_str());
+            //rtvHandle.Offset(1, m_rtvDescriptorSize);
         }
     }
 
@@ -753,10 +770,7 @@ void EngineCore::OnUpdate()
     EndProfile("Reset Upload CB");
 
     m_game->UpdateGame(*this);
-
-    BeginProfile("Finish Update", ImColor::HSV(.2f, .33f, 1.f));
     ThrowIfFailed(m_uploadCommandList->Close());
-    EndProfile("Finish Update");
 }
 
 void EngineCore::OnRender()
@@ -775,9 +789,13 @@ void EngineCore::OnRender()
         m_commandQueue->ExecuteCommandLists(1, &uploadList);
     }
 
+#ifdef START_WITH_XR
+    m_xrState.BeginFrame();
+#endif
     PopulateCommandList();
-    ID3D12CommandList* renderList = m_renderCommandList;
-    m_commandQueue->ExecuteCommandLists(1, &renderList);
+#ifdef START_WITH_XR
+    m_xrState.EndFrame();
+#endif
     EndProfile("Commands");
 
     BeginProfile("Present", ImColor::HSV(.2f, .5f, 1.f));
@@ -796,6 +814,8 @@ void EngineCore::OnRender()
 
 void EngineCore::PopulateCommandList()
 {
+    // XR test stuff
+
     // Command list allocators can only be reset when the associated 
     // command lists have finished execution on the GPU; apps should use 
     // fences to determine GPU execution progress.
@@ -827,20 +847,61 @@ void EngineCore::PopulateCommandList()
     CopyDebugImage(renderList, m_shadowmap->textureResource);
 
     Transition(renderList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    Transition(renderList, m_renderTargets[m_frameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-    RenderScene(renderList);
-    if (renderBones) RenderBones(renderList);
-    RenderWireframe(renderList);
+    ThrowIfFailed(renderList->Close());
+    ID3D12CommandList* rl = reinterpret_cast<ID3D12CommandList*>(renderList);
+    m_commandQueue->ExecuteCommandLists(1, &rl);
+
+#ifdef START_WITH_XR
+    for (int i = 0; i < m_xrState.m_viewCount; i++)
+    {
+        SwapchainResult swapchainResult = m_xrState.GetSwapchain(i);
+        D3D12_RENDER_TARGET_VIEW_DESC renderTargetViewDesc{};
+        renderTargetViewDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+        renderTargetViewDesc.Format = DISPLAY_FORMAT;
+
+        m_device->CreateRenderTargetView(swapchainResult.swapchain->texture, &renderTargetViewDesc, m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
+
+        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), 0, m_rtvDescriptorSize);
+        CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
+#else
+    ID3D12Resource* renderTarget = m_renderTargets[m_frameIndex];
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
-    DrawImgui(renderList, &rtvHandle);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
+    {
+#endif
+        
 
+        // Reset render list and record again
+        ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
+
+#ifndef START_WITH_XR
+        Transition(renderList, renderTarget, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+#endif
+
+        RenderScene(renderList, rtvHandle, dsvHandle);
+        if (renderBones) RenderBones(renderList, rtvHandle, dsvHandle);
+        RenderWireframe(renderList, rtvHandle, dsvHandle);
+
+        DrawImgui(renderList, &rtvHandle);
+
+#ifdef START_WITH_XR
+        ThrowIfFailed(renderList->Close());
+        ID3D12CommandList* rl = reinterpret_cast<ID3D12CommandList*>(renderList);
+        m_commandQueue->ExecuteCommandLists(1, &rl);
+        m_xrState.ReleaseSwapchain(i);
+    }
+#else
+    }
     // Indicate that the back buffer will now be used to present.
-    CD3DX12_RESOURCE_BARRIER barrierToPresent = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+    CD3DX12_RESOURCE_BARRIER barrierToPresent = CD3DX12_RESOURCE_BARRIER::Transition(renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
     renderList->ResourceBarrier(1, &barrierToPresent);
 
     ThrowIfFailed(renderList->Close());
+    ID3D12CommandList* rl = reinterpret_cast<ID3D12CommandList*>(renderList);
+    m_commandQueue->ExecuteCommandLists(1, &rl);
+#endif
 }
 
 void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
@@ -885,21 +946,15 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
     }
 }
 
-void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
+void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle, CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle)
 {
     renderList->RSSetViewports(1, &m_viewport);
     renderList->RSSetScissorRects(1, &m_scissorRect);
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
-    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
     renderList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
     ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap };
     renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
-
-    renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
-    renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
-    renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
 
     // Record commands.
     renderList->ClearRenderTargetView(rtvHandle, m_game->GetClearColor(), 0, nullptr);
@@ -912,6 +967,11 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
 
         renderList->SetPipelineState(data.pipeline->pipelineState);
         renderList->SetGraphicsRootSignature(data.pipeline->rootSignature);
+
+        renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
+        renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
+        renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
+
         for (int textureIdx = 0; textureIdx < data.pipeline->textureSlotCount; textureIdx++)
         {
             renderList->SetGraphicsRootDescriptorTable(CUSTOM_START + textureIdx, data.textures[textureIdx]->handle.gpuHandle);
@@ -929,7 +989,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList)
     }
 }
 
-void EngineCore::RenderBones(ID3D12GraphicsCommandList* renderList)
+void EngineCore::RenderBones(ID3D12GraphicsCommandList* renderList, CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle, CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle)
 {
     // Set necessary state.
     renderList->SetPipelineState(m_boneDebugConfig->pipelineState);
@@ -944,8 +1004,6 @@ void EngineCore::RenderBones(ID3D12GraphicsCommandList* renderList)
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
-    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
     renderList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
     // Record commands.
@@ -975,7 +1033,7 @@ void EngineCore::RenderBones(ID3D12GraphicsCommandList* renderList)
     }
 }
 
-void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList)
+void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList, CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle, CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle)
 {
     // Set necessary state.
     renderList->SetPipelineState(m_wireframeConfig->pipelineState);
@@ -991,8 +1049,6 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList)
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
-    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
     renderList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
     // Record commands.
@@ -1064,6 +1120,9 @@ void EngineCore::MoveToNextFrame()
 
 void EngineCore::OnResize(UINT width, UINT height)
 {
+    // TODO:
+    return;
+
     // Flush all current GPU commands.
     WaitForGpu();
 
@@ -1170,6 +1229,9 @@ void EngineCore::OnDestroy()
     CloseHandle(m_fenceEvent);
 
     DestroyImgui();
+#ifdef START_WITH_XR
+    m_xrState.ShutdownXR();
+#endif
 
     comPointersTextureUpload.Clear();
     comPointersSizeDependent.Clear();

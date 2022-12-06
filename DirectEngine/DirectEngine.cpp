@@ -107,7 +107,11 @@ DWORD WINAPI GameRenderThread(LPVOID lpParameter)
 		engine.EndProfile("Mutex Read");
 
 		engine.BeginProfile("Waitable", ImColor(.3f, .3f, .3f));
+#ifdef START_WITH_XR
+		engine.m_xrState.WaitForFrame();
+#else
 		WaitForSingleObjectEx(engine.m_frameWaitableObject, 1000, true);
+#endif
 		engine.EndProfile("Waitable");
 
 		engine.OnUpdate();
@@ -271,7 +275,7 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 		// Create game and engine on window thread to set up events, then give it to render thread and never touch it again.
 		Game game{};
 
-		EngineCore engine(1920, 1080, static_cast<IGame*>(&game));
+		EngineCore engine(2016, 2240, static_cast<IGame*>(&game));
 		engineCore = &engine;
 		engine.OnInit(hInstance, nCmdShow, WndProc);
 
