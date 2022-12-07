@@ -143,9 +143,13 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
 #if defined(_DEBUG)
     {
         ComPtr<ID3D12Debug> debugController;
+        ComPtr<ID3D12Debug1> debugController1;
         if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
         {
             debugController->EnableDebugLayer();
+            
+            ThrowIfFailed(debugController->QueryInterface(IID_PPV_ARGS(&debugController1)));
+            debugController1->SetEnableGPUBasedValidation(true);
 
             // Enable additional debug layers.
             dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
@@ -260,7 +264,7 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
     {
         // Describe and create a render target view (RTV) descriptor heap.
         D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
-        rtvHeapDesc.NumDescriptors = FrameCount;
+        rtvHeapDesc.NumDescriptors = FrameCount * 2; // TODO
         rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
         rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         ThrowIfFailed(m_device->CreateDescriptorHeap(&rtvHeapDesc, NewComObject(comPointers, &m_rtvHeap)));
@@ -281,7 +285,7 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
 
         // Depth/Stencil descriptor heap
         D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
-        dsvHeapDesc.NumDescriptors = 2;
+        dsvHeapDesc.NumDescriptors = FrameCount * 2; // TODO
         dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
         dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         ThrowIfFailed(m_device->CreateDescriptorHeap(&dsvHeapDesc, NewComObject(comPointers, &m_depthStencilHeap)));
@@ -324,17 +328,17 @@ void EngineCore::LoadSizeDependentResources()
     // depth/stencil view
     {
         D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
-        depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        depthStencilDesc.Format = DEPTH_BUFFER_FORMAT;
         depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
         depthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
 
         D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
-        depthOptimizedClearValue.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        depthOptimizedClearValue.Format = DEPTH_BUFFER_FORMAT;
         depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
         depthOptimizedClearValue.DepthStencil.Stencil = 0;
 
         CD3DX12_HEAP_PROPERTIES heapType(D3D12_HEAP_TYPE_DEFAULT);
-        CD3DX12_RESOURCE_DESC depthTexture = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R24G8_TYPELESS, m_width, m_height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
+        CD3DX12_RESOURCE_DESC depthTexture = CD3DX12_RESOURCE_DESC::Tex2D(DEPTH_BUFFER_FORMAT_TYPELESS, m_width, m_height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 
         ThrowIfFailed(m_device->CreateCommittedResource(&heapType, D3D12_HEAP_FLAG_NONE, &depthTexture, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, NewComObject(comPointersSizeDependent, &m_depthStencilBuffer)));
         m_depthStencilBuffer->SetName(L"Depth/Stencil Buffer");
@@ -540,7 +544,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
     psoDesc.NumRenderTargets = 1;
     psoDesc.RTVFormats[0] = DISPLAY_FORMAT;
     psoDesc.SampleDesc.Count = 1;
-    psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    psoDesc.DSVFormat = DEPTH_BUFFER_FORMAT;
 
     config->creationError = m_device->CreateGraphicsPipelineState(&psoDesc, NewComObjectReplace(comPointers, &config->pipelineState));
     config->pipelineState->SetName(config->shaderDescription.debugName);
@@ -570,7 +574,7 @@ void EngineCore::LoadAssets()
         m_lightConstantBuffer.UploadData(i);
     }
 
-    m_shadowmap = NewObject(engineArena, ShadowMap, DXGI_FORMAT_R24G8_TYPELESS);
+    m_shadowmap = NewObject(engineArena, ShadowMap, DEPTH_BUFFER_FORMAT_TYPELESS);
 
     m_shadowmap->depthStencilViewCPU = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart(), 1, m_dsvDescriptorSize);
     m_shadowmap->shaderResourceViewHandle = GetNewDescriptorHandle();
@@ -581,7 +585,6 @@ void EngineCore::LoadAssets()
     {
         ThrowIfFailed(m_device->CreateFence(m_fenceValues[m_frameIndex], D3D12_FENCE_FLAG_NONE, NewComObject(comPointers, &m_fence)));
         m_fence->SetName(L"Engine Fence");
-
         m_fenceValues[m_frameIndex]++;
 
         // Create an event handle to use for frame synchronization.
@@ -814,8 +817,6 @@ void EngineCore::OnRender()
 
 void EngineCore::PopulateCommandList()
 {
-    // XR test stuff
-
     // Command list allocators can only be reset when the associated 
     // command lists have finished execution on the GPU; apps should use 
     // fences to determine GPU execution progress.
@@ -854,29 +855,35 @@ void EngineCore::PopulateCommandList()
 
 #ifdef START_WITH_XR
     for (int i = 0; i < m_xrState.m_viewCount; i++)
+#endif
     {
+#ifdef START_WITH_XR
         SwapchainResult swapchainResult = m_xrState.GetSwapchain(i);
+        swapchainResult.context->ResetCommandAllocator();
+
+        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), swapchainResult.swapchainImageIndex * 2 + i, m_rtvDescriptorSize);
+        CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart(), swapchainResult.swapchainImageIndex * 2 + i, m_dsvDescriptorSize);
+
         D3D12_RENDER_TARGET_VIEW_DESC renderTargetViewDesc{};
         renderTargetViewDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
         renderTargetViewDesc.Format = DISPLAY_FORMAT;
+        m_device->CreateRenderTargetView(swapchainResult.swapchain->texture, &renderTargetViewDesc, rtvHandle);
 
-        m_device->CreateRenderTargetView(swapchainResult.swapchain->texture, &renderTargetViewDesc, m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
-
-        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), 0, m_rtvDescriptorSize);
-        CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
-#else
-    ID3D12Resource* renderTarget = m_renderTargets[m_frameIndex];
-
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
-    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
-    {
-#endif
+        D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc{};
+        depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+        depthStencilViewDesc.Format = DEPTH_BUFFER_FORMAT;
+        m_device->CreateDepthStencilView(swapchainResult.context->GetDepthStencilTexture(swapchainResult.swapchain->texture, comPointers), &depthStencilViewDesc, dsvHandle);
         
+        ComPtr<ID3D12GraphicsCommandList> cmdList;
+        ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, swapchainResult.context->GetCommandAllocator(), nullptr, __uuidof(ID3D12GraphicsCommandList), reinterpret_cast<void**>(cmdList.ReleaseAndGetAddressOf())));
+        renderList = cmdList.Get();
+#else
+        ID3D12Resource* renderTarget = m_renderTargets[m_frameIndex];
 
-        // Reset render list and record again
-        ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
-
-#ifndef START_WITH_XR
+        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
+        CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
+        ThrowIfFailed(renderList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
+        
         Transition(renderList, renderTarget, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 #endif
 
@@ -886,22 +893,20 @@ void EngineCore::PopulateCommandList()
 
         DrawImgui(renderList, &rtvHandle);
 
-#ifdef START_WITH_XR
+#ifndef START_WITH_XR
+        // Indicate that the back buffer will now be used to present.
+        CD3DX12_RESOURCE_BARRIER barrierToPresent = CD3DX12_RESOURCE_BARRIER::Transition(renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+        renderList->ResourceBarrier(1, &barrierToPresent);
+#endif
+
         ThrowIfFailed(renderList->Close());
         ID3D12CommandList* rl = reinterpret_cast<ID3D12CommandList*>(renderList);
         m_commandQueue->ExecuteCommandLists(1, &rl);
-        m_xrState.ReleaseSwapchain(i);
-    }
-#else
-    }
-    // Indicate that the back buffer will now be used to present.
-    CD3DX12_RESOURCE_BARRIER barrierToPresent = CD3DX12_RESOURCE_BARRIER::Transition(renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-    renderList->ResourceBarrier(1, &barrierToPresent);
 
-    ThrowIfFailed(renderList->Close());
-    ID3D12CommandList* rl = reinterpret_cast<ID3D12CommandList*>(renderList);
-    m_commandQueue->ExecuteCommandLists(1, &rl);
+#ifdef START_WITH_XR
+        m_xrState.ReleaseSwapchain(i, swapchainResult.context);
 #endif
+    }
 }
 
 void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)

@@ -106,6 +106,8 @@ DWORD WINAPI GameRenderThread(LPVOID lpParameter)
 		updateDataMutex.unlock();
 		engine.EndProfile("Mutex Read");
 
+		engine.OnUpdate();
+
 		engine.BeginProfile("Waitable", ImColor(.3f, .3f, .3f));
 #ifdef START_WITH_XR
 		engine.m_xrState.WaitForFrame();
@@ -114,7 +116,6 @@ DWORD WINAPI GameRenderThread(LPVOID lpParameter)
 #endif
 		engine.EndProfile("Waitable");
 
-		engine.OnUpdate();
 		engine.m_inUpdate = true;
 		engine.OnRender();
 		engine.m_inUpdate = false;

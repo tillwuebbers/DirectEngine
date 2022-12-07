@@ -14,11 +14,6 @@ using namespace DirectX;
 #define VIEW_CONFIG_TYPE XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO
 #define ENVIRONMENT_BLEND_MODE XR_ENVIRONMENT_BLEND_MODE_OPAQUE
 
-struct SwapchainResult
-{
-    const XrSwapchainImageD3D12KHR* swapchain;
-};
-
 struct Swapchain {
     XrSwapchain handle;
     int32_t width;
@@ -60,6 +55,13 @@ private:
     uint64_t m_fenceValue = 0;
 };
 
+struct SwapchainResult
+{
+    const XrSwapchainImageD3D12KHR* swapchain;
+    SwapchainImageContext* context;
+    uint32_t swapchainImageIndex;
+};
+
 struct EngineXRState
 {
     XrInstance m_instance = { XR_NULL_HANDLE };
@@ -73,6 +75,9 @@ struct EngineXRState
     XrFrameState m_frameState = { XR_TYPE_FRAME_STATE };
     uint32_t m_viewCount = 0;
 
+    HANDLE m_xrFenceEvent = nullptr;
+    ID3D12Fence* m_xrFence = nullptr;
+    UINT64 m_xrFenceValue = 0;
 
     XrCompositionLayerProjection m_layer{ XR_TYPE_COMPOSITION_LAYER_PROJECTION };
     std::vector<XrCompositionLayerBaseHeader*> m_layers = {};
@@ -94,7 +99,7 @@ struct EngineXRState
     void WaitForFrame();
     bool BeginFrame();
     SwapchainResult GetSwapchain(int index);
-    void ReleaseSwapchain(int index);
+    void ReleaseSwapchain(int index, SwapchainImageContext* context);
     void EndFrame();
     void ShutdownXR();
 };

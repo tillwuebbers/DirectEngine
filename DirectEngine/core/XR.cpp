@@ -297,6 +297,16 @@ void EngineXRState::StartXRSession(ID3D12Device* device, ID3D12CommandQueue* que
             m_swapchainImages.insert(std::make_pair(swapchain.handle, std::move(swapchainImages)));
         }
     }
+
+    // Fences
+    ThrowIfFailed(device->CreateFence(m_xrFenceValue, D3D12_FENCE_FLAG_NONE, NewComObject(comStack, &m_xrFence)));
+    m_xrFence->SetName(L"XR Fence");
+
+    m_xrFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+    if (m_xrFenceEvent == nullptr)
+    {
+        ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
+    }
 }
 
 const XrEventDataBaseHeader* EngineXRState::TryReadNextEvent() {
@@ -472,11 +482,25 @@ SwapchainResult EngineXRState::GetSwapchain(int index)
     //XrFovf& fov = projectionLayerView.fov;
     //outProjectionMatrix = XMMatrixPerspectiveOffCenterLH(tanf(fov.angleLeft), tanf(fov.angleRight), tanf(fov.angleDown), tanf(fov.angleUp), 0.05f, 100.f);
 
-    return { reinterpret_cast<const XrSwapchainImageD3D12KHR*>(swapchainImage) };
+    SwapchainImageContext* context = m_swapchainImageContextMap[swapchainImage];
+
+    uint64_t waitFence = context->GetFrameFenceValue();
+    if (m_xrFence->GetCompletedValue() < waitFence)
+    {
+        ThrowIfFailed(m_xrFence->SetEventOnCompletion(waitFence, m_xrFenceEvent));
+        const uint32_t retVal = WaitForSingleObjectEx(m_xrFenceEvent, INFINITE, FALSE);
+        if (retVal != WAIT_OBJECT_0) { CHECK_HRCMD(E_FAIL); }
+    }
+
+    return { reinterpret_cast<const XrSwapchainImageD3D12KHR*>(swapchainImage), context, swapchainImageIndex };
 }
 
-void EngineXRState::ReleaseSwapchain(int index)
+void EngineXRState::ReleaseSwapchain(int index, SwapchainImageContext* context)
 {
+    m_xrFenceValue++;
+    ThrowIfFailed(m_graphicsBinding.queue->Signal(m_xrFence, m_xrFenceValue));
+    context->SetFrameFenceValue(m_xrFenceValue);
+
     XrSwapchainImageReleaseInfo releaseInfo{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
     CHECK_HRCMD(xrReleaseSwapchainImage(m_swapchains[index].handle, &releaseInfo));
 }
