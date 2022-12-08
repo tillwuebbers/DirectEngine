@@ -97,7 +97,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_link_libraries(${PROJECT_NAME} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib" "${CMAKE_CURRENT_BINARY_DIR}/openxr-sdk/src/loader/openxr_loaderd.lib" "${XAUDIO2_DIR}/debug/lib/x64/xaudio2_9redist.lib")
 else()
     file(COPY "${XAUDIO2_DIR}/release/bin/x64/xaudio2_9redist.dll" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-    target_link_libraries(${PROJECT_NAME} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib" "openxr_loaderd.lib" "${CMAKE_CURRENT_BINARY_DIR}/openxr-sdk/src/loader/openxr_loaderd.lib" "${XAUDIO2_DIR}/release/lib/x64/xaudio2_9redist.lib")
+    target_link_libraries(${PROJECT_NAME} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib" "${CMAKE_CURRENT_BINARY_DIR}/openxr-sdk/src/loader/openxr_loader.lib" "${XAUDIO2_DIR}/release/lib/x64/xaudio2_9redist.lib")
 endif()
 target_compile_options(${PROJECT_NAME} PRIVATE /W3 /w34456 /w34189 /w44305 /w44244 /w44267)
 

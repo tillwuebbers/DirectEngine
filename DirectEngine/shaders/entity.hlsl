@@ -1,6 +1,6 @@
 #include "common.hlsl"
 
-Texture2D diffuseTexture : register(t5);
+Texture2D diffuseTexture : register(t7);
 
 PSInputDefault VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL, float2 uv : UV, float4 boneWeights: BONE_WEIGHTS, uint4 boneIndices: BONE_INDICES)
 {

@@ -48,8 +48,10 @@ enum RootSignatureOffset : UINT
     LIGHT = 1,
     ENTITY = 2,
     BONES = 3,
-    SHADOWMAP = 4,
-    CUSTOM_START = 5,
+    XR = 4,
+    SHADOWMAP = 5,
+    CAM = 6,
+    CUSTOM_START = 7,
 };
 
 struct FrameDebugData
@@ -101,7 +103,6 @@ struct EntityConstantBuffer
     bool isSelected;
     float padding[(256 - 64 - 3 * 16 - 16) / 4];
 };
-const int debugbuffersize = sizeof(EntityConstantBuffer) % 256;
 static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
 struct BoneMatricesBuffer
@@ -110,6 +111,15 @@ struct BoneMatricesBuffer
     XMMATRIX jointTransforms[MAX_BONES];
 };
 static_assert((sizeof(BoneMatricesBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
+
+struct XrConstantBuffer
+{
+    XMMATRIX camViewL;
+    XMMATRIX camViewR;
+    XMMATRIX camProjectionL;
+    XMMATRIX camProjectionR;
+};
+static_assert((sizeof(XrConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
 struct EntityData
 {
@@ -190,20 +200,24 @@ public:
     ID3D12GraphicsCommandList* m_uploadCommandList = nullptr;
     ID3D12GraphicsCommandList* m_renderCommandList = nullptr;
     bool m_scheduleUpload = false;
-    UINT m_rtvDescriptorSize;
-    UINT m_dsvDescriptorSize;
     PipelineConfig* m_shadowConfig;
     PipelineConfig* m_boneDebugConfig;
     PipelineConfig* m_wireframeConfig;
+    
+    D3D12_CPU_DESCRIPTOR_HANDLE m_swapchainRtvHandles[FrameCount];
+    UINT m_rtvDescriptorSize;
+    UINT m_dsvDescriptorSize;
 
     // App resources
     ConstantBuffer<SceneConstantBuffer> m_sceneConstantBuffer = {};
     ConstantBuffer<LightConstantBuffer> m_lightConstantBuffer = {};
+    ConstantBuffer<XrConstantBuffer> m_xrConstantBuffer = {};
     ShadowMap* m_shadowmap = nullptr;
     ID3D12Resource* m_textureUploadHeaps[MAX_TEXTURE_UPLOADS] = {};
     size_t m_textureUploadIndex = 0;
     MaterialData m_materials[MAX_MATERIALS] = {};
     size_t m_materialCount = 0;
+    uint32_t cameraIndex = 0;
 
     // Synchronization objects
     UINT m_frameIndex = 0;
@@ -271,9 +285,9 @@ public:
     size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex, size_t boneCount, TransformHierachy* hierachy);
     void UploadVertices();
     void RenderShadows(ID3D12GraphicsCommandList* renderList);
-    void RenderScene(ID3D12GraphicsCommandList* renderList, CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle, CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle);
-    void RenderWireframe(ID3D12GraphicsCommandList* renderList, CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle, CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle);
-    void RenderBones(ID3D12GraphicsCommandList* renderList, CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle, CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle);
+    void RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
+    void RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
+    void RenderBones(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
     void PopulateCommandList();
     void MoveToNextFrame();
     void WaitForGpu();

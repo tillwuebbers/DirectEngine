@@ -45,9 +45,9 @@ void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
 
     // directx
 #ifdef START_WITH_XR
-    LUID requiredLuid = m_xrState.InitXR(comPointers);
+    LUID requiredLuid = m_xrState.InitXR();
     LoadPipeline(&requiredLuid);
-    m_xrState.StartXRSession(m_device, m_commandQueue, comPointers);
+    m_xrState.StartXRSession(m_device, m_commandQueue);
 #else
     LoadPipeline(nullptr);
 #endif
@@ -149,7 +149,7 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
             debugController->EnableDebugLayer();
             
             ThrowIfFailed(debugController->QueryInterface(IID_PPV_ARGS(&debugController1)));
-            debugController1->SetEnableGPUBasedValidation(true);
+            //debugController1->SetEnableGPUBasedValidation(true);
 
             // Enable additional debug layers.
             dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
@@ -264,7 +264,7 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
     {
         // Describe and create a render target view (RTV) descriptor heap.
         D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
-        rtvHeapDesc.NumDescriptors = FrameCount * 2; // TODO
+        rtvHeapDesc.NumDescriptors = FrameCount * 3; // TODO
         rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
         rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         ThrowIfFailed(m_device->CreateDescriptorHeap(&rtvHeapDesc, NewComObject(comPointers, &m_rtvHeap)));
@@ -285,7 +285,7 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
 
         // Depth/Stencil descriptor heap
         D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
-        dsvHeapDesc.NumDescriptors = FrameCount * 2; // TODO
+        dsvHeapDesc.NumDescriptors = FrameCount * 3; // TODO
         dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
         dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         ThrowIfFailed(m_device->CreateDescriptorHeap(&dsvHeapDesc, NewComObject(comPointers, &m_depthStencilHeap)));
@@ -309,7 +309,6 @@ void EngineCore::LoadSizeDependentResources()
 {
     // Create frame resources.
     {
-        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
 
         D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
         rtvDesc.Format = DISPLAY_FORMAT;
@@ -318,10 +317,11 @@ void EngineCore::LoadSizeDependentResources()
         // Create a RTV for each frame.
         for (UINT n = 0; n < FrameCount; n++)
         {
-            //ThrowIfFailed(m_swapChain->GetBuffer(n, NewComObject(comPointersSizeDependent, &m_renderTargets[n])));
-            //m_device->CreateRenderTargetView(m_renderTargets[n], &rtvDesc, rtvHandle);
-            //m_renderTargets[n]->SetName(std::format(L"Engine Render Target {}", n).c_str());
-            //rtvHandle.Offset(1, m_rtvDescriptorSize);
+            ThrowIfFailed(m_swapChain->GetBuffer(n, NewComObject(comPointersSizeDependent, &m_renderTargets[n])));
+            m_renderTargets[n]->SetName(std::format(L"Engine Render Target {}", n).c_str());
+
+            m_swapchainRtvHandles[n] = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), n, m_rtvDescriptorSize);
+            m_device->CreateRenderTargetView(m_renderTargets[n], &rtvDesc, m_swapchainRtvHandles[n]);
         }
     }
 
@@ -372,13 +372,16 @@ PipelineConfig* EngineCore::CreatePipeline(ShaderDescription shaderDesc, size_t 
         ranges[LIGHT].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, LIGHT, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         ranges[ENTITY].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, ENTITY, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         ranges[BONES].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, BONES, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+        ranges[XR].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, XR, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         ranges[SHADOWMAP].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, SHADOWMAP, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         
         rootParameters[SCENE].InitAsDescriptorTable(1, &ranges[SCENE], D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[LIGHT].InitAsDescriptorTable(1, &ranges[LIGHT], D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[ENTITY].InitAsDescriptorTable(1, &ranges[ENTITY], D3D12_SHADER_VISIBILITY_VERTEX);
         rootParameters[BONES].InitAsDescriptorTable(1, &ranges[BONES], D3D12_SHADER_VISIBILITY_VERTEX);
+        rootParameters[XR].InitAsDescriptorTable(1, &ranges[XR], D3D12_SHADER_VISIBILITY_VERTEX);
         rootParameters[SHADOWMAP].InitAsDescriptorTable(1, &ranges[SHADOWMAP], D3D12_SHADER_VISIBILITY_PIXEL);
+        rootParameters[CAM].InitAsConstants(1, CAM);
         
         for (int i = 0; i < config->textureSlotCount; i++)
         {
@@ -568,10 +571,12 @@ void EngineCore::LoadAssets()
     // Shader values for scene
     CreateConstantBuffers<SceneConstantBuffer>(m_sceneConstantBuffer, L"Scene Constant Buffer");
     CreateConstantBuffers<LightConstantBuffer>(m_lightConstantBuffer, L"Light Constant Buffer");
+    CreateConstantBuffers<XrConstantBuffer>(m_xrConstantBuffer, L"XR Constant Buffer");
     for (int i = 0; i < FrameCount; i++)
     {
         m_sceneConstantBuffer.UploadData(i);
         m_lightConstantBuffer.UploadData(i);
+        m_xrConstantBuffer.UploadData(i);
     }
 
     m_shadowmap = NewObject(engineArena, ShadowMap, DEPTH_BUFFER_FORMAT_TYPELESS);
@@ -778,8 +783,7 @@ void EngineCore::OnUpdate()
 
 void EngineCore::OnRender()
 {
-    BeginProfile("Commands", ImColor::HSV(.0, .5, 1.));
-
+    BeginProfile("Prepare Commands", ImColor::HSV(.0, .2, 1.));
     if (m_wantedWindowMode != m_windowMode)
     {
         ApplyWindowMode();
@@ -795,13 +799,16 @@ void EngineCore::OnRender()
 #ifdef START_WITH_XR
     m_xrState.BeginFrame();
 #endif
+
+    EndProfile("Prepare Commands");
+
     PopulateCommandList();
+
+    BeginProfile("Present", ImColor::HSV(.2f, .5f, 1.f));
 #ifdef START_WITH_XR
     m_xrState.EndFrame();
 #endif
-    EndProfile("Commands");
 
-    BeginProfile("Present", ImColor::HSV(.2f, .5f, 1.f));
     UINT presentFlags = (m_tearingSupport && m_windowMode != WindowMode::Fullscreen && !m_useVsync) ? DXGI_PRESENT_ALLOW_TEARING : 0;
 
     // Present the frame.
@@ -817,6 +824,9 @@ void EngineCore::OnRender()
 
 void EngineCore::PopulateCommandList()
 {
+    // Desktop Render
+    BeginProfile("Render", ImColor::HSV(.0, .5, 1.));
+
     // Command list allocators can only be reset when the associated 
     // command lists have finished execution on the GPU; apps should use 
     // fences to determine GPU execution progress.
@@ -826,10 +836,10 @@ void EngineCore::PopulateCommandList()
     // list, that command list can then be reset at any time and must be before 
     // re-recording.
     ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
-    ID3D12GraphicsCommandList* renderList = m_renderCommandList;
 
     m_sceneConstantBuffer.UploadData(m_frameIndex);
     m_lightConstantBuffer.UploadData(m_frameIndex);
+    cameraIndex = 0;
 
     for (int matIndex = 0; matIndex < m_materialCount; matIndex++)
     {
@@ -841,72 +851,84 @@ void EngineCore::PopulateCommandList()
         }
     }
 
-    RenderShadows(renderList);
+    RenderShadows(m_renderCommandList);
 
-    Transition(renderList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    Transition(m_renderCommandList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    CopyDebugImage(m_renderCommandList, m_shadowmap->textureResource);
+    Transition(m_renderCommandList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-    CopyDebugImage(renderList, m_shadowmap->textureResource);
+    ID3D12Resource* renderTarget = m_renderTargets[m_frameIndex];
+    Transition(m_renderCommandList, renderTarget, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-    Transition(renderList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
-    ThrowIfFailed(renderList->Close());
-    ID3D12CommandList* rl = reinterpret_cast<ID3D12CommandList*>(renderList);
-    m_commandQueue->ExecuteCommandLists(1, &rl);
-
-#ifdef START_WITH_XR
-    for (int i = 0; i < m_xrState.m_viewCount; i++)
-#endif
     {
+        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = m_swapchainRtvHandles[m_frameIndex];
+        D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart();
+
+        RenderScene(m_renderCommandList, rtvHandle, dsvHandle);
+        if (renderBones) RenderBones(m_renderCommandList, rtvHandle, dsvHandle);
+        RenderWireframe(m_renderCommandList, rtvHandle, dsvHandle);
+        DrawImgui(m_renderCommandList, &rtvHandle);
+    }
+
+    Transition(m_renderCommandList, renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+
+    ThrowIfFailed(m_renderCommandList->Close());
+    ID3D12CommandList* rl = reinterpret_cast<ID3D12CommandList*>(m_renderCommandList);
+    m_commandQueue->ExecuteCommandLists(1, &rl);
+    EndProfile("Render");
+
 #ifdef START_WITH_XR
-        SwapchainResult swapchainResult = m_xrState.GetSwapchain(i);
+    // VR Render
+    BeginProfile("VR Render", ImColor::HSV(.0, .7, 1.));
+    for (int i = 0; i < m_xrState.m_viewCount; i++)
+    {
+SwapchainResult swapchainResult = m_xrState.GetSwapchain(i);
+        ID3D12Resource* colorTexture = swapchainResult.context->m_swapchainImages[swapchainResult.imageIndex].texture;
+
+        if (i == 0)
+        {
+            m_xrConstantBuffer.data.camViewL = XMMatrixTranspose(swapchainResult.viewMatrix);
+            m_xrConstantBuffer.data.camProjectionL = XMMatrixTranspose(swapchainResult.projectionMatrix);
+        }
+        else
+        {
+            m_xrConstantBuffer.data.camViewR = XMMatrixTranspose(swapchainResult.viewMatrix);
+            m_xrConstantBuffer.data.camProjectionR = XMMatrixTranspose(swapchainResult.projectionMatrix);
+        }
+        m_xrConstantBuffer.UploadData(m_frameIndex);
+        cameraIndex = i + 1;
+
         swapchainResult.context->ResetCommandAllocator();
 
-        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), swapchainResult.swapchainImageIndex * 2 + i, m_rtvDescriptorSize);
-        CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart(), swapchainResult.swapchainImageIndex * 2 + i, m_dsvDescriptorSize);
+        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), FrameCount + swapchainResult.imageIndex * 2 + i, m_rtvDescriptorSize);
+        CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart(), FrameCount + swapchainResult.imageIndex * 2 + i, m_dsvDescriptorSize);
 
         D3D12_RENDER_TARGET_VIEW_DESC renderTargetViewDesc{};
         renderTargetViewDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
         renderTargetViewDesc.Format = DISPLAY_FORMAT;
-        m_device->CreateRenderTargetView(swapchainResult.swapchain->texture, &renderTargetViewDesc, rtvHandle);
+        m_device->CreateRenderTargetView(colorTexture, &renderTargetViewDesc, rtvHandle);
 
         D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc{};
         depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
         depthStencilViewDesc.Format = DEPTH_BUFFER_FORMAT;
-        m_device->CreateDepthStencilView(swapchainResult.context->GetDepthStencilTexture(swapchainResult.swapchain->texture, comPointers), &depthStencilViewDesc, dsvHandle);
+        m_device->CreateDepthStencilView(swapchainResult.context->GetDepthStencilTexture(colorTexture), &depthStencilViewDesc, dsvHandle);
         
         ComPtr<ID3D12GraphicsCommandList> cmdList;
         ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, swapchainResult.context->GetCommandAllocator(), nullptr, __uuidof(ID3D12GraphicsCommandList), reinterpret_cast<void**>(cmdList.ReleaseAndGetAddressOf())));
-        renderList = cmdList.Get();
-#else
-        ID3D12Resource* renderTarget = m_renderTargets[m_frameIndex];
-
-        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
-        CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
-        ThrowIfFailed(renderList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
-        
-        Transition(renderList, renderTarget, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-#endif
+        ID3D12GraphicsCommandList* renderList = cmdList.Get();
 
         RenderScene(renderList, rtvHandle, dsvHandle);
         if (renderBones) RenderBones(renderList, rtvHandle, dsvHandle);
         RenderWireframe(renderList, rtvHandle, dsvHandle);
 
-        DrawImgui(renderList, &rtvHandle);
-
-#ifndef START_WITH_XR
-        // Indicate that the back buffer will now be used to present.
-        CD3DX12_RESOURCE_BARRIER barrierToPresent = CD3DX12_RESOURCE_BARRIER::Transition(renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-        renderList->ResourceBarrier(1, &barrierToPresent);
-#endif
-
         ThrowIfFailed(renderList->Close());
         ID3D12CommandList* rl = reinterpret_cast<ID3D12CommandList*>(renderList);
         m_commandQueue->ExecuteCommandLists(1, &rl);
 
-#ifdef START_WITH_XR
         m_xrState.ReleaseSwapchain(i, swapchainResult.context);
-#endif
     }
+    EndProfile("VR Render");
+#endif
 }
 
 void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
@@ -923,6 +945,8 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
 
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
+    renderList->SetGraphicsRootDescriptorTable(XR, m_xrConstantBuffer.handles[m_frameIndex].gpuHandle);
+    renderList->SetGraphicsRoot32BitConstant(CAM, cameraIndex, 0);
 
     // Barrier to transition shadow map
     Transition(renderList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
@@ -951,7 +975,7 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
     }
 }
 
-void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle, CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle)
+void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle)
 {
     renderList->RSSetViewports(1, &m_viewport);
     renderList->RSSetScissorRects(1, &m_scissorRect);
@@ -976,6 +1000,8 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, CD3DX12_CPU_
         renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
         renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
         renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
+        renderList->SetGraphicsRootDescriptorTable(XR, m_xrConstantBuffer.handles[m_frameIndex].gpuHandle);
+        renderList->SetGraphicsRoot32BitConstant(CAM, cameraIndex, 0);
 
         for (int textureIdx = 0; textureIdx < data.pipeline->textureSlotCount; textureIdx++)
         {
@@ -994,7 +1020,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, CD3DX12_CPU_
     }
 }
 
-void EngineCore::RenderBones(ID3D12GraphicsCommandList* renderList, CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle, CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle)
+void EngineCore::RenderBones(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle)
 {
     // Set necessary state.
     renderList->SetPipelineState(m_boneDebugConfig->pipelineState);
@@ -1008,6 +1034,8 @@ void EngineCore::RenderBones(ID3D12GraphicsCommandList* renderList, CD3DX12_CPU_
 
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
+    renderList->SetGraphicsRootDescriptorTable(XR, m_xrConstantBuffer.handles[m_frameIndex].gpuHandle);
+    renderList->SetGraphicsRoot32BitConstant(CAM, cameraIndex, 0);
 
     renderList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
@@ -1038,7 +1066,7 @@ void EngineCore::RenderBones(ID3D12GraphicsCommandList* renderList, CD3DX12_CPU_
     }
 }
 
-void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList, CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle, CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle)
+void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle)
 {
     // Set necessary state.
     renderList->SetPipelineState(m_wireframeConfig->pipelineState);
@@ -1053,6 +1081,8 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList, CD3DX12_
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
+    renderList->SetGraphicsRootDescriptorTable(XR, m_xrConstantBuffer.handles[m_frameIndex].gpuHandle);
+    renderList->SetGraphicsRoot32BitConstant(CAM, cameraIndex, 0);
 
     renderList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 

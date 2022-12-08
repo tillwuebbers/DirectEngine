@@ -33,7 +33,20 @@ cbuffer BoneMatricesBuffer : register(b3)
 	float4x4 jointTransforms[128];
 };
 
-Texture2D shadowmapTexture : register(t4);
+cbuffer XrBuffer : register(b4)
+{
+	float4x4 camViewL;
+	float4x4 camViewR;
+	float4x4 camProjectionL;
+	float4x4 camProjectionR;
+}
+
+Texture2D shadowmapTexture : register(t5);
+
+cbuffer CamConstants : register(b6)
+{
+	uint camIndex;
+};
 
 struct PSInputDefault
 {
@@ -52,7 +65,10 @@ PSInputDefault VSCalcDefault(float4 position, float3 normal, float2 uv)
 	float4 worldPos = mul(position, worldTransform);
 	result.worldPosition = worldPos;
 
-	float4x4 vp = mul(cameraView, cameraProjection);
+	float4x4 vp;
+	if      (camIndex == 1) { vp = mul(camViewL, camProjectionL); }
+	else if (camIndex == 2) { vp = mul(camViewR, camProjectionR); }
+	else                    { vp = mul(cameraView, cameraProjection); }
 	result.position = mul(worldPos, vp);
 
 	float4x4 lightVP = mul(lightView, lightProjection);

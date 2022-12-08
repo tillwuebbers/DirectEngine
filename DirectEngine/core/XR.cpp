@@ -5,8 +5,9 @@
 #include <assert.h>
 
 #include "../Helpers.h"
+#include "openxr/xr_linear.h"
 
-void CreateBuffer(ID3D12Device* d3d12Device, uint32_t size, D3D12_HEAP_TYPE heapType, ID3D12Resource** buffer, ComStack& comStack)
+ComPtr<ID3D12Resource> CreateBuffer(ID3D12Device* d3d12Device, uint32_t size, D3D12_HEAP_TYPE heapType)
 {
     D3D12_RESOURCE_STATES d3d12ResourceState;
     if (heapType == D3D12_HEAP_TYPE_UPLOAD)
@@ -37,10 +38,23 @@ void CreateBuffer(ID3D12Device* d3d12Device, uint32_t size, D3D12_HEAP_TYPE heap
     buffDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
     buffDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
-    CHECK_HRCMD(d3d12Device->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &buffDesc, d3d12ResourceState, nullptr, NewComObject(comStack, buffer)));
+    ComPtr<ID3D12Resource> buffer;
+    CHECK_HRCMD(d3d12Device->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &buffDesc, d3d12ResourceState, nullptr, __uuidof(ID3D12Resource), reinterpret_cast<void**>(buffer.ReleaseAndGetAddressOf())));
+    return buffer;
 }
 
-std::vector<XrSwapchainImageBaseHeader*> SwapchainImageContext::Create(ID3D12Device* d3d12Device, uint32_t capacity, ComStack& comStack)
+XMMATRIX XM_CALLCONV LoadXrPose(const XrPosef& pose) {
+    return XMMatrixAffineTransformation(DirectX::g_XMOne, DirectX::g_XMZero,
+        XMLoadFloat4(reinterpret_cast<const XMFLOAT4*>(&pose.orientation)),
+        XMLoadFloat3(reinterpret_cast<const XMFLOAT3*>(&pose.position)));
+}
+
+XMMATRIX XM_CALLCONV LoadXrMatrix(const XrMatrix4x4f& matrix) {
+    // XrMatrix4x4f has same memory layout as DirectX Math (Row-major,post-multiplied = column-major,pre-multiplied)
+    return XMLoadFloat4x4(reinterpret_cast<const XMFLOAT4X4*>(&matrix));
+}
+
+void SwapchainImageContext::Create(ID3D12Device* d3d12Device, uint32_t capacity)
 {
     m_d3d12Device = d3d12Device;
 
@@ -49,14 +63,11 @@ std::vector<XrSwapchainImageBaseHeader*> SwapchainImageContext::Create(ID3D12Dev
     for (uint32_t i = 0; i < capacity; ++i)
     {
         m_swapchainImages[i] = { XR_TYPE_SWAPCHAIN_IMAGE_D3D12_KHR };
-        bases[i] = reinterpret_cast<XrSwapchainImageBaseHeader*>(&m_swapchainImages[i]);
     }
 
-    CHECK_HRCMD(m_d3d12Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, NewComObject(comStack, &m_commandAllocator)));
-
-    CreateBuffer(m_d3d12Device, sizeof(ViewProjectionConstantBuffer), D3D12_HEAP_TYPE_UPLOAD, &m_viewProjectionCBuffer, comStack);
-
-    return bases;
+    CHECK_HRCMD(m_d3d12Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, __uuidof(ID3D12CommandAllocator),
+        reinterpret_cast<void**>(m_commandAllocator.ReleaseAndGetAddressOf())));
+    m_commandAllocator->SetName(L"XR Comm allocator");
 }
 
 uint32_t SwapchainImageContext::ImageIndex(const XrSwapchainImageBaseHeader* swapchainImageHeader)
@@ -65,11 +76,10 @@ uint32_t SwapchainImageContext::ImageIndex(const XrSwapchainImageBaseHeader* swa
     return (uint32_t)(p - &m_swapchainImages[0]);
 }
 
-ID3D12Resource* SwapchainImageContext::GetDepthStencilTexture(ID3D12Resource* colorTexture, ComStack& comStack)
+ID3D12Resource* SwapchainImageContext::GetDepthStencilTexture(ID3D12Resource* colorTexture)
 {
     if (!m_depthStencilTexture) {
         // This back-buffer has no corresponding depth-stencil texture, so create one with matching dimensions.
-
         const D3D12_RESOURCE_DESC colorDesc = colorTexture->GetDesc();
 
         D3D12_HEAP_PROPERTIES heapProp{};
@@ -93,27 +103,17 @@ ID3D12Resource* SwapchainImageContext::GetDepthStencilTexture(ID3D12Resource* co
         clearValue.DepthStencil.Depth = 1.0f;
         clearValue.Format = DXGI_FORMAT_D32_FLOAT;
 
-        CHECK_HRCMD(m_d3d12Device->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &depthDesc, D3D12_RESOURCE_STATE_DEPTH_WRITE, &clearValue, NewComObject(comStack, &m_depthStencilTexture)));
+        CHECK_HRCMD(m_d3d12Device->CreateCommittedResource(
+            &heapProp, D3D12_HEAP_FLAG_NONE, &depthDesc, D3D12_RESOURCE_STATE_DEPTH_WRITE, &clearValue,
+            __uuidof(ID3D12Resource), reinterpret_cast<void**>(m_depthStencilTexture.ReleaseAndGetAddressOf())));
     }
-    return m_depthStencilTexture;
+    return m_depthStencilTexture.Get();
 }
 
-ID3D12CommandAllocator* SwapchainImageContext::GetCommandAllocator() const { return m_commandAllocator; }
-
+ID3D12CommandAllocator* SwapchainImageContext::GetCommandAllocator() const { return m_commandAllocator.Get(); }
 uint64_t SwapchainImageContext::GetFrameFenceValue() const { return m_fenceValue; }
 void SwapchainImageContext::SetFrameFenceValue(uint64_t fenceValue) { m_fenceValue = fenceValue; }
-
 void SwapchainImageContext::ResetCommandAllocator() { CHECK_HRCMD(m_commandAllocator->Reset()); }
-
-void SwapchainImageContext::RequestModelCBuffer(uint32_t requiredSize, ComStack& comStack) {
-    if (!m_modelCBuffer || (requiredSize > m_modelCBuffer->GetDesc().Width)) {
-        CreateBuffer(m_d3d12Device, requiredSize, D3D12_HEAP_TYPE_UPLOAD, &m_modelCBuffer, comStack);
-    }
-}
-
-ID3D12Resource* SwapchainImageContext::GetModelCBuffer() const { return m_modelCBuffer; }
-ID3D12Resource* SwapchainImageContext::GetViewProjectionCBuffer() const { return m_viewProjectionCBuffer; }
-
 
 inline std::string GetXrVersionString(XrVersion ver)
 {
@@ -155,7 +155,7 @@ void LogLayers()
     }
 }
 
-LUID EngineXRState::InitXR(ComStack& comStack)
+LUID EngineXRState::InitXR()
 {
     LogLayers();
 
@@ -182,7 +182,7 @@ LUID EngineXRState::InitXR(ComStack& comStack)
     return graphicsRequirements.adapterLuid;
 }
 
-void EngineXRState::StartXRSession(ID3D12Device* device, ID3D12CommandQueue* queue, ComStack& comStack)
+void EngineXRState::StartXRSession(ID3D12Device* device, ID3D12CommandQueue* queue)
 {
     m_graphicsBinding.device = device;
     m_graphicsBinding.queue = queue;
@@ -235,8 +235,9 @@ void EngineXRState::StartXRSession(ID3D12Device* device, ID3D12CommandQueue* que
         CHECK_HRCMD(xrEnumerateSwapchainFormats(m_session, (uint32_t)swapchainFormats.size(), &swapchainFormatCount,
             swapchainFormats.data()));
         assert(swapchainFormatCount == swapchainFormats.size());
-
+        //m_colorSwapchainFormat = m_graphicsPlugin->SelectColorSwapchainFormat(swapchainFormats);
         uint64_t m_colorSwapchainFormat = swapchainFormats.at(0);
+
         // Print swapchain formats and the selected one.
         {
             std::string swapchainFormatsString;
@@ -251,15 +252,15 @@ void EngineXRState::StartXRSession(ID3D12Device* device, ID3D12CommandQueue* que
                     swapchainFormatsString += "]";
                 }
             }
-            OutputDebugStringA(std::format("Swapchain Formats: {}\n", swapchainFormatsString).c_str());
+            //Log::Write(Log::Level::Verbose, Fmt("Swapchain Formats: %s", swapchainFormatsString.c_str()));
         }
 
         // Create a swapchain for each view.
-        m_swapchainImageContexts.resize(viewCount);
+        m_swapchains.reserve(4);
         for (uint32_t i = 0; i < viewCount; i++)
         {
             const XrViewConfigurationView& vp = m_configViews[i];
-            OutputDebugString(std::format(L"Creating swapchain for view {} with dimensions Width={} Height={} SampleCount={}\n", i, vp.recommendedImageRectWidth, vp.recommendedImageRectHeight, vp.recommendedSwapchainSampleCount).c_str());
+            //Log::Write(Log::Level::Info, Fmt("Creating swapchain for view %d with dimensions Width=%d Height=%d SampleCount=%d", i, vp.recommendedImageRectWidth, vp.recommendedImageRectHeight, vp.recommendedSwapchainSampleCount));
 
             // Create the swapchain.
             XrSwapchainCreateInfo swapchainCreateInfo{ XR_TYPE_SWAPCHAIN_CREATE_INFO };
@@ -269,37 +270,25 @@ void EngineXRState::StartXRSession(ID3D12Device* device, ID3D12CommandQueue* que
             swapchainCreateInfo.height = vp.recommendedImageRectHeight;
             swapchainCreateInfo.mipCount = 1;
             swapchainCreateInfo.faceCount = 1;
-            swapchainCreateInfo.sampleCount = vp.recommendedSwapchainSampleCount;
+            swapchainCreateInfo.sampleCount = vp.recommendedSwapchainSampleCount;// m_graphicsPlugin->GetSupportedSwapchainSampleCount(vp);
             swapchainCreateInfo.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
-            Swapchain swapchain;
-            swapchain.width = swapchainCreateInfo.width;
-            swapchain.height = swapchainCreateInfo.height;
-            CHECK_HRCMD(xrCreateSwapchain(m_session, &swapchainCreateInfo, &swapchain.handle));
-
-            m_swapchains.push_back(swapchain);
+            
+            SwapchainImageContext& swapchainContext = m_swapchains.emplace_back();
+            swapchainContext.width = swapchainCreateInfo.width;
+            swapchainContext.height = swapchainCreateInfo.height;
+            CHECK_HRCMD(xrCreateSwapchain(m_session, &swapchainCreateInfo, &swapchainContext.handle));
 
             uint32_t imageCount;
-            CHECK_HRCMD(xrEnumerateSwapchainImages(swapchain.handle, 0, &imageCount, nullptr));
+            CHECK_HRCMD(xrEnumerateSwapchainImages(swapchainContext.handle, 0, &imageCount, nullptr));
 
-            // Allocate and initialize the buffer of image structs (must be sequential in memory for xrEnumerateSwapchainImages).
-            // Return back an array of pointers to each swapchain image struct so the consumer doesn't need to know the type/size.
-            SwapchainImageContext& swapchainImageContext = m_swapchainImageContexts[i];
-            std::vector<XrSwapchainImageBaseHeader*> swapchainImages = swapchainImageContext.Create(device, imageCount, comStack);
-
-            // Map every swapchainImage base pointer to this context
-            for (auto& base : swapchainImages)
-            {
-                m_swapchainImageContextMap[base] = &swapchainImageContext;
-            }
-
-            CHECK_HRCMD(xrEnumerateSwapchainImages(swapchain.handle, imageCount, &imageCount, swapchainImages[0]));
-
-            m_swapchainImages.insert(std::make_pair(swapchain.handle, std::move(swapchainImages)));
+            swapchainContext.Create(m_graphicsBinding.device, imageCount);
+            XrSwapchainImageBaseHeader* imagesStart = reinterpret_cast<XrSwapchainImageBaseHeader*>(&swapchainContext.m_swapchainImages[0]);
+            CHECK_HRCMD(xrEnumerateSwapchainImages(swapchainContext.handle, imageCount, &imageCount, imagesStart));
         }
     }
 
     // Fences
-    ThrowIfFailed(device->CreateFence(m_xrFenceValue, D3D12_FENCE_FLAG_NONE, NewComObject(comStack, &m_xrFence)));
+    ThrowIfFailed(device->CreateFence(m_xrFenceValue, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_xrFence)));
     m_xrFence->SetName(L"XR Fence");
 
     m_xrFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -362,8 +351,7 @@ void EngineXRState::PollEvents(bool* exitRenderLoop, bool* requestRestart) {
     }
 }
 
-void EngineXRState::HandleSessionStateChangedEvent(const XrEventDataSessionStateChanged& stateChangedEvent, bool* exitRenderLoop,
-    bool* requestRestart) {
+void EngineXRState::HandleSessionStateChangedEvent(const XrEventDataSessionStateChanged& stateChangedEvent, bool* exitRenderLoop, bool* requestRestart) {
     const XrSessionState oldState = m_sessionState;
     m_sessionState = stateChangedEvent.state;
 
@@ -406,15 +394,30 @@ void EngineXRState::HandleSessionStateChangedEvent(const XrEventDataSessionState
     }
 }
 
+void EngineXRState::CpuWaitForFence(uint64_t fenceValue) {
+    if (m_xrFence->GetCompletedValue() < fenceValue) {
+        CHECK_HRCMD(m_xrFence->SetEventOnCompletion(fenceValue, m_xrFenceEvent));
+        const uint32_t retVal = WaitForSingleObjectEx(m_xrFenceEvent, INFINITE, FALSE);
+        if (retVal != WAIT_OBJECT_0) {
+            CHECK_HRCMD(E_FAIL);
+        }
+    }
+}
+
 void EngineXRState::WaitForFrame()
 {
     bool quit = false;
     bool restart = false;
     PollEvents(&quit, &restart);
     if (!m_sessionRunning) return;
+    assert(!quit);
+    assert(!restart);
 
     XrFrameWaitInfo frameWaitInfo{ XR_TYPE_FRAME_WAIT_INFO };
     CHECK_HRCMD(xrWaitFrame(m_session, &frameWaitInfo, &m_frameState));
+
+    XrFrameBeginInfo frameBeginInfo{ XR_TYPE_FRAME_BEGIN_INFO };
+    CHECK_HRCMD(xrBeginFrame(m_session, &frameBeginInfo));
 }
 
 bool EngineXRState::BeginFrame()
@@ -423,9 +426,6 @@ bool EngineXRState::BeginFrame()
 
     m_layers.clear();
     m_projectionLayerViews.clear();
-
-    XrFrameBeginInfo frameBeginInfo{ XR_TYPE_FRAME_BEGIN_INFO };
-    CHECK_HRCMD(xrBeginFrame(m_session, &frameBeginInfo));
 
     if (m_frameState.shouldRender == XR_TRUE)
     {
@@ -455,50 +455,39 @@ bool EngineXRState::BeginFrame()
 
 SwapchainResult EngineXRState::GetSwapchain(int index)
 {
-    // Each view has a separate swapchain which is acquired, rendered to, and released.
-    const Swapchain viewSwapchain = m_swapchains[index];
+    SwapchainImageContext* viewSwapchain = &m_swapchains[index];
+    SwapchainResult result{ viewSwapchain };
 
     XrSwapchainImageAcquireInfo acquireInfo{ XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO };
-
-    uint32_t swapchainImageIndex;
-    CHECK_HRCMD(xrAcquireSwapchainImage(viewSwapchain.handle, &acquireInfo, &swapchainImageIndex));
+    CHECK_HRCMD(xrAcquireSwapchainImage(viewSwapchain->handle, &acquireInfo, &result.imageIndex));
 
     XrSwapchainImageWaitInfo waitInfo{ XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO };
     waitInfo.timeout = XR_INFINITE_DURATION;
-    CHECK_HRCMD(xrWaitSwapchainImage(viewSwapchain.handle, &waitInfo));
+    CHECK_HRCMD(xrWaitSwapchainImage(viewSwapchain->handle, &waitInfo));
 
     XrCompositionLayerProjectionView& projectionLayerView = m_projectionLayerViews[index];
     projectionLayerView = { XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW };
     projectionLayerView.pose = m_views[index].pose;
     projectionLayerView.fov = m_views[index].fov;
-    projectionLayerView.subImage.swapchain = viewSwapchain.handle;
+    projectionLayerView.subImage.swapchain = viewSwapchain->handle;
     projectionLayerView.subImage.imageRect.offset = { 0, 0 };
-    projectionLayerView.subImage.imageRect.extent = { viewSwapchain.width, viewSwapchain.height };
+    projectionLayerView.subImage.imageRect.extent = { viewSwapchain->width, viewSwapchain->height };
 
-    const XrSwapchainImageBaseHeader* const swapchainImage = m_swapchainImages[viewSwapchain.handle][swapchainImageIndex];
+    result.viewMatrix = XMMatrixInverse(nullptr, LoadXrPose(projectionLayerView.pose));
 
-    //outViewMatrix = XMMatrixInverse(nullptr, XMMatrixAffineTransformation({ 1.f, 1.f, 1.f }, {}, XrQuatToXM(projectionLayerView.pose.orientation), XrVec3ToXM(projectionLayerView.pose.position)));
+    XrMatrix4x4f projectionMatrix;
+    XrMatrix4x4f_CreateProjectionFov(&projectionMatrix, GRAPHICS_D3D, projectionLayerView.fov, 0.05f, 100.0f);
+    result.projectionMatrix = LoadXrMatrix(projectionMatrix);
 
-    //XrFovf& fov = projectionLayerView.fov;
-    //outProjectionMatrix = XMMatrixPerspectiveOffCenterLH(tanf(fov.angleLeft), tanf(fov.angleRight), tanf(fov.angleDown), tanf(fov.angleUp), 0.05f, 100.f);
+    CpuWaitForFence(viewSwapchain->GetFrameFenceValue());
 
-    SwapchainImageContext* context = m_swapchainImageContextMap[swapchainImage];
-
-    uint64_t waitFence = context->GetFrameFenceValue();
-    if (m_xrFence->GetCompletedValue() < waitFence)
-    {
-        ThrowIfFailed(m_xrFence->SetEventOnCompletion(waitFence, m_xrFenceEvent));
-        const uint32_t retVal = WaitForSingleObjectEx(m_xrFenceEvent, INFINITE, FALSE);
-        if (retVal != WAIT_OBJECT_0) { CHECK_HRCMD(E_FAIL); }
-    }
-
-    return { reinterpret_cast<const XrSwapchainImageD3D12KHR*>(swapchainImage), context, swapchainImageIndex };
+    return result;
 }
 
 void EngineXRState::ReleaseSwapchain(int index, SwapchainImageContext* context)
 {
     m_xrFenceValue++;
-    ThrowIfFailed(m_graphicsBinding.queue->Signal(m_xrFence, m_xrFenceValue));
+    ThrowIfFailed(m_graphicsBinding.queue->Signal(m_xrFence.Get(), m_xrFenceValue));
     context->SetFrameFenceValue(m_xrFenceValue);
 
     XrSwapchainImageReleaseInfo releaseInfo{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
@@ -530,12 +519,12 @@ void EngineXRState::EndFrame()
 
 void EngineXRState::ShutdownXR()
 {
-    for (Swapchain swapchain : m_swapchains)
+    for (SwapchainImageContext& swapchain : m_swapchains)
     {
         xrDestroySwapchain(swapchain.handle);
     }
 
-    for (XrSpace visualizedSpace : m_visualizedSpaces)
+    for (XrSpace& visualizedSpace : m_visualizedSpaces)
     {
         xrDestroySpace(visualizedSpace);
     }
