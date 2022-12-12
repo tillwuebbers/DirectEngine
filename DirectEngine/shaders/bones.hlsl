@@ -15,8 +15,7 @@ PSInputDefault VSMain(float4 position : POSITION, float4 vertColor : COLOR, floa
 	float4 worldPos = mul(bonePos, worldTransform);
 	result.worldPosition = worldPos;
 
-	float4x4 vp = mul(cameraView, cameraProjection);
-	result.position = mul(worldPos, vp);
+	result.position = mul(worldPos, VSGetVP());
 
 	float4x4 lightVP = mul(lightView, lightProjection);
 	result.lightSpacePosition = mul(float4(worldPos.xyz, 1.0), lightVP);

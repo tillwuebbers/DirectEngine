@@ -226,6 +226,24 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
         ThrowIfFailed(D3D12CreateDevice(hardwareAdapter.Get(), D3D_FEATURE_LEVEL_11_0, NewComObject(comPointers, &m_device)));
     }
 
+#ifdef _DEBUG
+    ComPtr<ID3D12InfoQueue> infoQueue = nullptr;
+    m_device->QueryInterface(IID_PPV_ARGS(&infoQueue));
+
+    if (infoQueue != nullptr)
+    {
+        D3D12_MESSAGE_ID hide[] =
+        {
+            D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,
+            D3D12_MESSAGE_ID_REFLECTSHAREDPROPERTIES_INVALIDOBJECT,
+        };
+        D3D12_INFO_QUEUE_FILTER filter{};
+        filter.DenyList.NumIDs = _countof(hide);
+        filter.DenyList.pIDList = hide;
+        infoQueue->AddStorageFilterEntries(&filter);
+    }
+#endif
+
     // Describe and create the command queue.
     D3D12_COMMAND_QUEUE_DESC queueDesc = {};
     queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
@@ -822,10 +840,17 @@ void EngineCore::OnRender()
     frameArena.Reset();
 }
 
+void EngineCore::ExecCommandList(ID3D12GraphicsCommandList* commandList)
+{
+    ThrowIfFailed(commandList->Close());
+    ID3D12CommandList* list = reinterpret_cast<ID3D12CommandList*>(commandList);
+    m_commandQueue->ExecuteCommandLists(1, &list);
+}
+
 void EngineCore::PopulateCommandList()
 {
     // Desktop Render
-    BeginProfile("Render", ImColor::HSV(.0, .5, 1.));
+    BeginProfile("Render Stage 1", ImColor::HSV(.0, .5, 1.));
 
     // Command list allocators can only be reset when the associated 
     // command lists have finished execution on the GPU; apps should use 
@@ -837,6 +862,7 @@ void EngineCore::PopulateCommandList()
     // re-recording.
     ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
 
+    // Upload Data
     m_sceneConstantBuffer.UploadData(m_frameIndex);
     m_lightConstantBuffer.UploadData(m_frameIndex);
     cameraIndex = 0;
@@ -851,46 +877,37 @@ void EngineCore::PopulateCommandList()
         }
     }
 
+    // Setup Handles
+    D3D12_CPU_DESCRIPTOR_HANDLE rtvHandleWindow = m_swapchainRtvHandles[m_frameIndex];
+    D3D12_CPU_DESCRIPTOR_HANDLE dsvHandleWindow = m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart();
+    ID3D12Resource* renderTargetWindow = m_renderTargets[m_frameIndex];
+
+    // Stage 1
     RenderShadows(m_renderCommandList);
 
     Transition(m_renderCommandList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COPY_SOURCE);
     CopyDebugImage(m_renderCommandList, m_shadowmap->textureResource);
     Transition(m_renderCommandList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-    ID3D12Resource* renderTarget = m_renderTargets[m_frameIndex];
-    Transition(m_renderCommandList, renderTarget, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-
-    {
-        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = m_swapchainRtvHandles[m_frameIndex];
-        D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart();
-
-        RenderScene(m_renderCommandList, rtvHandle, dsvHandle);
-        if (renderBones) RenderBones(m_renderCommandList, rtvHandle, dsvHandle);
-        RenderWireframe(m_renderCommandList, rtvHandle, dsvHandle);
-        DrawImgui(m_renderCommandList, &rtvHandle);
-    }
-
-    Transition(m_renderCommandList, renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-
-    ThrowIfFailed(m_renderCommandList->Close());
-    ID3D12CommandList* rl = reinterpret_cast<ID3D12CommandList*>(m_renderCommandList);
-    m_commandQueue->ExecuteCommandLists(1, &rl);
-    EndProfile("Render");
+    ExecCommandList(m_renderCommandList);
+    EndProfile("Render Stage 1");
 
 #ifdef START_WITH_XR
-    // VR Render
     BeginProfile("VR Render", ImColor::HSV(.0, .7, 1.));
     for (int i = 0; i < m_xrState.m_viewCount; i++)
     {
-SwapchainResult swapchainResult = m_xrState.GetSwapchain(i);
+        // Get XR Swapchain
+        SwapchainResult swapchainResult = m_xrState.GetSwapchain(i);
+        swapchainResult.context->ResetCommandAllocator();
         ID3D12Resource* colorTexture = swapchainResult.context->m_swapchainImages[swapchainResult.imageIndex].texture;
 
+        // Upload data
         if (i == 0)
         {
             m_xrConstantBuffer.data.camViewL = XMMatrixTranspose(swapchainResult.viewMatrix);
             m_xrConstantBuffer.data.camProjectionL = XMMatrixTranspose(swapchainResult.projectionMatrix);
         }
-        else
+        else if (i == 1)
         {
             m_xrConstantBuffer.data.camViewR = XMMatrixTranspose(swapchainResult.viewMatrix);
             m_xrConstantBuffer.data.camProjectionR = XMMatrixTranspose(swapchainResult.projectionMatrix);
@@ -898,36 +915,70 @@ SwapchainResult swapchainResult = m_xrState.GetSwapchain(i);
         m_xrConstantBuffer.UploadData(m_frameIndex);
         cameraIndex = i + 1;
 
-        swapchainResult.context->ResetCommandAllocator();
-
-        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), FrameCount + swapchainResult.imageIndex * 2 + i, m_rtvDescriptorSize);
-        CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart(), FrameCount + swapchainResult.imageIndex * 2 + i, m_dsvDescriptorSize);
+        // Setup handles
+        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandleXR(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), FrameCount + swapchainResult.imageIndex * 2 + i, m_rtvDescriptorSize);
+        CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandleXR(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart(), FrameCount + swapchainResult.imageIndex * 2 + i, m_dsvDescriptorSize);
 
         D3D12_RENDER_TARGET_VIEW_DESC renderTargetViewDesc{};
         renderTargetViewDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
         renderTargetViewDesc.Format = DISPLAY_FORMAT;
-        m_device->CreateRenderTargetView(colorTexture, &renderTargetViewDesc, rtvHandle);
+        m_device->CreateRenderTargetView(colorTexture, &renderTargetViewDesc, rtvHandleXR);
 
         D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc{};
         depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
         depthStencilViewDesc.Format = DEPTH_BUFFER_FORMAT;
-        m_device->CreateDepthStencilView(swapchainResult.context->GetDepthStencilTexture(colorTexture), &depthStencilViewDesc, dsvHandle);
+        m_device->CreateDepthStencilView(swapchainResult.context->GetDepthStencilTexture(colorTexture), &depthStencilViewDesc, dsvHandleXR);
         
         ComPtr<ID3D12GraphicsCommandList> cmdList;
         ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, swapchainResult.context->GetCommandAllocator(), nullptr, __uuidof(ID3D12GraphicsCommandList), reinterpret_cast<void**>(cmdList.ReleaseAndGetAddressOf())));
         ID3D12GraphicsCommandList* renderList = cmdList.Get();
 
-        RenderScene(renderList, rtvHandle, dsvHandle);
-        if (renderBones) RenderBones(renderList, rtvHandle, dsvHandle);
-        RenderWireframe(renderList, rtvHandle, dsvHandle);
+        // Render XR Scene
+        renderList->ClearRenderTargetView(rtvHandleXR, m_game->GetClearColor(), 0, nullptr);
+        renderList->ClearDepthStencilView(dsvHandleXR, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+        RenderScene(renderList, rtvHandleXR, dsvHandleXR);
+        if (renderBones) RenderBones(renderList, rtvHandleXR, dsvHandleXR);
+        RenderWireframe(renderList, rtvHandleXR, dsvHandleXR);
 
-        ThrowIfFailed(renderList->Close());
-        ID3D12CommandList* rl = reinterpret_cast<ID3D12CommandList*>(renderList);
-        m_commandQueue->ExecuteCommandLists(1, &rl);
+        // Copy to window
+        if (i == 0)
+        {
+            // Copy
+            Transition(renderList, renderTargetWindow, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST);
+            Transition(renderList, colorTexture, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
+            // TODO: render to screenspace quad instead of using copyresource
+            renderList->CopyResource(renderTargetWindow, colorTexture);
+            Transition(renderList, colorTexture, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
+            // Window UI
+            Transition(renderList, renderTargetWindow, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
+            DrawImgui(renderList, &rtvHandleWindow);
+            Transition(renderList, renderTargetWindow, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+        }
+        
+        // Finish XR
+        ExecCommandList(renderList);
         m_xrState.ReleaseSwapchain(i, swapchainResult.context);
     }
     EndProfile("VR Render");
+#else
+    // 'Main' non-XR render
+    BeginProfile("Render Stage 2", ImColor::HSV(.0, .7, 1.));
+
+    ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
+    Transition(m_renderCommandList, renderTargetWindow, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+    m_renderCommandList->ClearRenderTargetView(rtvHandleWindow, m_game->GetClearColor(), 0, nullptr);
+    m_renderCommandList->ClearDepthStencilView(dsvHandleWindow, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+    RenderScene(m_renderCommandList, rtvHandleWindow, dsvHandleWindow);
+    if (renderBones) RenderBones(m_renderCommandList, rtvHandleWindow, dsvHandleWindow);
+    RenderWireframe(m_renderCommandList, rtvHandleWindow, dsvHandleWindow);
+    DrawImgui(m_renderCommandList, &rtvHandleWindow);
+    Transition(m_renderCommandList, renderTargetWindow, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+
+    ExecCommandList(m_renderCommandList);
+    EndProfile("Render Stage 2");
 #endif
 }
 
@@ -986,8 +1037,6 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
     renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
     // Record commands.
-    renderList->ClearRenderTargetView(rtvHandle, m_game->GetClearColor(), 0, nullptr);
-    renderList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     for (int drawIdx = 0; drawIdx < m_materialCount; drawIdx++)
@@ -999,7 +1048,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
 
         renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
         renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
-        renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
+        //renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
         renderList->SetGraphicsRootDescriptorTable(XR, m_xrConstantBuffer.handles[m_frameIndex].gpuHandle);
         renderList->SetGraphicsRoot32BitConstant(CAM, cameraIndex, 0);
 
@@ -1080,7 +1129,6 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CP
 
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
-    renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(XR, m_xrConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRoot32BitConstant(CAM, cameraIndex, 0);
 

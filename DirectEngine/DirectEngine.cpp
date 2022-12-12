@@ -276,7 +276,8 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 		// Create game and engine on window thread to set up events, then give it to render thread and never touch it again.
 		Game game{};
 
-		EngineCore engine(2016, 2240, static_cast<IGame*>(&game));
+		EngineCore engine(1920, 1080, static_cast<IGame*>(&game));
+		//EngineCore engine(2016, 2240, static_cast<IGame*>(&game));
 		engineCore = &engine;
 		engine.OnInit(hInstance, nCmdShow, WndProc);
 

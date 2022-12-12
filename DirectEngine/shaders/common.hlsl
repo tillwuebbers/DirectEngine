@@ -58,6 +58,13 @@ struct PSInputDefault
 	float2 uv : UV;
 };
 
+float4x4 VSGetVP()
+{
+	if      (camIndex == 1) { return mul(camViewL, camProjectionL); }
+	else if (camIndex == 2) { return mul(camViewR, camProjectionR); }
+	else                    { return mul(cameraView, cameraProjection); }
+}
+
 PSInputDefault VSCalcDefault(float4 position, float3 normal, float2 uv)
 {
 	PSInputDefault result;
@@ -65,11 +72,7 @@ PSInputDefault VSCalcDefault(float4 position, float3 normal, float2 uv)
 	float4 worldPos = mul(position, worldTransform);
 	result.worldPosition = worldPos;
 
-	float4x4 vp;
-	if      (camIndex == 1) { vp = mul(camViewL, camProjectionL); }
-	else if (camIndex == 2) { vp = mul(camViewR, camProjectionR); }
-	else                    { vp = mul(cameraView, cameraProjection); }
-	result.position = mul(worldPos, vp);
+	result.position = mul(worldPos, VSGetVP());
 
 	float4x4 lightVP = mul(lightView, lightProjection);
 	result.lightSpacePosition = mul(float4(worldPos.xyz, 1.0), lightVP);
