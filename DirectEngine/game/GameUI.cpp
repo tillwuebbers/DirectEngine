@@ -268,6 +268,16 @@ void Game::DrawUI(EngineCore& engine)
 		}
 		ImGui::End();
 	}
+
+	// Bone Debug
+	if (showBoneDebugWindow)
+	{
+		if (ImGui::Begin("Bones", &showBoneDebugWindow))
+		{
+			ImGui::SliderInt("Selected Bone", &boneDebugIndex, 0, 100);
+		}
+		ImGui::End();
+	}
 	engine.EndProfile("Game UI");
 
 	// Profiler

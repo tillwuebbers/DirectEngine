@@ -20,9 +20,8 @@ float4 PSMain(PSInputDefault input) : SV_TARGET
 
 	float3 baseColor = float3(.02, .02, .02);
 
-	float2 gridIn = (input.uv + float2(frac(time.x * .1), 0.)) * 100.;
-	float2 gridCell = floor(gridIn);
-	float3 randomGridColor = float3(RandomPerPixel(gridCell, 43.1 + floor(time.x * 2.)), RandomPerPixel(gridCell, 24.34), RandomPerPixel(gridCell, 33.3));
+	float2 gridCell = floor(input.uv * 100.);
+	float3 randomGridColor = float3(RandomPerPixel(gridCell, 43.1), RandomPerPixel(gridCell, 24.34), RandomPerPixel(gridCell, 33.3));
 
 	float3 appliedColor = randomGridColor * litColor * baseColor;
 

@@ -50,28 +50,22 @@ XMVECTOR LoadScale(std::vector<double>& scaleVec)
 	return { static_cast<float>(scaleVec[0]), static_cast<float>(scaleVec[1]), static_cast<float>(scaleVec[2]) };
 }
 
-TransformNode* CreateMatrices(Model& model, int currentIndex, TransformNode* parent, TransformNode* nodeList, const float* inverseBindMatrixData)
+TransformNode* CreateMatrices(Model& model, int jointIndex, TransformNode* parent, TransformNode* nodeList, const float* inverseBindMatrixData)
 {
-	Node& node = model.nodes[currentIndex];
+	Node& node = model.nodes[model.skins[0].joints[jointIndex]];
 
-	TransformNode& transformNode = nodeList[currentIndex];
+	TransformNode& transformNode = nodeList[jointIndex];
 	transformNode.baseLocal = DirectX::XMMatrixAffineTransformation(LoadScale(node.scale), XMVECTOR{}, LoadRotation(node.rotation), LoadTranslation(node.translation));
 	transformNode.currentLocal = transformNode.baseLocal;
 	transformNode.parent = parent;
 
-	std::vector<int>& joints = model.skins[0].joints;
-	auto joint = std::find(joints.begin(), joints.end(), currentIndex);
-	if (joint != joints.end())
-	{
-		int jointIndex = joint - joints.begin();
-		const float* ibmData = &inverseBindMatrixData[jointIndex * 16];
-		transformNode.inverseBind = XMMATRIX(
-			static_cast<float>(ibmData[0]), static_cast<float>(ibmData[1]), static_cast<float>(ibmData[2]), static_cast<float>(ibmData[3]),
-			static_cast<float>(ibmData[4]), static_cast<float>(ibmData[5]), static_cast<float>(ibmData[6]), static_cast<float>(ibmData[7]),
-			static_cast<float>(ibmData[8]), static_cast<float>(ibmData[9]), static_cast<float>(ibmData[10]), static_cast<float>(ibmData[11]),
-			static_cast<float>(ibmData[12]), static_cast<float>(ibmData[13]), static_cast<float>(ibmData[14]), static_cast<float>(ibmData[15])
-		);
-	}
+	const float* ibmData = &inverseBindMatrixData[jointIndex * 16];
+	transformNode.inverseBind = XMMATRIX(
+		static_cast<float>(ibmData[0]), static_cast<float>(ibmData[1]), static_cast<float>(ibmData[2]), static_cast<float>(ibmData[3]),
+		static_cast<float>(ibmData[4]), static_cast<float>(ibmData[5]), static_cast<float>(ibmData[6]), static_cast<float>(ibmData[7]),
+		static_cast<float>(ibmData[8]), static_cast<float>(ibmData[9]), static_cast<float>(ibmData[10]), static_cast<float>(ibmData[11]),
+		static_cast<float>(ibmData[12]), static_cast<float>(ibmData[13]), static_cast<float>(ibmData[14]), static_cast<float>(ibmData[15])
+	);
 
 	if (parent != nullptr)
 	{
@@ -82,13 +76,20 @@ TransformNode* CreateMatrices(Model& model, int currentIndex, TransformNode* par
 		transformNode.global = transformNode.currentLocal;
 	}
 
-	for (int childIndex : node.children)
+	for (int childNodeIndex : node.children)
 	{
 		assert(transformNode.childCount < MAX_CHILDREN);
-		transformNode.children[transformNode.childCount] = CreateMatrices(model, childIndex, &transformNode, nodeList, inverseBindMatrixData);
-		transformNode.childCount++;
+
+		auto& jointVec = model.skins[0].joints;
+		auto childJoint = std::find(jointVec.begin(), jointVec.end(), childNodeIndex);
+		if (childJoint != jointVec.end())
+		{
+			size_t childJointIndex = childJoint - jointVec.begin();
+			transformNode.children[transformNode.childCount] = CreateMatrices(model, childJointIndex, &transformNode, nodeList, inverseBindMatrixData);
+			transformNode.childCount++;
+		}
 	}
-	return &nodeList[currentIndex];
+	return &nodeList[jointIndex];
 }
 
 MeshFile LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, MemoryArena& vertexArena, MemoryArena& boneArena)
@@ -126,7 +127,7 @@ MeshFile LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memory
 	const float* inverseBindMatrices = ReadBuffer<float>(model, inverseBindAccessor);
 
 	TransformHierachy* hierachy = NewObject(boneArena, TransformHierachy);
-	hierachy->root = CreateMatrices(model, model.skins[0].joints[0], nullptr, hierachy->nodes, inverseBindMatrices);
+	hierachy->root = CreateMatrices(model, 0, nullptr, hierachy->nodes, inverseBindMatrices);
 
 	for (Mesh& mesh : model.meshes)
 	{

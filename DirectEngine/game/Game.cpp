@@ -457,9 +457,19 @@ void Game::UpdateGame(EngineCore& engine)
 
 		if (entityData.transformHierachy != nullptr)
 		{
-			TransformNode& testNode = entityData.transformHierachy->nodes[53];
-			testNode.currentLocal = XMMatrixMultiply(XMMatrixRotationX(sin(engine.TimeSinceStart())), testNode.baseLocal);
-			entityData.transformHierachy->UpdateNode(&testNode);
+			for (int i = 0; i < _countof(entityData.transformHierachy->nodes); i++)
+			{
+				TransformNode& node = entityData.transformHierachy->nodes[i];
+				if (i == boneDebugIndex)
+				{
+					node.currentLocal = XMMatrixMultiply(XMMatrixRotationX(sin(engine.TimeSinceStart())), node.baseLocal);
+				}
+				else
+				{
+					node.currentLocal = node.baseLocal;
+				}
+				entityData.transformHierachy->UpdateNode(&node);
+			}
 		}
 
 		for (int i = 0; i < entityData.boneCount; i++)

@@ -85,7 +85,7 @@ set(XAUDIO2_DIR ${CMAKE_CURRENT_SOURCE_DIR}/xaudio2)
 target_include_directories(${PROJECT_NAME} PUBLIC ${XAUDIO2_DIR}/include)
 
 # openxr
-add_definitions(-DSTART_WITH_XR)
+#add_definitions(-DSTART_WITH_XR)
 add_definitions(-DXR_USE_GRAPHICS_API_D3D12)
 set(OPENXR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/openxr-sdk)
 add_subdirectory(${OPENXR_DIR})

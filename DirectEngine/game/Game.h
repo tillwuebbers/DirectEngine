@@ -72,13 +72,16 @@ public:
 	FrameDebugData lastFrames[256] = {};
 	size_t lastDebugFrameIndex = 0;
 
+	int boneDebugIndex = 0;
+
 	bool showDemoWindow = false;
 	bool showEscMenu = false;
 	bool showDebugUI = ISDEBUG;
-	bool showDebugImage = ISDEBUG;
-	bool showPostProcessWindow = ISDEBUG;
-	bool showMovementWindow = ISDEBUG;
+	bool showDebugImage = false;
+	bool showPostProcessWindow = false;
+	bool showMovementWindow = false;
 	bool showAudioWindow = ISDEBUG;
+	bool showBoneDebugWindow = ISDEBUG;
 	bool scrollLog = true;
 	bool noclip = false;
 

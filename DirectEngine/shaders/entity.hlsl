@@ -13,6 +13,7 @@ PSInputDefault VSMain(float4 position : POSITION, float4 vertColor : COLOR, floa
 	PSInputDefault result = VSCalcDefault(skinnedPos, normal, uv);
 
 	result.color = color;
+	//result.color = float4(RandomPerPixel(float2(boneIndices.x, 0)), RandomPerPixel(float2(boneIndices.x, 1)), RandomPerPixel(float2(boneIndices.x, 2)), 1.);
 
 	return result;
 }
