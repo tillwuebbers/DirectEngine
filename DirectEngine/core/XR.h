@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Common.h"
+
 #include <d3d12.h>
 #include "openxr/openxr.h"
 #include "openxr/openxr_platform.h"
@@ -81,6 +83,10 @@ struct EngineXRState
     std::vector<SwapchainImageContext> m_swapchains = {};
     std::vector<XrView> m_views = {};
     XrEventDataBuffer m_eventDataBuffer;
+
+    Texture m_previewTexture[3];
+    uint32_t m_previewWidth = 0;
+    uint32_t m_previewHeight = 0;
 
 	LUID InitXR();
 	void StartXRSession(ID3D12Device* device, ID3D12CommandQueue* queue);

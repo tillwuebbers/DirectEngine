@@ -203,6 +203,7 @@ public:
     PipelineConfig* m_shadowConfig;
     PipelineConfig* m_boneDebugConfig;
     PipelineConfig* m_wireframeConfig;
+    PipelineConfig* m_screenQuadConfig;
     
     D3D12_CPU_DESCRIPTOR_HANDLE m_swapchainRtvHandles[FrameCount];
     UINT m_rtvDescriptorSize;
@@ -279,6 +280,7 @@ public:
     void CreatePipelineState(PipelineConfig* config);
     void LoadAssets();
     void CreateTexture(Texture& outTexture, const wchar_t* filePath);
+    void InitGPUTexture(Texture& outTexture, DXGI_FORMAT format, UINT width, UINT height, const wchar_t* name);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
     size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride, std::vector<Texture*> textures, ShaderDescription shaderDesc);
     D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount);
@@ -288,6 +290,7 @@ public:
     void RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
     void RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
     void RenderBones(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
+    void RenderXRPreview(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
     void ExecCommandList(ID3D12GraphicsCommandList* commandList);
     void PopulateCommandList();
     void MoveToNextFrame();

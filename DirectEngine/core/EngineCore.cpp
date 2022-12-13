@@ -48,6 +48,10 @@ void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
     LUID requiredLuid = m_xrState.InitXR();
     LoadPipeline(&requiredLuid);
     m_xrState.StartXRSession(m_device, m_commandQueue);
+    for (int i = 0; i < _countof(m_xrState.m_previewTexture); i++)
+    {
+        InitGPUTexture(m_xrState.m_previewTexture[i], DISPLAY_FORMAT, m_xrState.m_previewWidth, m_xrState.m_previewHeight, std::format(L"XR Preview Texture {}", i).c_str());
+    }
 #else
     LoadPipeline(nullptr);
 #endif
@@ -560,6 +564,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
     psoDesc.DepthStencilState.DepthFunc = config->ignoreDepth ? D3D12_COMPARISON_FUNC_ALWAYS : D3D12_COMPARISON_FUNC_LESS_EQUAL;
+    psoDesc.DepthStencilState.DepthWriteMask = config->ignoreDepth ? D3D12_DEPTH_WRITE_MASK_ZERO : D3D12_DEPTH_WRITE_MASK_ALL;
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     psoDesc.NumRenderTargets = 1;
@@ -576,6 +581,7 @@ void EngineCore::LoadAssets()
     m_shadowConfig = CreatePipeline({ L"shadow.hlsl", "VSShadow", "PSShadow", L"Shadow" }, 0, 0, 0);
     m_boneDebugConfig = CreatePipeline({ L"bones.hlsl", "VSMain", "PSMain", L"Bones" }, 0, 0, 1, true, true);
     m_wireframeConfig = CreatePipeline({ L"aabb.hlsl", "VSWire", "PSWire", L"Wireframe" }, 0, 0, 0, true);
+    m_screenQuadConfig = CreatePipeline({ L"xrview.hlsl", "VSMain", "PSMain", L"XR" }, 1, 0, 0, false, true);
 
     // Create the render command list
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_renderCommandAllocators[m_frameIndex], nullptr, NewComObject(comPointers, &m_renderCommandList)));
@@ -632,6 +638,23 @@ void EngineCore::CreateTexture(Texture& outTexture, const wchar_t* filePath)
     LoadDDSTextureFromFile(m_device, filePath, &outTexture.buffer, data, subresources);
     comPointers.AddPointer((void**)&outTexture.buffer);
     UploadTexture(header, subresources, outTexture);
+}
+
+void EngineCore::InitGPUTexture(Texture& outTexture, DXGI_FORMAT format, UINT width, UINT height, const wchar_t* name)
+{
+    D3D12_RESOURCE_DESC textureDesc = CD3DX12_RESOURCE_DESC::Tex2D(format, width, height);
+    CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_DEFAULT);
+    m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, NewComObject(comPointers, &outTexture.buffer));
+    outTexture.buffer->SetName(name);
+
+    outTexture.handle = GetNewDescriptorHandle();
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Format = textureDesc.Format;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MipLevels = 1; // TODO?
+    m_device->CreateShaderResourceView(outTexture.buffer, &srvDesc, outTexture.handle.cpuHandle);
 }
 
 void EngineCore::UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture)
@@ -941,17 +964,24 @@ void EngineCore::PopulateCommandList()
         RenderWireframe(renderList, rtvHandleXR, dsvHandleXR);
 
         // Copy to window
-        if (i == 0)
-        {
-            // Copy
-            Transition(renderList, renderTargetWindow, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST);
-            Transition(renderList, colorTexture, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
-            // TODO: render to screenspace quad instead of using copyresource
-            renderList->CopyResource(renderTargetWindow, colorTexture);
-            Transition(renderList, colorTexture, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+        ID3D12Resource* previewTexture = m_xrState.m_previewTexture[m_frameIndex].buffer;
 
-            // Window UI
-            Transition(renderList, renderTargetWindow, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
+        // Copy
+        Transition(renderList, previewTexture, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+        Transition(renderList, colorTexture, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
+
+        CD3DX12_TEXTURE_COPY_LOCATION dst(previewTexture);
+        CD3DX12_TEXTURE_COPY_LOCATION src(colorTexture);
+        renderList->CopyTextureRegion(&dst, i * m_xrState.m_previewWidth / 2, 0, 0, &src, nullptr);
+
+        Transition(renderList, colorTexture, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+        Transition(renderList, previewTexture, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+        if (i == 1)
+        {
+            // Draw
+            Transition(renderList, renderTargetWindow, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+            RenderXRPreview(renderList, rtvHandleWindow, dsvHandleWindow);
             DrawImgui(renderList, &rtvHandleWindow);
             Transition(renderList, renderTargetWindow, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
         }
@@ -1165,6 +1195,26 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CP
     }
 }
 
+void EngineCore::RenderXRPreview(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle)
+{
+    renderList->RSSetViewports(1, &m_viewport);
+    renderList->RSSetScissorRects(1, &m_scissorRect);
+
+    renderList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+
+    ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap };
+    renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+    renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    renderList->SetPipelineState(m_screenQuadConfig->pipelineState);
+    renderList->SetGraphicsRootSignature(m_screenQuadConfig->rootSignature);
+
+    renderList->SetGraphicsRootDescriptorTable(CUSTOM_START, m_xrState.m_previewTexture[m_frameIndex].handle.gpuHandle);
+
+    renderList->DrawInstanced(3, 1, 0, 0);
+}
+
 // Wait for pending GPU work to complete.
 void EngineCore::WaitForGpu()
 {
@@ -1203,9 +1253,6 @@ void EngineCore::MoveToNextFrame()
 
 void EngineCore::OnResize(UINT width, UINT height)
 {
-    // TODO:
-    return;
-
     // Flush all current GPU commands.
     WaitForGpu();
 
@@ -1299,6 +1346,16 @@ void EngineCore::OnShaderReload()
         _com_error err(m_wireframeConfig->creationError);
 
         m_shaderError.append("Failed to create wireframe pipeline state: ");
+        m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
+        return;
+    }
+
+    CreatePipelineState(m_screenQuadConfig);
+    if (FAILED(m_screenQuadConfig->creationError))
+    {
+        _com_error err(m_screenQuadConfig->creationError);
+
+        m_shaderError.append("Failed to create xr view pipeline state: ");
         m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
         return;
     }

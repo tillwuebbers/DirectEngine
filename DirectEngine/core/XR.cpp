@@ -226,6 +226,8 @@ void EngineXRState::StartXRSession(ID3D12Device* device, ID3D12CommandQueue* que
     m_views.resize(viewCount, { XR_TYPE_VIEW });
 
     // Create the swapchain and get the images.
+    m_previewWidth = 0;
+    m_previewHeight = 0;
     if (viewCount > 0)
     {
         // Select a swapchain format.
@@ -284,6 +286,9 @@ void EngineXRState::StartXRSession(ID3D12Device* device, ID3D12CommandQueue* que
             swapchainContext.Create(m_graphicsBinding.device, imageCount);
             XrSwapchainImageBaseHeader* imagesStart = reinterpret_cast<XrSwapchainImageBaseHeader*>(&swapchainContext.m_swapchainImages[0]);
             CHECK_HRCMD(xrEnumerateSwapchainImages(swapchainContext.handle, imageCount, &imageCount, imagesStart));
+
+            m_previewWidth += swapchainContext.width;
+            m_previewHeight = swapchainContext.height;
         }
     }
 
