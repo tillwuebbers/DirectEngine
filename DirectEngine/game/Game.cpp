@@ -227,30 +227,37 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 
 		// Add input to velocity
-		XMVECTOR playerForward = camForward;
-		playerForward.m128_f32[1] = 0.f;
-		playerForward = XMVector3Normalize(playerForward);
+		XMVECTOR playerForward = XMVector3Normalize(XMVectorSetY(camForward, 0.f));
+		XMVECTOR playerRight = XMVector3Normalize(XMVectorSetY(camRight, 0.f));
 
-		XMVECTOR playerRight = camRight;
-		playerRight.m128_f32[1] = 0.f;
-		playerRight = XMVector3Normalize(playerRight);
+		XMVECTOR wantedForward = XMVectorSetY(XMVectorScale(playerForward, verticalInput), 0.f);
+		XMVECTOR wantedSideways = XMVectorSetY(XMVectorScale(playerRight, horizontalInput), 0.f);
+		XMVECTOR wantedDirection = XMVector3Normalize(wantedForward + wantedSideways);
+		bool playerWantsDirection = XMVectorGetX(XMVector3LengthSq(wantedForward) + XMVector3LengthSq(wantedSideways)) > 0.01f;
 
-		playerVelocity += XMVectorScale(playerForward, verticalInput * engine.m_updateDeltaTime * playerAcceleration);
-		playerVelocity += XMVectorScale(playerRight, horizontalInput * engine.m_updateDeltaTime * playerAcceleration);
+		float verticalPlayerVelocity = XMVectorGetY(playerVelocity);
+		XMVECTOR horizontalPlayerVelocity = XMVectorSetY(playerVelocity, 0.f);
+		XMVECTOR horizontalPlayerDirection = XMVector3Normalize(XMVectorSetY(playerVelocity, 0.f));
+		float horizontalPlayerSpeed = XMVectorGetX(XMVector3Length(horizontalPlayerVelocity));
 
-		// Limit speed
-		float verticalPlayerVelocity = playerVelocity.m128_f32[1];
-		XMVECTOR horizontalPlayerVelocity = playerVelocity;
-		horizontalPlayerVelocity.m128_f32[1] = 0.f;
-
-		float horizontalPlayerSpeed = XMVector3Length(horizontalPlayerVelocity).m128_f32[0];
-		if (horizontalPlayerSpeed > playerMaxSpeed)
+		// Acceleration
+		if (playerWantsDirection)
 		{
-			horizontalPlayerVelocity = XMVector3Normalize(horizontalPlayerVelocity) * playerMaxSpeed;
-			horizontalPlayerSpeed = playerMaxSpeed;
+			XMVECTOR resultDirection = wantedDirection;
+			float resultScale = 1.;
+			if (horizontalPlayerSpeed >= 0.01f)
+			{
+				resultScale = std::max(0.f, XMVectorGetX(XMVector3Dot(XMVector3Normalize(horizontalPlayerVelocity), wantedDirection)));
+			}
 
-			playerVelocity = horizontalPlayerVelocity;
-			playerVelocity.m128_f32[1] = verticalPlayerVelocity;
+			horizontalPlayerSpeed = horizontalPlayerSpeed * resultScale + playerAcceleration * engine.m_updateDeltaTime;
+			if (horizontalPlayerSpeed > playerMaxSpeed)
+			{
+				horizontalPlayerSpeed = playerMaxSpeed;
+			}
+
+			playerVelocity = XMVectorScale(resultDirection, horizontalPlayerSpeed);
+			playerVelocity = XMVectorSetY(playerVelocity, verticalPlayerVelocity);
 		}
 
 		// Ground collision
@@ -263,10 +270,10 @@ void Game::UpdateGame(EngineCore& engine)
 			camera.position = collisionPoint - XMVectorScale(V3_DOWN, playerHeight);
 
 			// Stop falling speed
-			playerVelocity = horizontalPlayerVelocity;
+			playerVelocity = XMVectorSetY(playerVelocity, 0.);
 
 			// Apply jump
-			if (input.KeyDown(VK_SPACE) && lastJumpPressTime + jumpBufferDuration >= engine.TimeSinceStart())
+			if (input.KeyDown(VK_SPACE) && (lastJumpPressTime + jumpBufferDuration >= engine.TimeSinceStart() || autojump))
 			{
 				lastJumpPressTime = -1000.f;
 				playerVelocity.m128_f32[1] += playerJumpStrength;

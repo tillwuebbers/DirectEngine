@@ -1195,6 +1195,7 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CP
     }
 }
 
+#ifdef START_WITH_XR
 void EngineCore::RenderXRPreview(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle)
 {
     renderList->RSSetViewports(1, &m_viewport);
@@ -1214,6 +1215,7 @@ void EngineCore::RenderXRPreview(ID3D12GraphicsCommandList* renderList, D3D12_CP
 
     renderList->DrawInstanced(3, 1, 0, 0);
 }
+#endif
 
 // Wait for pending GPU work to complete.
 void EngineCore::WaitForGpu()

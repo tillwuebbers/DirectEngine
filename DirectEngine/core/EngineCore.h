@@ -256,7 +256,7 @@ public:
     // TODO: don't init this in game
     D3D12_VERTEX_BUFFER_VIEW cubeVertexView;
     bool renderAABB = false;
-    bool renderBones = true;
+    bool renderBones = false;
     
     // Audio
     IXAudio2* m_audio;

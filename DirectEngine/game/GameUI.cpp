@@ -258,6 +258,16 @@ void Game::DrawUI(EngineCore& engine)
 		if (ImGui::Begin("Movement", &showMovementWindow))
 		{
 			ImGui::Checkbox("Noclip", &noclip);
+			ImGui::SameLine();
+			ImGui::Checkbox("Autojump", &autojump);
+			ImGui::SameLine();
+
+			ImVec2 cursorPos = ImGui::GetCursorScreenPos();
+			float playerDisplaySpeed = XMVectorGetX(XMVector3Length(XMVectorSetY(playerVelocity, 0.)));
+			ImGui::GetWindowDrawList()->AddLine({ cursorPos.x, cursorPos.y + 10.f }, {cursorPos.x + (playerDisplaySpeed * 30.f / playerMaxSpeed), cursorPos.y + 10.f }, ImColor(.1f, .2f, .9f), 10.f);
+			ImGui::SetCursorPosX(cursorPos.x + 35.f);
+			ImGui::Text("Vel: %.1f", playerDisplaySpeed);
+
 			ImGui::SliderFloat("Player Height", &playerHeight, 0.1, 5., "%.1f");
 			ImGui::SliderFloat("Acceleration", &playerAcceleration, 1., 200., "%.0f");
 			ImGui::SliderFloat("Friction", &playerFriction, 1., 200., "%.0f");

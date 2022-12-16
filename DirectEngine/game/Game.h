@@ -79,7 +79,7 @@ public:
 	bool showDebugUI = ISDEBUG;
 	bool showDebugImage = false;
 	bool showPostProcessWindow = false;
-	bool showMovementWindow = false;
+	bool showMovementWindow = ISDEBUG;
 	bool showAudioWindow = ISDEBUG;
 	bool showBoneDebugWindow = ISDEBUG;
 	bool scrollLog = true;
@@ -119,6 +119,7 @@ public:
 	float playerJumpStrength = 15.f;
 	float playerGravity = 35.f;
 	float inputDeadzone = 0.05f;
+	bool autojump = true;
 
 	float enemyAcceleration = 200.f;
 	float enemyMaxSpeed = 15.f;
