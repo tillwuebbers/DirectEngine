@@ -79,6 +79,7 @@ target_include_directories( ${PROJECT_NAME}
 # directx
 target_include_directories(${PROJECT_NAME} PRIVATE directx/headers)
 
+
 # xaudio2
 set(XAUDIO2_DIR ${CMAKE_CURRENT_SOURCE_DIR}/xaudio2)
 

@@ -133,7 +133,7 @@ void LogLayers()
         OutputDebugString(std::format(L"Available Extensions: ({})\n", instanceExtensionCount).c_str());
         for (const XrExtensionProperties& extension : extensions)
         {
-            OutputDebugStringA(std::format("  SpecVersion {}: {}\n", extension.extensionVersion, extension.extensionName).c_str());
+            //OutputDebugStringA(std::format("  SpecVersion {}: {}\n", extension.extensionVersion, extension.extensionName).c_str());
         }
     };
 
@@ -149,7 +149,7 @@ void LogLayers()
 
         OutputDebugString(std::format(L"Available Layers: ({})\n", layerCount).c_str());
         for (const XrApiLayerProperties& layer : layers) {
-            OutputDebugStringA(std::format("  Name={} SpecVersion={} LayerVersion={} Description={}\n", layer.layerName, GetXrVersionString(layer.specVersion).c_str(), layer.layerVersion, layer.description).c_str());
+            //OutputDebugStringA(std::format("  Name={} SpecVersion={} LayerVersion={} Description={}\n", layer.layerName, GetXrVersionString(layer.specVersion).c_str(), layer.layerVersion, layer.description).c_str());
             logExtensions(layer.layerName, 4);
         }
     }
@@ -501,6 +501,8 @@ void EngineXRState::ReleaseSwapchain(int index, SwapchainImageContext* context)
 
 void EngineXRState::EndFrame()
 {
+    if (!m_sessionRunning) return;
+
     if (m_frameState.shouldRender == XR_TRUE)
     {
         m_layer.space = m_appSpace;
