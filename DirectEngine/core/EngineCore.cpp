@@ -153,7 +153,7 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
             debugController->EnableDebugLayer();
             
             ThrowIfFailed(debugController->QueryInterface(IID_PPV_ARGS(&debugController1)));
-            //debugController1->SetEnableGPUBasedValidation(true);
+            debugController1->SetEnableGPUBasedValidation(true);
 
             // Enable additional debug layers.
             dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;

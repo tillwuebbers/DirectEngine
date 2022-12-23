@@ -91,6 +91,13 @@ set(OPENXR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/openxr-sdk)
 add_subdirectory(${OPENXR_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${OPENXR_DIR}/include)
 
+# edit and continue mode
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /ZI")
+  set(CMAKE_SHARED_LINKER_FLAGS "/SAFESEH:NO")
+  set(CMAKE_EXE_LINKER_FLAGS "/SAFESEH:NO")
+endif()
+
 # build the thing
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     file(COPY "${XAUDIO2_DIR}/debug/bin/x64/xaudio2_9redist.dll" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

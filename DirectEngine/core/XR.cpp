@@ -43,15 +43,55 @@ ComPtr<ID3D12Resource> CreateBuffer(ID3D12Device* d3d12Device, uint32_t size, D3
     return buffer;
 }
 
-XMMATRIX XM_CALLCONV LoadXrPose(const XrPosef& pose) {
-    return XMMatrixAffineTransformation(DirectX::g_XMOne, DirectX::g_XMZero,
-        XMLoadFloat4(reinterpret_cast<const XMFLOAT4*>(&pose.orientation)),
-        XMLoadFloat3(reinterpret_cast<const XMFLOAT3*>(&pose.position)));
+XMMATRIX LoadXrPose(const XrPosef& pose)
+{
+    return XMMatrixAffineTransformation(DirectX::g_XMOne, DirectX::g_XMZero, XMLoadFloat4(reinterpret_cast<const XMFLOAT4*>(&pose.orientation)), XMLoadFloat3(reinterpret_cast<const XMFLOAT3*>(&pose.position)));
 }
 
-XMMATRIX XM_CALLCONV LoadXrMatrix(const XrMatrix4x4f& matrix) {
+XMMATRIX LoadXrMatrix(const XrMatrix4x4f& matrix)
+{
     // XrMatrix4x4f has same memory layout as DirectX Math (Row-major,post-multiplied = column-major,pre-multiplied)
     return XMLoadFloat4x4(reinterpret_cast<const XMFLOAT4X4*>(&matrix));
+}
+
+inline std::string GetXrVersionString(XrVersion ver)
+{
+    return std::format("{}.{}.{}", XR_VERSION_MAJOR(ver), XR_VERSION_MINOR(ver), XR_VERSION_PATCH(ver));
+}
+
+void LogLayers()
+{
+    // Write out extension properties for a given layer.
+    const auto logExtensions = [](const char* layerName, int indent = 0) {
+        uint32_t instanceExtensionCount;
+        ThrowIfFailed(xrEnumerateInstanceExtensionProperties(layerName, 0, &instanceExtensionCount, nullptr));
+        std::vector<XrExtensionProperties> extensions(instanceExtensionCount, { XR_TYPE_EXTENSION_PROPERTIES });
+        ThrowIfFailed(xrEnumerateInstanceExtensionProperties(layerName, (uint32_t)extensions.size(), &instanceExtensionCount,
+            extensions.data()));
+
+        OutputDebugString(std::format(L"Available Extensions: ({})\n", instanceExtensionCount).c_str());
+        for (const XrExtensionProperties& extension : extensions)
+        {
+            OutputDebugStringA(std::format("  SpecVersion {}: {}\n", extension.extensionVersion, extension.extensionName).c_str());
+        }
+    };
+
+    // Log non-layer extensions (layerName==nullptr).
+    logExtensions(nullptr);
+
+    // Log layers and any of their extensions.
+    {
+        uint32_t layerCount;
+        ThrowIfFailed(xrEnumerateApiLayerProperties(0, &layerCount, nullptr));
+        std::vector<XrApiLayerProperties> layers(layerCount, { XR_TYPE_API_LAYER_PROPERTIES });
+        ThrowIfFailed(xrEnumerateApiLayerProperties((uint32_t)layers.size(), &layerCount, layers.data()));
+
+        OutputDebugString(std::format(L"Available Layers: ({})\n", layerCount).c_str());
+        for (const XrApiLayerProperties& layer : layers) {
+            OutputDebugStringA(std::format("  Name={} SpecVersion={} LayerVersion={} Description={}\n", layer.layerName, GetXrVersionString(layer.specVersion).c_str(), layer.layerVersion, layer.description).c_str());
+            logExtensions(layer.layerName, 4);
+        }
+    }
 }
 
 void SwapchainImageContext::Create(ID3D12Device* d3d12Device, uint32_t capacity)
@@ -59,14 +99,12 @@ void SwapchainImageContext::Create(ID3D12Device* d3d12Device, uint32_t capacity)
     m_d3d12Device = d3d12Device;
 
     m_swapchainImages.resize(capacity);
-    std::vector<XrSwapchainImageBaseHeader*> bases(capacity);
     for (uint32_t i = 0; i < capacity; ++i)
     {
         m_swapchainImages[i] = { XR_TYPE_SWAPCHAIN_IMAGE_D3D12_KHR };
     }
 
-    CHECK_HRCMD(m_d3d12Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, __uuidof(ID3D12CommandAllocator),
-        reinterpret_cast<void**>(m_commandAllocator.ReleaseAndGetAddressOf())));
+    CHECK_HRCMD(m_d3d12Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, __uuidof(ID3D12CommandAllocator), reinterpret_cast<void**>(m_commandAllocator.ReleaseAndGetAddressOf())));
     m_commandAllocator->SetName(L"XR Comm allocator");
 }
 
@@ -114,46 +152,6 @@ ID3D12CommandAllocator* SwapchainImageContext::GetCommandAllocator() const { ret
 uint64_t SwapchainImageContext::GetFrameFenceValue() const { return m_fenceValue; }
 void SwapchainImageContext::SetFrameFenceValue(uint64_t fenceValue) { m_fenceValue = fenceValue; }
 void SwapchainImageContext::ResetCommandAllocator() { CHECK_HRCMD(m_commandAllocator->Reset()); }
-
-inline std::string GetXrVersionString(XrVersion ver)
-{
-    return std::format("{}.{}.{}", XR_VERSION_MAJOR(ver), XR_VERSION_MINOR(ver), XR_VERSION_PATCH(ver));
-}
-
-void LogLayers()
-{
-    // Write out extension properties for a given layer.
-    const auto logExtensions = [](const char* layerName, int indent = 0) {
-        uint32_t instanceExtensionCount;
-        ThrowIfFailed(xrEnumerateInstanceExtensionProperties(layerName, 0, &instanceExtensionCount, nullptr));
-        std::vector<XrExtensionProperties> extensions(instanceExtensionCount, { XR_TYPE_EXTENSION_PROPERTIES });
-        ThrowIfFailed(xrEnumerateInstanceExtensionProperties(layerName, (uint32_t)extensions.size(), &instanceExtensionCount,
-            extensions.data()));
-
-        OutputDebugString(std::format(L"Available Extensions: ({})\n", instanceExtensionCount).c_str());
-        for (const XrExtensionProperties& extension : extensions)
-        {
-            OutputDebugStringA(std::format("  SpecVersion {}: {}\n", extension.extensionVersion, extension.extensionName).c_str());
-        }
-    };
-
-    // Log non-layer extensions (layerName==nullptr).
-    logExtensions(nullptr);
-
-    // Log layers and any of their extensions.
-    {
-        uint32_t layerCount;
-        ThrowIfFailed(xrEnumerateApiLayerProperties(0, &layerCount, nullptr));
-        std::vector<XrApiLayerProperties> layers(layerCount, { XR_TYPE_API_LAYER_PROPERTIES });
-        ThrowIfFailed(xrEnumerateApiLayerProperties((uint32_t)layers.size(), &layerCount, layers.data()));
-
-        OutputDebugString(std::format(L"Available Layers: ({})\n", layerCount).c_str());
-        for (const XrApiLayerProperties& layer : layers) {
-            OutputDebugStringA(std::format("  Name={} SpecVersion={} LayerVersion={} Description={}\n", layer.layerName, GetXrVersionString(layer.specVersion).c_str(), layer.layerVersion, layer.description).c_str());
-            logExtensions(layer.layerName, 4);
-        }
-    }
-}
 
 LUID EngineXRState::InitXR()
 {
@@ -224,6 +222,7 @@ void EngineXRState::StartXRSession(ID3D12Device* device, ID3D12CommandQueue* que
 
     // Create and cache view buffer for xrLocateViews later.
     m_views.resize(viewCount, { XR_TYPE_VIEW });
+    m_swapchains.resize(viewCount, {});
 
     // Create the swapchain and get the images.
     m_previewWidth = 0;
@@ -258,11 +257,10 @@ void EngineXRState::StartXRSession(ID3D12Device* device, ID3D12CommandQueue* que
         }
 
         // Create a swapchain for each view.
-        m_swapchains.reserve(4);
         for (uint32_t i = 0; i < viewCount; i++)
         {
             const XrViewConfigurationView& vp = m_configViews[i];
-            //Log::Write(Log::Level::Info, Fmt("Creating swapchain for view %d with dimensions Width=%d Height=%d SampleCount=%d", i, vp.recommendedImageRectWidth, vp.recommendedImageRectHeight, vp.recommendedSwapchainSampleCount));
+            OutputDebugString(std::format(L"Creating swapchain for view {} with dimensions Width={} Height={} SampleCount={}\n", i, vp.recommendedImageRectWidth, vp.recommendedImageRectHeight, vp.recommendedSwapchainSampleCount).c_str());
 
             // Create the swapchain.
             XrSwapchainCreateInfo swapchainCreateInfo{ XR_TYPE_SWAPCHAIN_CREATE_INFO };
@@ -275,7 +273,7 @@ void EngineXRState::StartXRSession(ID3D12Device* device, ID3D12CommandQueue* que
             swapchainCreateInfo.sampleCount = vp.recommendedSwapchainSampleCount;// m_graphicsPlugin->GetSupportedSwapchainSampleCount(vp);
             swapchainCreateInfo.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
             
-            SwapchainImageContext& swapchainContext = m_swapchains.emplace_back();
+            SwapchainImageContext& swapchainContext = m_swapchains[i];
             swapchainContext.width = swapchainCreateInfo.width;
             swapchainContext.height = swapchainCreateInfo.height;
             CHECK_HRCMD(xrCreateSwapchain(m_session, &swapchainCreateInfo, &swapchainContext.handle));
@@ -414,6 +412,7 @@ void EngineXRState::WaitForFrame()
     bool quit = false;
     bool restart = false;
     PollEvents(&quit, &restart);
+
     if (!m_sessionRunning) return;
     assert(!quit);
     assert(!restart);
