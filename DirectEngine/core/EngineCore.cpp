@@ -944,7 +944,7 @@ void EngineCore::PopulateCommandList()
 
         D3D12_RENDER_TARGET_VIEW_DESC renderTargetViewDesc{};
         renderTargetViewDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-        renderTargetViewDesc.Format = DISPLAY_FORMAT;
+        renderTargetViewDesc.Format = colorTexture->GetDesc().Format;
         m_device->CreateRenderTargetView(colorTexture, &renderTargetViewDesc, rtvHandleXR);
 
         D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc{};
@@ -979,10 +979,9 @@ void EngineCore::PopulateCommandList()
 
         if (i == 1)
         {
-            // Draw
+            // Draw to window
             Transition(renderList, renderTargetWindow, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
             RenderXRPreview(renderList, rtvHandleWindow, dsvHandleWindow);
-            DrawImgui(renderList, &rtvHandleWindow);
             Transition(renderList, renderTargetWindow, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
         }
         
@@ -990,6 +989,13 @@ void EngineCore::PopulateCommandList()
         ExecCommandList(renderList);
         m_xrState.ReleaseSwapchain(i, swapchainResult.context);
     }
+
+    ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
+    Transition(m_renderCommandList, renderTargetWindow, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    DrawImgui(m_renderCommandList, &rtvHandleWindow);
+    Transition(m_renderCommandList, renderTargetWindow, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+    ExecCommandList(m_renderCommandList);
+
     EndProfile("VR Render");
 #else
     // 'Main' non-XR render
