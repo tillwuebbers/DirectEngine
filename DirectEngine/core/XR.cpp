@@ -153,11 +153,6 @@ uint64_t SwapchainImageContext::GetFrameFenceValue() const { return m_fenceValue
 void SwapchainImageContext::SetFrameFenceValue(uint64_t fenceValue) { m_fenceValue = fenceValue; }
 void SwapchainImageContext::ResetCommandAllocator() { CHECK_HRCMD(m_commandAllocator->Reset()); }
 
-inline std::string GetXrVersionString(XrVersion ver)
-{
-    return std::format("{}.{}.{}", XR_VERSION_MAJOR(ver), XR_VERSION_MINOR(ver), XR_VERSION_PATCH(ver));
-}
-
 LUID EngineXRState::InitXR()
 {
     LogLayers();

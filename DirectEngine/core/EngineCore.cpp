@@ -944,7 +944,7 @@ void EngineCore::PopulateCommandList()
 
         D3D12_RENDER_TARGET_VIEW_DESC renderTargetViewDesc{};
         renderTargetViewDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-        renderTargetViewDesc.Format = colorTexture->GetDesc().Format;
+        renderTargetViewDesc.Format = DISPLAY_FORMAT;
         m_device->CreateRenderTargetView(colorTexture, &renderTargetViewDesc, rtvHandleXR);
 
         D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc{};
