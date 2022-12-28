@@ -1,5 +1,6 @@
 #include "XR.h"
 
+#ifdef START_WITH_XR
 #include <vector>
 #include <format>
 #include <assert.h>
@@ -545,3 +546,5 @@ void EngineXRState::ShutdownXR()
         xrDestroyInstance(m_instance);
     }
 }
+
+#endif

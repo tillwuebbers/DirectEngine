@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef START_WITH_XR
+
 #include "Common.h"
 
 #include <d3d12.h>
@@ -116,3 +118,5 @@ inline XMVECTOR XrQuatToXM(XrQuaternionf quat)
 {
     return std::bit_cast<XMVECTOR>(quat);
 }
+
+#endif

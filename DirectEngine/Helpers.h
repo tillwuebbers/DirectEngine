@@ -6,6 +6,7 @@
 #include <format>
 #include <stdexcept>
 
+#ifdef START_WITH_XR
 #include "openxr/openxr.h"
 #include <openxr/openxr_reflection.h>
 
@@ -27,12 +28,7 @@ MAKE_TO_STRING_FUNC(XrEnvironmentBlendMode);
 MAKE_TO_STRING_FUNC(XrSessionState);
 MAKE_TO_STRING_FUNC(XrResult);
 MAKE_TO_STRING_FUNC(XrFormFactor);
-
-template <uint32_t alignment>
-constexpr uint32_t AlignTo(uint32_t n) {
-    static_assert((alignment & (alignment - 1)) == 0, "The alignment must be power-of-two");
-    return (n + alignment - 1) & ~(alignment - 1);
-}
+#endif
 
 inline std::string HrToString(HRESULT hr)
 {
@@ -46,9 +42,22 @@ inline void Throw(std::string errorMessage, const char* originator, const char* 
     throw std::logic_error(std::format("Origin: {}\nSource: {}\n{}\n", originator, sourceLocation, errorMessage));
 }
 
+#ifdef START_WITH_XR
+
 [[noreturn]] inline void ThrowXrResult(XrResult res, const char* originator = nullptr, const char* sourceLocation = nullptr) {
     Throw(std::format("XrResult failure [{}]", to_string(res)), originator, sourceLocation);
 }
+
+inline XrResult ThrowIfFailed(XrResult result, const char* originator = nullptr, const char* sourceLocation = nullptr)
+{
+    if (XR_FAILED(result)) {
+        ThrowXrResult(result, originator, sourceLocation);
+    }
+
+    return result;
+}
+
+#endif
 
 inline HRESULT ThrowIfFailed(HRESULT hr, const char* originator = nullptr, const char* sourceLocation = nullptr)
 {
@@ -59,13 +68,10 @@ inline HRESULT ThrowIfFailed(HRESULT hr, const char* originator = nullptr, const
     return hr;
 }
 
-inline XrResult ThrowIfFailed(XrResult result, const char* originator = nullptr, const char* sourceLocation = nullptr)
-{
-    if (XR_FAILED(result)) {
-        ThrowXrResult(result, originator, sourceLocation);
-    }
-
-    return result;
+template <uint32_t alignment>
+constexpr uint32_t AlignTo(uint32_t n) {
+    static_assert((alignment & (alignment - 1)) == 0, "The alignment must be power-of-two");
+    return (n + alignment - 1) & ~(alignment - 1);
 }
 
 #define CHK_STRINGIFY(x) #x

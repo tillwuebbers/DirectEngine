@@ -85,12 +85,30 @@ set(XAUDIO2_DIR ${CMAKE_CURRENT_SOURCE_DIR}/xaudio2)
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${XAUDIO2_DIR}/include)
 
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    file(COPY "${XAUDIO2_DIR}/debug/bin/x64/xaudio2_9redist.dll" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+    target_link_libraries(${PROJECT_NAME} "${XAUDIO2_DIR}/debug/lib/x64/xaudio2_9redist.lib")
+else()
+    file(COPY "${XAUDIO2_DIR}/release/bin/x64/xaudio2_9redist.dll" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+    target_link_libraries(${PROJECT_NAME} "${XAUDIO2_DIR}/release/lib/x64/xaudio2_9redist.lib")
+endif()
+
 # openxr
-add_definitions(-DSTART_WITH_XR)
-add_definitions(-DXR_USE_GRAPHICS_API_D3D12)
-set(OPENXR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/openxr-sdk)
-add_subdirectory(${OPENXR_DIR})
-target_include_directories(${PROJECT_NAME} PUBLIC ${OPENXR_DIR}/include)
+#option(USE_XR "Compile the project for XR" ON)
+
+if (USE_XR)
+    add_definitions(-DSTART_WITH_XR)
+    add_definitions(-DXR_USE_GRAPHICS_API_D3D12)
+    set(OPENXR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/openxr-sdk)
+    add_subdirectory(${OPENXR_DIR})
+    target_include_directories(${PROJECT_NAME} PUBLIC ${OPENXR_DIR}/include)
+    
+    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+        target_link_libraries(${PROJECT_NAME} "${CMAKE_CURRENT_BINARY_DIR}/openxr-sdk/src/loader/openxr_loaderd.lib")
+    else()
+        target_link_libraries(${PROJECT_NAME} "${CMAKE_CURRENT_BINARY_DIR}/openxr-sdk/src/loader/openxr_loader.lib")
+    endif()
+endif()
 
 # edit and continue mode
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -100,13 +118,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 # build the thing
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    file(COPY "${XAUDIO2_DIR}/debug/bin/x64/xaudio2_9redist.dll" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-    target_link_libraries(${PROJECT_NAME} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib" "${CMAKE_CURRENT_BINARY_DIR}/openxr-sdk/src/loader/openxr_loaderd.lib" "${XAUDIO2_DIR}/debug/lib/x64/xaudio2_9redist.lib")
-else()
-    file(COPY "${XAUDIO2_DIR}/release/bin/x64/xaudio2_9redist.dll" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-    target_link_libraries(${PROJECT_NAME} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib" "${CMAKE_CURRENT_BINARY_DIR}/openxr-sdk/src/loader/openxr_loader.lib" "${XAUDIO2_DIR}/release/lib/x64/xaudio2_9redist.lib")
-endif()
+target_link_libraries(${PROJECT_NAME} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib")
 target_compile_options(${PROJECT_NAME} PRIVATE /W3 /w34456 /w34189 /w44305 /w44244 /w44267)
 
 # assets
