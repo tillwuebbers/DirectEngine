@@ -94,7 +94,7 @@ else()
 endif()
 
 # openxr
-#option(USE_XR "Compile the project for XR" ON)
+option(USE_XR "Compile the project for XR" ON)
 
 if (USE_XR)
     add_definitions(-DSTART_WITH_XR)

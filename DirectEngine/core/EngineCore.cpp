@@ -955,9 +955,10 @@ void EngineCore::PopulateCommandList()
         ComPtr<ID3D12GraphicsCommandList> cmdList;
         ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, swapchainResult.context->GetCommandAllocator(), nullptr, __uuidof(ID3D12GraphicsCommandList), reinterpret_cast<void**>(cmdList.ReleaseAndGetAddressOf())));
         ID3D12GraphicsCommandList* renderList = cmdList.Get();
+        renderList->SetName(L"render list");
 
         // Render XR Scene
-        renderList->ClearRenderTargetView(rtvHandleXR, m_game->GetClearColor(), 0, nullptr);
+        /*renderList->ClearRenderTargetView(rtvHandleXR, m_game->GetClearColor(), 0, nullptr);
         renderList->ClearDepthStencilView(dsvHandleXR, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
         RenderScene(renderList, rtvHandleXR, dsvHandleXR);
         if (renderBones) RenderBones(renderList, rtvHandleXR, dsvHandleXR);
@@ -983,10 +984,10 @@ void EngineCore::PopulateCommandList()
             Transition(renderList, renderTargetWindow, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
             RenderXRPreview(renderList, rtvHandleWindow, dsvHandleWindow);
             Transition(renderList, renderTargetWindow, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-        }
+        }*/
         
         // Finish XR
-        ExecCommandList(renderList);
+        //ExecCommandList(renderList);
         m_xrState.ReleaseSwapchain(i, swapchainResult.context);
     }
 

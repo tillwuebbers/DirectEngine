@@ -448,6 +448,11 @@ bool EngineXRState::BeginFrame()
             return false;  // There is no valid tracking poses for the views.
         }
 
+        for (XrSpace visualizedSpace : m_visualizedSpaces) {
+            XrSpaceLocation spaceLocation{ XR_TYPE_SPACE_LOCATION };
+            CHECK_HRCMD(xrLocateSpace(visualizedSpace, m_appSpace, m_frameState.predictedDisplayTime, &spaceLocation));
+        }
+
         assert(m_viewCount == viewCapacityInput);
         assert(m_viewCount == m_configViews.size());
         assert(m_viewCount == m_swapchains.size());
