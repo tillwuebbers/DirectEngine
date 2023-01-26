@@ -44,17 +44,7 @@ void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
     CreateGameWindow(windowClassName, hInst, m_width, m_height);
 
     // directx
-#ifdef START_WITH_XR
-    LUID requiredLuid = m_xrState.InitXR();
-    LoadPipeline(&requiredLuid);
-    m_xrState.StartXRSession(m_device, m_commandQueue);
-    for (int i = 0; i < _countof(m_xrState.m_previewTexture); i++)
-    {
-        InitGPUTexture(m_xrState.m_previewTexture[i], DISPLAY_FORMAT, m_xrState.m_previewWidth, m_xrState.m_previewHeight, std::format(L"XR Preview Texture {}", i).c_str());
-    }
-#else
     LoadPipeline(nullptr);
-#endif
     LoadAssets();
 
     // Audio
@@ -273,11 +263,7 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
     swapChain->Release();
     
     m_swapChain->SetMaximumFrameLatency(1);
-
-#ifndef START_WITH_XR
     m_frameWaitableObject = m_swapChain->GetFrameLatencyWaitableObject();
-#endif
-
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
     factory->MakeWindowAssociation(m_hwnd, DXGI_MWA_NO_ALT_ENTER);
@@ -837,18 +823,11 @@ void EngineCore::OnRender()
         m_commandQueue->ExecuteCommandLists(1, &uploadList);
     }
 
-#ifdef START_WITH_XR
-    m_xrState.BeginFrame();
-#endif
-
     EndProfile("Prepare Commands");
 
     PopulateCommandList();
 
     BeginProfile("Present", ImColor::HSV(.2f, .5f, 1.f));
-#ifdef START_WITH_XR
-    m_xrState.EndFrame();
-#endif
 
     UINT presentFlags = (m_tearingSupport && m_windowMode != WindowMode::Fullscreen && !m_useVsync) ? DXGI_PRESENT_ALLOW_TEARING : 0;
 
@@ -915,91 +894,7 @@ void EngineCore::PopulateCommandList()
     ExecCommandList(m_renderCommandList);
     EndProfile("Render Stage 1");
 
-#ifdef START_WITH_XR
-    BeginProfile("VR Render", ImColor::HSV(.0, .7, 1.));
-    for (int i = 0; i < m_xrState.m_viewCount; i++)
-    {
-        // Get XR Swapchain
-        SwapchainResult swapchainResult = m_xrState.GetSwapchain(i);
-        swapchainResult.context->ResetCommandAllocator();
-        ID3D12Resource* colorTexture = swapchainResult.context->m_swapchainImages[swapchainResult.imageIndex].texture;
-
-        // Upload data
-        if (i == 0)
-        {
-            m_xrConstantBuffer.data.camViewL = XMMatrixTranspose(swapchainResult.viewMatrix);
-            m_xrConstantBuffer.data.camProjectionL = XMMatrixTranspose(swapchainResult.projectionMatrix);
-        }
-        else if (i == 1)
-        {
-            m_xrConstantBuffer.data.camViewR = XMMatrixTranspose(swapchainResult.viewMatrix);
-            m_xrConstantBuffer.data.camProjectionR = XMMatrixTranspose(swapchainResult.projectionMatrix);
-        }
-        m_xrConstantBuffer.UploadData(m_frameIndex);
-        cameraIndex = i + 1;
-
-        // Setup handles
-        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandleXR(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), FrameCount + swapchainResult.imageIndex * 2 + i, m_rtvDescriptorSize);
-        CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandleXR(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart(), FrameCount + swapchainResult.imageIndex * 2 + i, m_dsvDescriptorSize);
-
-        D3D12_RENDER_TARGET_VIEW_DESC renderTargetViewDesc{};
-        renderTargetViewDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-        renderTargetViewDesc.Format = DISPLAY_FORMAT;
-        m_device->CreateRenderTargetView(colorTexture, &renderTargetViewDesc, rtvHandleXR);
-
-        D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc{};
-        depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-        depthStencilViewDesc.Format = DEPTH_BUFFER_FORMAT;
-        m_device->CreateDepthStencilView(swapchainResult.context->GetDepthStencilTexture(colorTexture), &depthStencilViewDesc, dsvHandleXR);
-        
-        ComPtr<ID3D12GraphicsCommandList> cmdList;
-        ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, swapchainResult.context->GetCommandAllocator(), nullptr, __uuidof(ID3D12GraphicsCommandList), reinterpret_cast<void**>(cmdList.ReleaseAndGetAddressOf())));
-        ID3D12GraphicsCommandList* renderList = cmdList.Get();
-        renderList->SetName(L"render list");
-
-        // Render XR Scene
-        /*renderList->ClearRenderTargetView(rtvHandleXR, m_game->GetClearColor(), 0, nullptr);
-        renderList->ClearDepthStencilView(dsvHandleXR, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-        RenderScene(renderList, rtvHandleXR, dsvHandleXR);
-        if (renderBones) RenderBones(renderList, rtvHandleXR, dsvHandleXR);
-        RenderWireframe(renderList, rtvHandleXR, dsvHandleXR);
-
-        // Copy to window
-        ID3D12Resource* previewTexture = m_xrState.m_previewTexture[m_frameIndex].buffer;
-
-        // Copy
-        Transition(renderList, previewTexture, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
-        Transition(renderList, colorTexture, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
-
-        CD3DX12_TEXTURE_COPY_LOCATION dst(previewTexture);
-        CD3DX12_TEXTURE_COPY_LOCATION src(colorTexture);
-        renderList->CopyTextureRegion(&dst, i * m_xrState.m_previewWidth / 2, 0, 0, &src, nullptr);
-
-        Transition(renderList, colorTexture, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
-        Transition(renderList, previewTexture, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
-        if (i == 1)
-        {
-            // Draw to window
-            Transition(renderList, renderTargetWindow, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-            RenderXRPreview(renderList, rtvHandleWindow, dsvHandleWindow);
-            Transition(renderList, renderTargetWindow, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-        }*/
-        
-        // Finish XR
-        //ExecCommandList(renderList);
-        m_xrState.ReleaseSwapchain(i, swapchainResult.context);
-    }
-
-    ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
-    Transition(m_renderCommandList, renderTargetWindow, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-    DrawImgui(m_renderCommandList, &rtvHandleWindow);
-    Transition(m_renderCommandList, renderTargetWindow, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-    ExecCommandList(m_renderCommandList);
-
-    EndProfile("VR Render");
-#else
-    // 'Main' non-XR render
+    // 'Main' render
     BeginProfile("Render Stage 2", ImColor::HSV(.0, .7, 1.));
 
     ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
@@ -1016,7 +911,6 @@ void EngineCore::PopulateCommandList()
 
     ExecCommandList(m_renderCommandList);
     EndProfile("Render Stage 2");
-#endif
 }
 
 void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
@@ -1202,28 +1096,6 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CP
     }
 }
 
-#ifdef START_WITH_XR
-void EngineCore::RenderXRPreview(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle)
-{
-    renderList->RSSetViewports(1, &m_viewport);
-    renderList->RSSetScissorRects(1, &m_scissorRect);
-
-    renderList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
-
-    ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap };
-    renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
-
-    renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-    renderList->SetPipelineState(m_screenQuadConfig->pipelineState);
-    renderList->SetGraphicsRootSignature(m_screenQuadConfig->rootSignature);
-
-    renderList->SetGraphicsRootDescriptorTable(CUSTOM_START, m_xrState.m_previewTexture[m_frameIndex].handle.gpuHandle);
-
-    renderList->DrawInstanced(3, 1, 0, 0);
-}
-#endif
-
 // Wait for pending GPU work to complete.
 void EngineCore::WaitForGpu()
 {
@@ -1378,9 +1250,6 @@ void EngineCore::OnDestroy()
     CloseHandle(m_fenceEvent);
 
     DestroyImgui();
-#ifdef START_WITH_XR
-    m_xrState.ShutdownXR();
-#endif
 
     comPointersTextureUpload.Clear();
     comPointersSizeDependent.Clear();

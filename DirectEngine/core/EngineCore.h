@@ -20,7 +20,6 @@
 #include "ShadowMap.h"
 #include "Texture.h"
 #include "Audio.h"
-#include "XR.h"
 
 #include "../game/IGame.h"
 #include "../game/Mesh.h"
@@ -178,11 +177,6 @@ public:
     HWND m_hwnd;
     std::wstring m_windowName = L"DirectEngine";
 
-    // XR
-#ifdef START_WITH_XR
-    EngineXRState m_xrState{};
-#endif
-
     // Pipeline objects
     CD3DX12_VIEWPORT m_viewport;
     CD3DX12_RECT m_scissorRect;
@@ -225,10 +219,7 @@ public:
     HANDLE m_fenceEvent = nullptr;
     ID3D12Fence* m_fence = nullptr;
     UINT64 m_fenceValues[FrameCount];
-
-#ifndef START_WITH_XR
     HANDLE m_frameWaitableObject;
-#endif
 
     // Viewport dimensions
     UINT m_width;

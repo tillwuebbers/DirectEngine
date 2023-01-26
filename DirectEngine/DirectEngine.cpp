@@ -109,11 +109,7 @@ DWORD WINAPI GameRenderThread(LPVOID lpParameter)
 		engine.OnUpdate();
 
 		engine.BeginProfile("Waitable", ImColor(.3f, .3f, .3f));
-#ifdef START_WITH_XR
-		engine.m_xrState.WaitForFrame();
-#else
 		WaitForSingleObjectEx(engine.m_frameWaitableObject, 1000, true);
-#endif
 		engine.EndProfile("Waitable");
 
 		engine.m_inUpdate = true;

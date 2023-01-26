@@ -30,8 +30,7 @@ add_executable (${PROJECT_NAME} WIN32
                 "core/UI.cpp"
                 "core/UI.h"
                 "core/vkcodes.h"
-                "core/XR.h"
-                "core/XR.cpp"
+                
                 "imgui/remixicon.h"
                 "imgui/ImGuiProfilerRenderer.h"
                 "imgui/ProfilerTask.h"
@@ -91,23 +90,6 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
 else()
     file(COPY "${XAUDIO2_DIR}/release/bin/x64/xaudio2_9redist.dll" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
     target_link_libraries(${PROJECT_NAME} "${XAUDIO2_DIR}/release/lib/x64/xaudio2_9redist.lib")
-endif()
-
-# openxr
-option(USE_XR "Compile the project for XR" ON)
-
-if (USE_XR)
-    add_definitions(-DSTART_WITH_XR)
-    add_definitions(-DXR_USE_GRAPHICS_API_D3D12)
-    set(OPENXR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/openxr-sdk)
-    add_subdirectory(${OPENXR_DIR})
-    target_include_directories(${PROJECT_NAME} PUBLIC ${OPENXR_DIR}/include)
-    
-    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-        target_link_libraries(${PROJECT_NAME} "${CMAKE_CURRENT_BINARY_DIR}/openxr-sdk/src/loader/openxr_loaderd.lib")
-    else()
-        target_link_libraries(${PROJECT_NAME} "${CMAKE_CURRENT_BINARY_DIR}/openxr-sdk/src/loader/openxr_loader.lib")
-    endif()
 endif()
 
 # edit and continue mode

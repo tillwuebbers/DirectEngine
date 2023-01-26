@@ -6,30 +6,6 @@
 #include <format>
 #include <stdexcept>
 
-#ifdef START_WITH_XR
-#include "openxr/openxr.h"
-#include <openxr/openxr_reflection.h>
-
-// https://github.com/KhronosGroup/OpenXR-SDK-Source/blob/main/src/tests/hello_xr/common.h
-// Macro to generate stringify functions for OpenXR enumerations based data provided in openxr_reflection.h
-// clang-format off
-#define ENUM_CASE_STR(name, val) case name: return #name;
-#define MAKE_TO_STRING_FUNC(enumType)                  \
-    inline const char* to_string(enumType e) {         \
-        switch (e) {                                   \
-            XR_LIST_ENUM_##enumType(ENUM_CASE_STR)     \
-            default: return "Unknown " #enumType;      \
-        }                                              \
-    }
-
-MAKE_TO_STRING_FUNC(XrReferenceSpaceType);
-MAKE_TO_STRING_FUNC(XrViewConfigurationType);
-MAKE_TO_STRING_FUNC(XrEnvironmentBlendMode);
-MAKE_TO_STRING_FUNC(XrSessionState);
-MAKE_TO_STRING_FUNC(XrResult);
-MAKE_TO_STRING_FUNC(XrFormFactor);
-#endif
-
 inline std::string HrToString(HRESULT hr)
 {
     char s_str[64] = {};
@@ -41,23 +17,6 @@ inline void Throw(std::string errorMessage, const char* originator, const char* 
 {
     throw std::logic_error(std::format("Origin: {}\nSource: {}\n{}\n", originator, sourceLocation, errorMessage));
 }
-
-#ifdef START_WITH_XR
-
-[[noreturn]] inline void ThrowXrResult(XrResult res, const char* originator = nullptr, const char* sourceLocation = nullptr) {
-    Throw(std::format("XrResult failure [{}]", to_string(res)), originator, sourceLocation);
-}
-
-inline XrResult ThrowIfFailed(XrResult result, const char* originator = nullptr, const char* sourceLocation = nullptr)
-{
-    if (XR_FAILED(result)) {
-        ThrowXrResult(result, originator, sourceLocation);
-    }
-
-    return result;
-}
-
-#endif
 
 inline HRESULT ThrowIfFailed(HRESULT hr, const char* originator = nullptr, const char* sourceLocation = nullptr)
 {
