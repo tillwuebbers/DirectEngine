@@ -140,13 +140,13 @@ struct MaterialData
     size_t vertexCount = 0;
     size_t maxVertexCount = 0;
     size_t vertexStride = 0;
-    ID3D12Resource* vertexUploadBuffer;
-    ID3D12Resource* vertexBuffer;
+    ID3D12Resource* vertexUploadBuffer = nullptr;
+    ID3D12Resource* vertexBuffer = nullptr;
     EntityData* entities[MAX_ENTITIES_PER_MATERIAL] = {};
     size_t entityCount = 0;
     Texture* textures[MAX_TEXTURES_PER_MATERIAL] = {};
     size_t textureCount = 0;
-    PipelineConfig* pipeline;
+    PipelineConfig* pipeline = nullptr;
 };
 
 class EngineCore
@@ -197,7 +197,6 @@ public:
     PipelineConfig* m_shadowConfig;
     PipelineConfig* m_boneDebugConfig;
     PipelineConfig* m_wireframeConfig;
-    PipelineConfig* m_screenQuadConfig;
     
     D3D12_CPU_DESCRIPTOR_HANDLE m_swapchainRtvHandles[FrameCount];
     UINT m_rtvDescriptorSize;

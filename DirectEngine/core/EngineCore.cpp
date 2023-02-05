@@ -478,17 +478,24 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
     std::wstring path = std::wstring(L"../../../../DirectEngine/shaders/");
     path.append(config->shaderDescription.shaderFileName);
     const wchar_t* shaderPath = path.c_str();
-
     Sleep(100);
+
+	time_t startTime = time(nullptr);
     bool canOpen = false;
     while (!canOpen)
     {
         std::ifstream fileStream(shaderPath, std::ios::in);
+
         canOpen = fileStream.good();
         fileStream.close();
 
         if (!canOpen)
         {
+			time_t elapsedSeconds = time(nullptr) - startTime;
+			if (elapsedSeconds > 5)
+			{
+                throw std::format(L"Could not open shader file {}", shaderPath).c_str();
+			}
             Sleep(100);
         }
     }
@@ -567,7 +574,6 @@ void EngineCore::LoadAssets()
     m_shadowConfig = CreatePipeline({ L"shadow.hlsl", "VSShadow", "PSShadow", L"Shadow" }, 0, 0, 0);
     m_boneDebugConfig = CreatePipeline({ L"bones.hlsl", "VSMain", "PSMain", L"Bones" }, 0, 0, 1, true, true);
     m_wireframeConfig = CreatePipeline({ L"aabb.hlsl", "VSWire", "PSWire", L"Wireframe" }, 0, 0, 0, true);
-    m_screenQuadConfig = CreatePipeline({ L"xrview.hlsl", "VSMain", "PSMain", L"XR" }, 1, 0, 0, false, true);
 
     // Create the render command list
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_renderCommandAllocators[m_frameIndex], nullptr, NewComObject(comPointers, &m_renderCommandList)));
@@ -979,7 +985,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
 
         renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
         renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
-        //renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
+        renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
         renderList->SetGraphicsRootDescriptorTable(XR, m_xrConstantBuffer.handles[m_frameIndex].gpuHandle);
         renderList->SetGraphicsRoot32BitConstant(CAM, cameraIndex, 0);
 
@@ -1227,16 +1233,6 @@ void EngineCore::OnShaderReload()
         _com_error err(m_wireframeConfig->creationError);
 
         m_shaderError.append("Failed to create wireframe pipeline state: ");
-        m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
-        return;
-    }
-
-    CreatePipelineState(m_screenQuadConfig);
-    if (FAILED(m_screenQuadConfig->creationError))
-    {
-        _com_error err(m_screenQuadConfig->creationError);
-
-        m_shaderError.append("Failed to create xr view pipeline state: ");
         m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
         return;
     }
