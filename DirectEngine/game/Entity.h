@@ -12,6 +12,8 @@ public:
 	XMVECTOR rotation{ 0.f, 0.f, 0.f, 1.f };
 	XMVECTOR scale{ 1.f, 1.f, 1.f };
 
+	const char* name = "Entity";
+
 	EngineCore* engine;
 	size_t materialIndex;
 	size_t dataIndex;

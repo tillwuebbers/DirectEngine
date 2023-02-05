@@ -81,9 +81,10 @@ public:
 	bool showPostProcessWindow = false;
 	bool showMovementWindow = ISDEBUG;
 	bool showAudioWindow = ISDEBUG;
-	bool showBoneDebugWindow = ISDEBUG;
+	bool showEntityList = ISDEBUG;
 	bool scrollLog = true;
 	bool noclip = false;
+	bool showInactiveEntities = false;
 
 	WindowUpdate windowUpdateData{};
 	std::mutex windowUdpateDataMutex;

@@ -23,7 +23,7 @@ float4 PSMain(PSInputDefault input) : SV_TARGET
 	float2 gridCell = floor(input.uv * 100.);
 	float3 randomGridColor = float3(RandomPerPixel(gridCell, 43.1), RandomPerPixel(gridCell, 24.34), RandomPerPixel(gridCell, 33.3));
 
-	float3 appliedColor = randomGridColor * litColor * baseColor;
+	float3 appliedColor = litColor * baseColor;
 
 	return float4(PostProcess(appliedColor, input.worldPosition.rgb), 1.);
 }

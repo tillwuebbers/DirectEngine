@@ -2,6 +2,8 @@
 #include "remixicon.h"
 #include "../core/UI.h"
 
+#include <numeric>
+
 std::string FormatVector3(XMVECTOR in)
 {
 	XMFLOAT3 data;
@@ -166,6 +168,11 @@ void Game::DrawUI(EngineCore& engine)
 				showAudioWindow = !showAudioWindow;
 			}
 
+			if (ImGui::Button("Entity List"))
+			{
+				showEntityList = !showEntityList;
+			}
+
 			ImGui::NewLine();
 
 			ImGui::Checkbox("Show Bounds", &engine.renderAABB);
@@ -278,13 +285,48 @@ void Game::DrawUI(EngineCore& engine)
 		}
 		ImGui::End();
 	}
-
-	// Bone Debug
-	if (showBoneDebugWindow)
+	
+	// Entity list
+	if (showEntityList)
 	{
-		if (ImGui::Begin("Bones", &showBoneDebugWindow))
+		if (ImGui::Begin("Entity List", &showEntityList))
 		{
-			ImGui::SliderInt("Selected Bone", &boneDebugIndex, 0, 100);
+			ImGui::Checkbox("Show Inactive Entities", &showInactiveEntities);
+
+			for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
+			{
+				int offset = entity - (Entity*)entityArena.base;
+				EntityData& entityData = entity->GetData();
+				
+				std::string entityTitle = std::format("{} [{}] ", entity->name, offset);
+				if (entity->isActive) entityTitle.append(ICON_CHECK_FILL);
+				if ((showInactiveEntities || entity->isActive) && ImGui::TreeNodeEx(entity, 0, entityTitle.c_str()))
+				{
+					std::vector<std::string> attributes{};
+					if (entity->isActive) attributes.push_back("active");
+					if (entity->isEnemy) attributes.push_back("enemy");
+					if (entity->isProjectile) attributes.push_back("projectile");
+					if (entity->isSpinning) attributes.push_back("speeen");
+					std::string attributesString = std::accumulate(attributes.begin(), attributes.end(), std::string(), [](std::string a, std::string b) { return a + (a.empty() ? "" : ", ") + b; });
+					ImGui::Text("Attributes: %s", attributesString.c_str());
+
+					XMVECTOR pos;
+					XMVECTOR rotQuat;
+					XMVECTOR scale;
+					XMMatrixDecompose(&scale, &rotQuat, &pos, entityData.constantBuffer.data.worldTransform);
+					ImGui::Text("World Position: %.1f %.1f %.1f", pos.m128_f32[0], pos.m128_f32[1], pos.m128_f32[2]);
+					ImGui::Text("World Rotation: %.1f %.1f %.1f %.1f", rotQuat.m128_f32[0], rotQuat.m128_f32[1], rotQuat.m128_f32[2], rotQuat.m128_f32[3]);
+					ImGui::Text("World Scale: %.1f %.1f %.1f", scale.m128_f32[0], scale.m128_f32[1], scale.m128_f32[2]);
+					ImGui::Text("Bounding Center: %.1f %.1f %.1f", entityData.constantBuffer.data.aabbLocalPosition.m128_f32[0], entityData.constantBuffer.data.aabbLocalPosition.m128_f32[1], entityData.constantBuffer.data.aabbLocalPosition.m128_f32[2]);
+					ImGui::Text("Bounding Extent: %.1f %.1f %.1f", entityData.constantBuffer.data.aabbLocalSize.m128_f32[0], entityData.constantBuffer.data.aabbLocalSize.m128_f32[1], entityData.constantBuffer.data.aabbLocalSize.m128_f32[2]);
+					if (entityData.boneCount > 0)
+					{
+						ImGui::Text("Bone Count: %d", entityData.boneCount);
+						ImGui::SliderInt("Selected Bone", &boneDebugIndex, 0, 100);
+					}
+					ImGui::TreePop();
+				}
+			}
 		}
 		ImGui::End();
 	}

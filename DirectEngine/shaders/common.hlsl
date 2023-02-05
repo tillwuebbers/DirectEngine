@@ -111,7 +111,7 @@ LightData PSCalcLightData(PSInputDefault input, float ambientIntensity, float di
 	result.specularLight = specularIntensity * specularLightColor;
 
 	// Shadow
-	/*float2 shadowMapPos;
+	float2 shadowMapPos;
 	shadowMapPos.x = input.lightSpacePosition.x / input.lightSpacePosition.w * .5f + .5f;
 	shadowMapPos.y = -input.lightSpacePosition.y / input.lightSpacePosition.w * .5f + .5f;
 
@@ -124,7 +124,7 @@ LightData PSCalcLightData(PSInputDefault input, float ambientIntensity, float di
 	}
 
 	result.diffuseLight *= 1. - shadow;
-	result.specularLight *= 1. - shadow;*/
+	result.specularLight *= 1. - shadow;
 
 	return result;
 }

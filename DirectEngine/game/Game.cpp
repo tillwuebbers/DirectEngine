@@ -92,6 +92,7 @@ void Game::StartGame(EngineCore& engine)
 
 	// Entities
 	Entity* kaijuEntity = CreateEntity(engine, kaijuMaterialIndex, kaijuMeshView, kaijuMeshFile.boneCount, kaijuMeshFile.hierachy);
+	kaijuEntity->name = "Kaiju";
 	kaijuEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
 	kaijuEntity->GetData().aabbLocalPosition = { 0.f, 5.f, 0.f };
 	kaijuEntity->GetData().aabbLocalSize = { 4.f, 10.f, 2.f };
@@ -99,6 +100,7 @@ void Game::StartGame(EngineCore& engine)
 	for (int i = 0; i < MAX_ENENMY_COUNT; i++)
 	{
 		Entity* enemy = enemies[i] = CreateEntity(engine, memeMaterialIndex, cubeMeshView, cubeMeshFile.boneCount, cubeMeshFile.hierachy);
+		enemy->name = "Enemy";
 		enemy->Disable();
 		enemy->isEnemy = true;
 		enemy->collisionLayers |= Dead;
@@ -107,16 +109,19 @@ void Game::StartGame(EngineCore& engine)
 	for (int i = 0; i < MAX_PROJECTILE_COUNT; i++)
 	{
 		Entity* projectile = projectiles[i] = CreateEntity(engine, laserMaterialIndex, cubeMeshView);
+		projectile->name = "Projectile";
 		projectile->Disable();
 		projectile->isProjectile = true;
 		projectile->scale = { .1f, .1f, .1f };
 	}
 
 	laser = CreateEntity(engine, laserMaterialIndex, cubeMeshView);
+	laser->name = "Laser";
 	laser->checkForShadowBounds = false;
 	laser->Disable();
 
 	Entity* groundEntity = CreateQuadEntity(engine, groundMaterialIndex, 100.f, 100.f);
+	groundEntity->name = "Ground";
 	groundEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
 	groundEntity->checkForShadowBounds = false;
 	groundEntity->collisionLayers |= Floor;
@@ -521,7 +526,7 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 
 	// Update light/shadowmap
-	light.rotation = XMQuaternionRotationRollPitchYaw(45.f / 360.f * XM_2PI, engine.TimeSinceStart(), 0.f);
+	//light.rotation = XMQuaternionRotationRollPitchYaw(45.f / 360.f * XM_2PI, engine.TimeSinceStart(), 0.f);
 
 	engine.m_lightConstantBuffer.data.lightView = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(light.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(light.rotation)));
 
