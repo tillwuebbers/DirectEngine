@@ -77,11 +77,12 @@ public:
 	bool showDemoWindow = false;
 	bool showEscMenu = false;
 	bool showDebugUI = ISDEBUG;
-	bool showDebugImage = false;
+	bool showDebugImage = ISDEBUG;
 	bool showPostProcessWindow = false;
-	bool showMovementWindow = ISDEBUG;
-	bool showAudioWindow = ISDEBUG;
+	bool showMovementWindow = false;
+	bool showAudioWindow = false;
 	bool showEntityList = ISDEBUG;
+	bool showLightWindow = ISDEBUG;
 	bool scrollLog = true;
 	bool noclip = false;
 	bool showInactiveEntities = false;
@@ -90,7 +91,7 @@ public:
 	std::mutex windowUdpateDataMutex;
 
 	MemoryArena globalArena{};
-	MemoryArena entityArena{};
+	TypedMemoryArena<Entity> entityArena{};
 	MemoryArena vertexUploadArena{};
 	MemoryArena boneUploadArena{};
 

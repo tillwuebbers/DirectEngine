@@ -2,6 +2,8 @@
 
 #include "Constants.h"
 #include <cstdint>
+#include <iterator>
+#include <cstddef>
 
 // Custom allocation, still figuring out how to use this best.
 // WARNING: Anything allocated inside a memory arena won't get it's desctructor called (intentionally).
@@ -26,6 +28,35 @@ public:
     MemoryArena& operator=(const MemoryArena& other) = delete;
     MemoryArena& operator=(MemoryArena&& other) noexcept = delete;
     ~MemoryArena();
+};
+
+template <typename T>
+class TypedMemoryArena : public MemoryArena
+{
+public:
+    struct Iterator
+    {
+        using iterator_category = std::forward_iterator_tag;
+        using difference_type = std::ptrdiff_t;
+        using value_type = T;
+        using pointer = T*;
+        using reference = T&;
+
+        Iterator(pointer ptr) : m_ptr(ptr) {}
+
+        reference operator*() const { return *m_ptr; }
+        pointer operator->() { return m_ptr; }
+        Iterator& operator++() { m_ptr++; return *this; }
+        Iterator operator++(int) { Iterator tmp = *this; ++(*this); return tmp; }
+        friend bool operator== (const Iterator& a, const Iterator& b) { return a.m_ptr == b.m_ptr; };
+        friend bool operator!= (const Iterator& a, const Iterator& b) { return a.m_ptr != b.m_ptr; };
+
+    private:
+        pointer m_ptr;
+    };
+
+    Iterator begin() { return Iterator(reinterpret_cast<T*>(base)); }
+    Iterator end() { return Iterator(reinterpret_cast<T*>(base + used)); }
 };
 
 #define NewObject(arena, type, ...) new((arena).Allocate(sizeof(type))) type(__VA_ARGS__)

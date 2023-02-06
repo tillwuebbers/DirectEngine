@@ -27,14 +27,14 @@ CollisionResult Game::CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR 
 {
 	CollisionResult result{ nullptr, std::numeric_limits<float>::max() };
 
-	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
+	for (Entity& entity : entityArena)
 	{
-		if (entity->isActive && (entity->collisionLayers & matchingLayers) != 0)
+		if (entity.isActive && (entity.collisionLayers & matchingLayers) != 0)
 		{
-			EntityData& entityData = entity->GetData();
+			EntityData& entityData = entity.GetData();
 
-			XMVECTOR entityCenterWorld = entity->position + entity->LocalToWorld(entityData.aabbLocalPosition);
-			XMVECTOR entitySizeWorld = entity->LocalToWorld(entityData.aabbLocalSize);
+			XMVECTOR entityCenterWorld = entity.position + entity.LocalToWorld(entityData.aabbLocalPosition);
+			XMVECTOR entitySizeWorld = entity.LocalToWorld(entityData.aabbLocalSize);
 
 			XMVECTOR boxMin = entityCenterWorld - entitySizeWorld / 2.f;
 			XMVECTOR boxMax = entityCenterWorld + entitySizeWorld / 2.f;
@@ -54,7 +54,7 @@ CollisionResult Game::CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR 
 			if (minDistance <= maxDistance && minDistance < result.distance)
 			{
 				result.distance = minDistance;
-				result.entity = entity;
+				result.entity = &entity;
 			}
 		}
 	}
@@ -154,9 +154,9 @@ void Game::UpdateGame(EngineCore& engine)
 	CalculateDirectionVectors(camForward, camRight, camera.rotation);
 
 	// Reset per frame values
-	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
+	for (Entity& entity : entityArena)
 	{
-		entity->GetBuffer().isSelected = { 0 };
+		entity.GetBuffer().isSelected = { 0 };
 	}
 
 	// Debug Controls
@@ -458,13 +458,13 @@ void Game::UpdateGame(EngineCore& engine)
 	XMStoreFloat3(&playerAudioListener.Velocity, playerVelocity);
 
 	// Update entities
-	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
+	for (Entity& entity : entityArena)
 	{
-		EntityData& entityData = entity->GetData();
+		EntityData& entityData = entity.GetData();
 
-		if (entity->isSpinning)
+		if (entity.isSpinning)
 		{
-			entity->rotation = XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart()));
+			entity.rotation = XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart()));
 		}
 
 		if (entityData.transformHierachy != nullptr)
@@ -494,31 +494,31 @@ void Game::UpdateGame(EngineCore& engine)
 			}
 		}
 
-		entity->GetBuffer().aabbLocalPosition = entityData.aabbLocalPosition;
-		entity->GetBuffer().aabbLocalSize = entityData.aabbLocalSize;
+		entity.GetBuffer().aabbLocalPosition = entityData.aabbLocalPosition;
+		entity.GetBuffer().aabbLocalSize = entityData.aabbLocalSize;
 
-		CreateWorldMatrix(entity->GetBuffer().worldTransform, entity->scale, entity->rotation, entity->position);
+		CreateWorldMatrix(entity.GetBuffer().worldTransform, entity.scale, entity.rotation, entity.position);
 
 		XMVECTOR entityForwards;
 		XMVECTOR entityRight;
-		CalculateDirectionVectors(entityForwards, entityRight, entity->rotation);
+		CalculateDirectionVectors(entityForwards, entityRight, entity.rotation);
 		XMVECTOR entityUp = XMVector3Cross(entityForwards, entityRight);
 
-		IXAudio2SourceVoice* audioSourceVoice = entity->audioSource.source;
+		IXAudio2SourceVoice* audioSourceVoice = entity.audioSource.source;
 		if (audioSourceVoice != nullptr)
 		{
-			X3DAUDIO_EMITTER& emitter = entity->audioSource.audioEmitter;
+			X3DAUDIO_EMITTER& emitter = entity.audioSource.audioEmitter;
 			XMStoreFloat3(&emitter.OrientFront, entityForwards);
 			XMStoreFloat3(&emitter.OrientTop, entityUp);
-			XMStoreFloat3(&emitter.Position, entity->position);
-			XMStoreFloat3(&emitter.Velocity, entity->velocity);
+			XMStoreFloat3(&emitter.Position, entity.position);
+			XMStoreFloat3(&emitter.Velocity, entity.velocity);
 
 			XAUDIO2_VOICE_DETAILS audioSourceDetails;
 			audioSourceVoice->GetVoiceDetails(&audioSourceDetails);
 
 			X3DAUDIO_DSP_SETTINGS* dspSettings = emitter.ChannelCount == 1 ? &engine.m_audioDspSettingsMono : &engine.m_audioDspSettingsStereo;
 
-			X3DAudioCalculate(engine.m_3daudio, &playerAudioListener, &entity->audioSource.audioEmitter, X3DAUDIO_CALCULATE_MATRIX | X3DAUDIO_CALCULATE_DOPPLER | X3DAUDIO_CALCULATE_LPF_DIRECT | X3DAUDIO_CALCULATE_REVERB, dspSettings);
+			X3DAudioCalculate(engine.m_3daudio, &playerAudioListener, &entity.audioSource.audioEmitter, X3DAUDIO_CALCULATE_MATRIX | X3DAUDIO_CALCULATE_DOPPLER | X3DAUDIO_CALCULATE_LPF_DIRECT | X3DAUDIO_CALCULATE_REVERB, dspSettings);
 			audioSourceVoice->SetOutputMatrix(engine.m_audioMasteringVoice, audioSourceDetails.InputChannels, engine.m_audioVoiceDetails.InputChannels, dspSettings->pMatrixCoefficients);
 			audioSourceVoice->SetFrequencyRatio(dspSettings->DopplerFactor);
 			// TODO: low pass filter + reverb
@@ -542,17 +542,17 @@ void Game::UpdateGame(EngineCore& engine)
 		{  1.,  1., -1.},
 		{  1.,  1.,  1.},
 	};
-	for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
+	for (Entity& entity : entityArena)
 	{
-		if (!entity->checkForShadowBounds) continue;
+		if (!entity.checkForShadowBounds) continue;
 
-		XMVECTOR aabbWorldPosition = XMVector3Transform(entity->GetData().aabbLocalPosition, entity->GetBuffer().worldTransform);
-		XMVECTOR aabbWorldSize = XMVector3Transform(entity->GetData().aabbLocalSize, entity->GetBuffer().worldTransform);
+		XMVECTOR aabbWorldPosition = XMVector3Transform(entity.GetData().aabbLocalPosition, entity.GetBuffer().worldTransform);
+		XMVECTOR aabbWorldSize = XMVector3Transform(entity.GetData().aabbLocalSize, entity.GetBuffer().worldTransform);
 
 		for (int i = 0; i < _countof(testPositionBuffer); i++)
 		{
 			XMVECTOR aabbWorldCorner = XMVectorMultiply(aabbWorldSize, testPositionBuffer[i]);
-			XMVECTOR lightSpacePosition = XMVector3Transform(entity->position + aabbWorldPosition + aabbWorldCorner, engine.m_lightConstantBuffer.data.lightView);
+			XMVECTOR lightSpacePosition = XMVector3Transform(entity.position + aabbWorldPosition + aabbWorldCorner, engine.m_lightConstantBuffer.data.lightView);
 			lightSpaceMin = XMVectorMin(lightSpacePosition, lightSpaceMin);
 			lightSpaceMax = XMVectorMax(lightSpacePosition, lightSpaceMax);
 		}

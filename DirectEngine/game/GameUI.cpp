@@ -330,6 +330,20 @@ void Game::DrawUI(EngineCore& engine)
 		}
 		ImGui::End();
 	}
+
+	// Lighting
+	if (showLightWindow)
+	{
+		if (ImGui::Begin("Lighting", &showLightWindow))
+		{
+			// light position
+			ImGui::Text("Light Position: (%.1f %.1f %.1f)", light.position.m128_f32[0], light.position.m128_f32[1], light.position.m128_f32[2]);
+			ImGui::Text("Light Rotation: (%.1f %.1f %.1f %.1f)", light.rotation.m128_f32[0], light.rotation.m128_f32[1], light.rotation.m128_f32[2], light.rotation.m128_f32[3]);
+			ImGui::Text("Shadowmap Camera Size: %.1f", light.shadowmapCameraSize);
+		}
+		ImGui::End();
+	}
+
 	engine.EndProfile("Game UI");
 
 	// Profiler
