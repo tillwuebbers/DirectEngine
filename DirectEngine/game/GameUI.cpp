@@ -302,27 +302,25 @@ void Game::DrawUI(EngineCore& engine)
 				if (entity->isActive) entityTitle.append(ICON_CHECK_FILL);
 				if ((showInactiveEntities || entity->isActive) && ImGui::TreeNodeEx(entity, 0, entityTitle.c_str()))
 				{
+					ImGui::Checkbox("Active", &entity->isActive);
+					ImGui::Checkbox("Visible", &entity->GetData().visible);
 					std::vector<std::string> attributes{};
-					if (entity->isActive) attributes.push_back("active");
 					if (entity->isEnemy) attributes.push_back("enemy");
 					if (entity->isProjectile) attributes.push_back("projectile");
 					if (entity->isSpinning) attributes.push_back("speeen");
 					std::string attributesString = std::accumulate(attributes.begin(), attributes.end(), std::string(), [](std::string a, std::string b) { return a + (a.empty() ? "" : ", ") + b; });
 					ImGui::Text("Attributes: %s", attributesString.c_str());
 
-					XMVECTOR pos;
-					XMVECTOR rotQuat;
-					XMVECTOR scale;
-					XMMatrixDecompose(&scale, &rotQuat, &pos, entityData.constantBuffer.data.worldTransform);
-					ImGui::Text("World Position: %.1f %.1f %.1f", pos.m128_f32[0], pos.m128_f32[1], pos.m128_f32[2]);
-					ImGui::Text("World Rotation: %.1f %.1f %.1f %.1f", rotQuat.m128_f32[0], rotQuat.m128_f32[1], rotQuat.m128_f32[2], rotQuat.m128_f32[3]);
-					ImGui::Text("World Scale: %.1f %.1f %.1f", scale.m128_f32[0], scale.m128_f32[1], scale.m128_f32[2]);
-					ImGui::Text("Bounding Center: %.1f %.1f %.1f", entityData.constantBuffer.data.aabbLocalPosition.m128_f32[0], entityData.constantBuffer.data.aabbLocalPosition.m128_f32[1], entityData.constantBuffer.data.aabbLocalPosition.m128_f32[2]);
-					ImGui::Text("Bounding Extent: %.1f %.1f %.1f", entityData.constantBuffer.data.aabbLocalSize.m128_f32[0], entityData.constantBuffer.data.aabbLocalSize.m128_f32[1], entityData.constantBuffer.data.aabbLocalSize.m128_f32[2]);
+					ImGui::InputFloat3("Position", &entity->position.m128_f32[0], "%.1f");
+					ImGui::InputFloat4("Rotation", &entity->rotation.m128_f32[0], "%.1f");
+					ImGui::InputFloat3("Scale", &entity->scale.m128_f32[0], "%.1f");
+
+					ImGui::InputFloat3("Bounding Center", &entityData.aabbLocalPosition.m128_f32[0], "%.1f");
+					ImGui::InputFloat3("Bounding Extent", &entityData.aabbLocalSize.m128_f32[0], "%.1f");
 					if (entityData.boneCount > 0)
 					{
 						ImGui::Text("Bone Count: %d", entityData.boneCount);
-						ImGui::SliderInt("Selected Bone", &boneDebugIndex, 0, 100);
+						ImGui::SliderInt("Selected Bone", &boneDebugIndex, 0, entityData.boneCount);
 					}
 					ImGui::TreePop();
 				}
