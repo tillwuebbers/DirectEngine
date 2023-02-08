@@ -111,15 +111,6 @@ struct BoneMatricesBuffer
 };
 static_assert((sizeof(BoneMatricesBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
-struct XrConstantBuffer
-{
-    XMMATRIX camViewL;
-    XMMATRIX camViewR;
-    XMMATRIX camProjectionL;
-    XMMATRIX camProjectionR;
-};
-static_assert((sizeof(XrConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
-
 struct EntityData
 {
     bool visible = true;
@@ -147,6 +138,14 @@ struct MaterialData
     Texture* textures[MAX_TEXTURES_PER_MATERIAL] = {};
     size_t textureCount = 0;
     PipelineConfig* pipeline = nullptr;
+};
+
+struct DebugLineData
+{
+    Vertex lines[MAX_DEBUG_LINE_VERTICES];
+    size_t lineVertexCount;
+    ID3D12Resource* vertexBuffer = nullptr;
+    D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
 };
 
 class EngineCore
@@ -197,6 +196,7 @@ public:
     PipelineConfig* m_shadowConfig;
     PipelineConfig* m_boneDebugConfig;
     PipelineConfig* m_wireframeConfig;
+    PipelineConfig* m_debugLineConfig;
     
     D3D12_CPU_DESCRIPTOR_HANDLE m_swapchainRtvHandles[FrameCount];
     UINT m_rtvDescriptorSize;
@@ -205,7 +205,6 @@ public:
     // App resources
     ConstantBuffer<SceneConstantBuffer> m_sceneConstantBuffer = {};
     ConstantBuffer<LightConstantBuffer> m_lightConstantBuffer = {};
-    ConstantBuffer<XrConstantBuffer> m_xrConstantBuffer = {};
     ShadowMap* m_shadowmap = nullptr;
     ID3D12Resource* m_textureUploadHeaps[MAX_TEXTURE_UPLOADS] = {};
     size_t m_textureUploadIndex = 0;
@@ -242,6 +241,7 @@ public:
     std::vector<legit::ProfilerTask> m_profilerTaskData{};
     std::unordered_map<std::string, size_t> m_profilerTasks{};
     bool m_inUpdate = false;
+    DebugLineData m_debugLineData{};
 
     // TODO: don't init this in game
     D3D12_VERTEX_BUFFER_VIEW cubeVertexView;
@@ -266,7 +266,7 @@ public:
     void CreateGameWindow(const wchar_t* windowClassName, HINSTANCE hInst, uint32_t width, uint32_t height);
     void LoadPipeline(LUID* requiredLuid);
     void LoadSizeDependentResources();
-    PipelineConfig* CreatePipeline(ShaderDescription shaderDesc, size_t textureCount, size_t constantBufferCount, size_t rootConstantCount, bool wireframe, bool ignoreDepth);
+    void CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount);
     void CreatePipelineState(PipelineConfig* config);
     void LoadAssets();
     void CreateTexture(Texture& outTexture, const wchar_t* filePath);
@@ -280,7 +280,7 @@ public:
     void RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
     void RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
     void RenderBones(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
-    void RenderXRPreview(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
+    void RenderDebugLines(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
     void ExecCommandList(ID3D12GraphicsCommandList* commandList);
     void PopulateCommandList();
     void MoveToNextFrame();

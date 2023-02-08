@@ -23,15 +23,23 @@ struct ShaderDescription
     const wchar_t* debugName;
 };
 
-struct PipelineConfig
+class PipelineConfig
 {
-    bool wireframe;
-    bool ignoreDepth;
+public:
+    PipelineConfig(ShaderDescription shaderDescription, size_t textureSlotCount)
+    {
+		this->shaderDescription = shaderDescription;
+		this->textureSlotCount = textureSlotCount;
+    }
+
+    bool wireframe = false;
+    bool ignoreDepth = false;
     ShaderDescription shaderDescription;
-    size_t textureSlotCount;
+    size_t textureSlotCount = 0;
+	D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
-    ID3D12PipelineState* pipelineState;
-    ID3D12RootSignature* rootSignature;
+    ID3D12PipelineState* pipelineState = nullptr;
+    ID3D12RootSignature* rootSignature = nullptr;
 
-    HRESULT creationError;
+    HRESULT creationError = ERROR_SUCCESS;
 };
