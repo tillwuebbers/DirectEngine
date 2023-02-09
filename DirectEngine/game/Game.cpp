@@ -62,6 +62,26 @@ CollisionResult Game::CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR 
 	return result;
 }
 
+std::vector<Entity*> Game::CreateEntityFromGltf(EngineCore& engine, const char* path, ShaderDescription& shader, RingLog& log, MemoryArena& vertexArena, MemoryArena& boneArena)
+{
+	std::vector<Entity*> result{};
+
+	std::vector<MeshFile> meshFiles = LoadGltfFromFile(path, log, vertexArena, boneArena);
+	for (MeshFile& meshFile : meshFiles)
+	{
+		std::wstring texturePath = { L"textures/" };
+		texturePath.append(meshFile.textureName.begin(), meshFile.textureName.end());
+		Texture* texture = engine.CreateTexture(texturePath.c_str());
+		
+		size_t materialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { texture }, shader);
+		D3D12_VERTEX_BUFFER_VIEW meshView = engine.CreateMesh(materialIndex, meshFile.vertices, meshFile.vertexCount);
+		
+		result.emplace_back(CreateEntity(engine, materialIndex, meshView, meshFile.boneCount, meshFile.hierachy));
+	}
+
+	return result;
+}
+
 void Game::StartGame(EngineCore& engine)
 {
 	// Shaders
@@ -70,32 +90,29 @@ void Game::StartGame(EngineCore& engine)
 	ShaderDescription laserShader{ L"laser.hlsl", "VSMain", "PSMain", L"Laser" };
 
 	// Textures
-	engine.CreateTexture(diffuseTexture, L"textures/ground-diffuse-bc1.dds");
-	engine.CreateTexture(memeTexture, L"textures/cat.dds");
-	engine.CreateTexture(kaijuTexture, L"textures/kaiju.dds");
+	diffuseTexture = engine.CreateTexture(L"textures/ground-diffuse-bc1.dds");
+	memeTexture = engine.CreateTexture(L"textures/cat.dds");
 
 	// Materials
-	//size_t dirtMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &diffuseTexture }, defaultShader);
-	size_t memeMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &memeTexture }, defaultShader);
-	size_t kaijuMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &kaijuTexture }, defaultShader);
+	//size_t dirtMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { diffuseTexture }, defaultShader);
+	size_t memeMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { memeTexture }, defaultShader);
 	size_t groundMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, groundShader);
 	size_t laserMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, laserShader);
 
 	// Meshes
 	// TODO: why does mesh need material index, and why doesn't it matter if it's wrong?
-	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", debugLog, vertexUploadArena, boneUploadArena);
+	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", debugLog, vertexUploadArena, boneUploadArena)[0];
 	auto cubeMeshView = engine.CreateMesh(memeMaterialIndex, cubeMeshFile.vertices, cubeMeshFile.vertexCount);
 	engine.cubeVertexView = cubeMeshView;
 
-	MeshFile kaijuMeshFile = LoadGltfFromFile("models/kaiju.glb", debugLog, vertexUploadArena, boneUploadArena);
-	auto kaijuMeshView = engine.CreateMesh(kaijuMaterialIndex, kaijuMeshFile.vertices, kaijuMeshFile.vertexCount);
-
 	// Entities
-	Entity* kaijuEntity = CreateEntity(engine, kaijuMaterialIndex, kaijuMeshView, kaijuMeshFile.boneCount, kaijuMeshFile.hierachy);
-	kaijuEntity->name = "Kaiju";
-	kaijuEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
-	kaijuEntity->GetData().aabbLocalPosition = { 0.f, 6.f, -3.f };
-	kaijuEntity->GetData().aabbLocalSize = { 10.f, 12.f, 10.f };
+	for (Entity* entity : CreateEntityFromGltf(engine, "models/kaiju.glb", defaultShader, debugLog, vertexUploadArena, boneUploadArena))
+	{
+		entity->name = "Kaiju";
+		entity->GetBuffer().color = { 1.f, 1.f, 1.f };
+		entity->GetData().aabbLocalPosition = { 0.f, 6.f, -3.f };
+		entity->GetData().aabbLocalSize = { 10.f, 12.f, 10.f };
+	}
 
 	lightDebugEntity = CreateEntity(engine, memeMaterialIndex, cubeMeshView);
 	lightDebugEntity->name = "LightDebug";

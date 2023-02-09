@@ -229,6 +229,8 @@ public:
     size_t m_textureUploadIndex = 0;
     MaterialData m_materials[MAX_MATERIALS] = {};
     size_t m_materialCount = 0;
+	Texture m_textures[MAX_TEXTURE_UPLOADS] = {};
+	size_t m_textureCount = 0;
     uint32_t cameraIndex = 0;
 
     // Synchronization objects
@@ -288,7 +290,7 @@ public:
     void CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount);
     void CreatePipelineState(PipelineConfig* config);
     void LoadAssets();
-    void CreateTexture(Texture& outTexture, const wchar_t* filePath);
+    Texture* CreateTexture(const wchar_t* filePath);
     void InitGPUTexture(Texture& outTexture, DXGI_FORMAT format, UINT width, UINT height, const wchar_t* name);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
     size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride, std::vector<Texture*> textures, ShaderDescription shaderDesc);

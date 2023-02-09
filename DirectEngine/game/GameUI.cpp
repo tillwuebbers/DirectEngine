@@ -309,6 +309,7 @@ void Game::DrawUI(EngineCore& engine)
 				{
 					ImGui::Checkbox("Active", &entity->isActive);
 					ImGui::Checkbox("Visible", &entity->GetData().visible);
+					ImGui::Checkbox("Shadow Bounds", &entity->checkForShadowBounds);
 					std::vector<std::string> attributes{};
 					if (entity->isEnemy) attributes.push_back("enemy");
 					if (entity->isProjectile) attributes.push_back("projectile");

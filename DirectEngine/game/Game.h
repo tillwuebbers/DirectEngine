@@ -99,9 +99,8 @@ public:
 	DirectionalLight light{};
 	Camera camera{};
 	EngineInput input{ globalArena };
-	Texture diffuseTexture{};
-	Texture memeTexture{};
-	Texture kaijuTexture{};
+	Texture* diffuseTexture{};
+	Texture* memeTexture{};
 
 	Entity* enemies[MAX_ENENMY_COUNT];
 	Entity* projectiles[MAX_PROJECTILE_COUNT];
@@ -160,6 +159,7 @@ public:
 
 	Entity* CreateEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, size_t boneCount = 0, TransformHierachy* hierachy = nullptr, MemoryArena* arena = nullptr);
 	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, MemoryArena* arena = nullptr);
+	std::vector<Entity*> CreateEntityFromGltf(EngineCore& engine, const char* path, ShaderDescription& shader, RingLog& log, MemoryArena& vertexArena, MemoryArena& boneArena);
 	void UpdateCursorState();
 
 	void PlaySound(EngineCore& engine, AudioSource* audioSource, AudioFile file);

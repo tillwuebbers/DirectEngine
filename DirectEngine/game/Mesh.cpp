@@ -92,7 +92,7 @@ TransformNode* CreateMatrices(Model& model, int jointIndex, TransformNode* paren
 	return &nodeList[jointIndex];
 }
 
-MeshFile LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, MemoryArena& vertexArena, MemoryArena& boneArena)
+std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, MemoryArena& vertexArena, MemoryArena& boneArena)
 {
 	Model model;
 	TinyGLTF loader;
@@ -129,11 +129,11 @@ MeshFile LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memory
 	TransformHierachy* hierachy = NewObject(boneArena, TransformHierachy);
 	hierachy->root = CreateMatrices(model, 0, nullptr, hierachy->nodes, inverseBindMatrices);
 
+	std::vector<MeshFile> meshFiles{};
+
 	for (Mesh& mesh : model.meshes)
 	{
-		// TODO: support multiple primitives
-		//for (Primitive& primitive : mesh.primitives)
-		Primitive& primitive = mesh.primitives[0];
+		for (Primitive& primitive : mesh.primitives)
 		{
 			Accessor& indexAccessor = model.accessors[primitive.indices];
 			assert(indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT);
@@ -205,10 +205,26 @@ MeshFile LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memory
 				vert.boneWeights.z = w2;
 				vert.boneWeights.w = w3;
 			}
+
+			std::string imageName{};
+			if (model.materials.size() > 0 && model.textures.size() > 0 && model.images.size() > 0)
+			{
+				assert(model.materials.size() > primitive.material);
+				int baseColorIndex = model.materials[primitive.material].pbrMetallicRoughness.baseColorTexture.index;
+				
+				assert(model.textures.size() > baseColorIndex);
+				int imageIndex = model.textures[baseColorIndex].source;
+				
+				assert(model.images.size() > imageIndex);
+				imageName = model.images[imageIndex].name;
+				imageName.append(".dds");
+			}
+
+			meshFiles.emplace_back(MeshFile{ vertices, vertexCount, boneCount, hierachy, imageName });
 		}
 	}
 
-	return MeshFile{ vertices, vertexCount, boneCount, hierachy };
+	return meshFiles;
 }
 
 void TransformHierachy::UpdateNode(TransformNode* node)

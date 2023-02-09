@@ -49,7 +49,8 @@ struct MeshFile
 	size_t vertexCount;
 	size_t boneCount;
 	TransformHierachy* hierachy;
+	std::string textureName;
 };
 
 MeshFile CreateQuad(float width, float height, MemoryArena& vertexArena);
-MeshFile LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, MemoryArena& vertexArena, MemoryArena& boneArena);
+std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, MemoryArena& vertexArena, MemoryArena& boneArena);

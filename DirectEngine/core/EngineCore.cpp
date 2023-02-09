@@ -637,14 +637,20 @@ void EngineCore::LoadAssets()
     }
 }
 
-void EngineCore::CreateTexture(Texture& outTexture, const wchar_t* filePath)
+Texture* EngineCore::CreateTexture(const wchar_t* filePath)
 {
+	assert(m_textureCount < MAX_TEXTURE_UPLOADS);
+    Texture& texture = m_textures[m_textureCount];
+    m_textureCount++;
+
     TextureData header = ParseDDSHeader(filePath);
     std::unique_ptr<uint8_t[]> data{};
     std::vector<D3D12_SUBRESOURCE_DATA> subresources{};
-    LoadDDSTextureFromFile(m_device, filePath, &outTexture.buffer, data, subresources);
-    comPointers.AddPointer((void**)&outTexture.buffer);
-    UploadTexture(header, subresources, outTexture);
+    CHECK_HRCMD(LoadDDSTextureFromFile(m_device, filePath, &texture.buffer, data, subresources));
+    comPointers.AddPointer((void**)&texture.buffer);
+    UploadTexture(header, subresources, texture);
+
+    return &texture;
 }
 
 void EngineCore::InitGPUTexture(Texture& outTexture, DXGI_FORMAT format, UINT width, UINT height, const wchar_t* name)
