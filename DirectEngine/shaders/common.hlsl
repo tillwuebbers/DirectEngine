@@ -89,6 +89,20 @@ struct LightData
 	float3 specularLight;
 };
 
+float SampleShadowMap(float2 shadowMapPos, float2 offset, float4 lightSpacePosition, float bias)
+{
+	float2 samplePos = shadowMapPos + offset / 4096.;
+
+	float shadow = 0.;
+	if (samplePos.x >= 0. && samplePos.x <= 1. && samplePos.y >= 0. && samplePos.y <= 1.)
+	{
+		float closestDepth = shadowmapTexture.Sample(rawSampler, samplePos).r;
+		float currentDepth = lightSpacePosition.z / lightSpacePosition.w - bias;
+		shadow = currentDepth > closestDepth ? 1.0 : 0.0;
+	}
+	return shadow;
+}
+
 LightData PSCalcLightData(PSInputDefault input, float ambientIntensity, float diffuseIntensity, float specularIntensity, float specularity)
 {
 	LightData result;
@@ -116,12 +130,15 @@ LightData PSCalcLightData(PSInputDefault input, float ambientIntensity, float di
 	shadowMapPos.y = -input.lightSpacePosition.y / input.lightSpacePosition.w * .5f + .5f;
 
 	float shadow = 0.;
-	if (shadowMapPos.x >= 0. && shadowMapPos.x <= 1. && shadowMapPos.y >= 0. && shadowMapPos.y <= 1.)
-	{
-		float closestDepth = shadowmapTexture.Sample(rawSampler, shadowMapPos).r;
-		float currentDepth = input.lightSpacePosition.z / input.lightSpacePosition.w - .003;
-		shadow = currentDepth > closestDepth ? 1.0 : 0.0;
-	}
+	float bias = .003;
+	
+	float2 offset = (float)(frac(input.position * 0.5) > 0.25);
+	offset.y += offset.x;
+	if (offset.y > 1.1) offset.y = 0;
+	shadow = (SampleShadowMap(shadowMapPos, offset + float2(-1.5,  0.5), input.lightSpacePosition, bias)
+		    + SampleShadowMap(shadowMapPos, offset + float2( 0.5,  0.5), input.lightSpacePosition, bias)
+		    + SampleShadowMap(shadowMapPos, offset + float2(-1.5, -1.5), input.lightSpacePosition, bias)
+		    + SampleShadowMap(shadowMapPos, offset + float2( 0.5, -1.5), input.lightSpacePosition, bias)) * 0.25;
 
 	result.diffuseLight *= 1. - shadow;
 	result.specularLight *= 1. - shadow;
