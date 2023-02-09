@@ -172,6 +172,11 @@ void Game::DrawUI(EngineCore& engine)
 			{
 				showEntityList = !showEntityList;
 			}
+			ImGui::SameLine();
+			if (ImGui::Button("Lighting"))
+			{
+				showLightWindow = !showLightWindow;
+			}
 
 			ImGui::NewLine();
 
@@ -334,10 +339,15 @@ void Game::DrawUI(EngineCore& engine)
 	{
 		if (ImGui::Begin("Lighting", &showLightWindow))
 		{
+			ImGui::Checkbox("Show Light Space", &showLightSpaceDebug);
+			if (ImGui::Checkbox("Show Light Position", &showLightPosition))
+			{
+				lightDebugEntity->GetData().visible = showLightPosition;
+			}
+
 			// light position
 			ImGui::Text("Light Position: (%.1f %.1f %.1f)", light.position.m128_f32[0], light.position.m128_f32[1], light.position.m128_f32[2]);
 			ImGui::Text("Light Rotation: (%.1f %.1f %.1f %.1f)", light.rotation.m128_f32[0], light.rotation.m128_f32[1], light.rotation.m128_f32[2], light.rotation.m128_f32[3]);
-			ImGui::Text("Shadowmap Camera Size: %.1f", light.shadowmapCameraSize);
 		}
 		ImGui::End();
 	}

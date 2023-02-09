@@ -40,7 +40,6 @@ struct DirectionalLight
 {
 	XMVECTOR position{ 0.f, 0.f, 0.f };
 	XMVECTOR rotation{ 0.f, 0.f, 0.f, 1.f };
-	float shadowmapCameraSize;
 };
 
 struct CollisionResult
@@ -66,7 +65,7 @@ public:
 	bool stopLog = false;
 	RingLog debugLog{};
 
-	bool showProfiler = ISDEBUG;
+	bool showProfiler = false;
 	bool pauseProfiler = false;
 	ImGuiUtils::ProfilersWindow profilerWindow{};
 	FrameDebugData lastFrames[256] = {};
@@ -77,15 +76,17 @@ public:
 	bool showDemoWindow = false;
 	bool showEscMenu = false;
 	bool showDebugUI = ISDEBUG;
-	bool showDebugImage = ISDEBUG;
+	bool showDebugImage = false;
 	bool showPostProcessWindow = false;
 	bool showMovementWindow = false;
 	bool showAudioWindow = false;
 	bool showEntityList = ISDEBUG;
-	bool showLightWindow = ISDEBUG;
+	bool showLightWindow = false;
 	bool scrollLog = true;
 	bool noclip = false;
 	bool showInactiveEntities = false;
+	bool showLightSpaceDebug = false;
+	bool showLightPosition = false;
 
 	WindowUpdate windowUpdateData{};
 	std::mutex windowUdpateDataMutex;
@@ -105,6 +106,7 @@ public:
 	Entity* enemies[MAX_ENENMY_COUNT];
 	Entity* projectiles[MAX_PROJECTILE_COUNT];
 	Entity* laser;
+	Entity* lightDebugEntity;
 
 	AudioSource playerAudioSource{};
 	X3DAUDIO_EMITTER playerAudioEmitter{};

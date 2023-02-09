@@ -15,8 +15,6 @@ bool initialized = false;
 
 ID3D12DescriptorHeap* g_pd3dSrvDescHeap = NULL;
 
-#define IMGUI_DEBUG_TEXTURE_SIZE 1024
-#define IMGUI_DEBUG_TEXTURE_FORMAT DXGI_FORMAT_R32_FLOAT
 Texture g_debugTexture{};
 
 void SetupImgui(HWND hwnd, EngineCore* engine, int framesInFlight)

@@ -400,3 +400,4 @@ FodyWeavers.xsd
 # Custom
 out/
 .idea/
+*.cap

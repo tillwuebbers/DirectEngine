@@ -13,10 +13,6 @@
 #include <DirectXMath.h>
 #include <dxgidebug.h>
 
-#if defined(_DEBUG)
-#include <fstream>
-#endif
-
 #include "UI.h"
 #include "EngineCore.h"
 #include "../directx-tex/DDSTextureLoader12.h"
@@ -134,7 +130,7 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
 {
     UINT dxgiFactoryFlags = 0;
 
-#if defined(_DEBUG)
+#if ISDEBUG
     {
         ComPtr<ID3D12Debug> debugController;
         ComPtr<ID3D12Debug1> debugController1;
@@ -220,7 +216,7 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
         ThrowIfFailed(D3D12CreateDevice(hardwareAdapter.Get(), D3D_FEATURE_LEVEL_11_0, NewComObject(comPointers, &m_device)));
     }
 
-#ifdef _DEBUG
+#ifdef ISDEBUG
     ComPtr<ID3D12InfoQueue> infoQueue = nullptr;
     m_device->QueryInterface(IID_PPV_ARGS(&infoQueue));
 
@@ -466,7 +462,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
     ComPtr<ID3DBlob> vertexShader;
     ComPtr<ID3DBlob> pixelShader;
 
-#if defined(_DEBUG)
+#if ISDEBUG
     // Enable better shader debugging with the graphics debugging tools.
     UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
     std::wstring path = std::wstring(L"../../../../DirectEngine/shaders/");
@@ -584,6 +580,8 @@ void EngineCore::LoadAssets()
     CreatePipeline(m_debugLineConfig, 0, 0);
 
     // Debug Line setup
+    m_debugLineData.lineVertices.Allocate(engineArena, MAX_DEBUG_LINE_VERTICES);
+
     CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(MAX_DEBUG_LINE_VERTICES * sizeof(Vertex));
     ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, NewComObject(comPointers, &m_debugLineData.vertexBuffer)));
@@ -1138,14 +1136,14 @@ void EngineCore::RenderDebugLines(ID3D12GraphicsCommandList* renderList, D3D12_C
     UINT8* pVertexDataBegin = nullptr;
     CD3DX12_RANGE readRange(0, 0);
     CHECK_HRCMD(m_debugLineData.vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)));
-    memcpy(pVertexDataBegin, m_debugLineData.lines, m_debugLineData.lineVertexCount * sizeof(Vertex));
+    memcpy(pVertexDataBegin, m_debugLineData.lineVertices.base, m_debugLineData.lineVertices.size * sizeof(Vertex));
     m_debugLineData.vertexBuffer->Unmap(0, nullptr);
 
     // Record commands.
     renderList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 	renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
     renderList->IASetVertexBuffers(0, 1, &m_debugLineData.vertexBufferView);
-	renderList->DrawInstanced(m_debugLineData.lineVertexCount, 1, 0, 0);
+	renderList->DrawInstanced(m_debugLineData.lineVertices.size, 1, 0, 0);
 }
 
 // Wait for pending GPU work to complete.

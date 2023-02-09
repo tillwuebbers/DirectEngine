@@ -34,6 +34,9 @@
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
 
+typedef XMMATRIX MAT_CMAJ;
+typedef XMMATRIX MAT_RMAJ;
+
 enum class WindowMode
 {
     Fullscreen,
@@ -74,8 +77,8 @@ struct ConstantBuffer
 
 struct SceneConstantBuffer
 {
-    XMMATRIX cameraView = {};
-    XMMATRIX cameraProjection = {};
+    MAT_CMAJ cameraView = {};
+    MAT_CMAJ cameraProjection = {};
     XMVECTOR postProcessing = {};
     XMVECTOR fogColor = {};
     XMVECTOR worldCameraPos = {};
@@ -86,8 +89,8 @@ static_assert((sizeof(SceneConstantBuffer) % 256) == 0, "Constant Buffer size mu
 
 struct LightConstantBuffer
 {
-    XMMATRIX lightView = {};
-    XMMATRIX lightProjection = {};
+    MAT_CMAJ lightView = {};
+    MAT_CMAJ lightProjection = {};
     XMVECTOR sunDirection = {};
     float padding[26];
 };
@@ -95,7 +98,7 @@ static_assert((sizeof(LightConstantBuffer) % 256) == 0, "Constant Buffer size mu
 
 struct EntityConstantBuffer
 {
-    XMMATRIX worldTransform = {};
+    MAT_CMAJ worldTransform = {};
     XMVECTOR color = { 1., 1., 1. };
     XMVECTOR aabbLocalPosition = { 0., 0., 0. };
     XMVECTOR aabbLocalSize = { 1., 1., 1. };
@@ -106,8 +109,8 @@ static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size m
 
 struct BoneMatricesBuffer
 {
-    XMMATRIX inverseJointBinds[MAX_BONES];
-    XMMATRIX jointTransforms[MAX_BONES];
+    MAT_CMAJ inverseJointBinds[MAX_BONES];
+    MAT_CMAJ jointTransforms[MAX_BONES];
 };
 static_assert((sizeof(BoneMatricesBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
@@ -140,12 +143,28 @@ struct MaterialData
     PipelineConfig* pipeline = nullptr;
 };
 
-struct DebugLineData
+class DebugLineData
 {
-    Vertex lines[MAX_DEBUG_LINE_VERTICES];
-    size_t lineVertexCount;
+public:
+    ArenaList<Vertex> lineVertices;
     ID3D12Resource* vertexBuffer = nullptr;
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
+
+    void AddLine(XMVECTOR startPos, XMVECTOR endPos, XMVECTOR startColor = { 1., 1., 1., 1. }, XMVECTOR endColor = { 1., 1., 1., 1. })
+    {
+        XMFLOAT3 startPos3;
+		XMFLOAT3 endPos3;
+		XMStoreFloat3(&startPos3, startPos);
+		XMStoreFloat3(&endPos3, endPos);
+
+        XMFLOAT4 startCol4;
+		XMFLOAT4 endCol4;
+		XMStoreFloat4(&startCol4, startColor);
+		XMStoreFloat4(&endCol4, endColor);
+
+        *lineVertices.new_element() = { startPos3, startCol4 };
+		*lineVertices.new_element() = { endPos3, endCol4 };
+    }
 };
 
 class EngineCore
@@ -241,7 +260,7 @@ public:
     std::vector<legit::ProfilerTask> m_profilerTaskData{};
     std::unordered_map<std::string, size_t> m_profilerTasks{};
     bool m_inUpdate = false;
-    DebugLineData m_debugLineData{};
+    DebugLineData m_debugLineData;
 
     // TODO: don't init this in game
     D3D12_VERTEX_BUFFER_VIEW cubeVertexView;

@@ -94,8 +94,12 @@ void Game::StartGame(EngineCore& engine)
 	Entity* kaijuEntity = CreateEntity(engine, kaijuMaterialIndex, kaijuMeshView, kaijuMeshFile.boneCount, kaijuMeshFile.hierachy);
 	kaijuEntity->name = "Kaiju";
 	kaijuEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
-	kaijuEntity->GetData().aabbLocalPosition = { 0.f, 5.f, 0.f };
-	kaijuEntity->GetData().aabbLocalSize = { 4.f, 10.f, 2.f };
+	kaijuEntity->GetData().aabbLocalPosition = { 0.f, 6.f, -3.f };
+	kaijuEntity->GetData().aabbLocalSize = { 10.f, 12.f, 10.f };
+
+	lightDebugEntity = CreateEntity(engine, memeMaterialIndex, cubeMeshView);
+	lightDebugEntity->name = "LightDebug";
+	lightDebugEntity->scale = { .1f, .1f, .1f };
 
 	for (int i = 0; i < MAX_ENENMY_COUNT; i++)
 	{
@@ -123,7 +127,6 @@ void Game::StartGame(EngineCore& engine)
 	Entity* groundEntity = CreateQuadEntity(engine, groundMaterialIndex, 100.f, 100.f);
 	groundEntity->name = "Ground";
 	groundEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
-	groundEntity->checkForShadowBounds = false;
 	groundEntity->collisionLayers |= Floor;
 
 	// Defaults
@@ -136,7 +139,7 @@ void Game::StartGame(EngineCore& engine)
 	soundFiles[(size_t)AudioFile::PlayerDamage] = LoadAudioFile(L"audio/chord.wav", globalArena);
 	soundFiles[(size_t)AudioFile::EnemyDeath] = LoadAudioFile(L"audio/tada.wav", globalArena);
 	soundFiles[(size_t)AudioFile::Shoot] = LoadAudioFile(L"audio/laser.wav", globalArena);
-
+	
 	// Finish setup
 	engine.UploadVertices();
 	UpdateCursorState();
@@ -158,6 +161,7 @@ void Game::UpdateGame(EngineCore& engine)
 	{
 		entity.GetBuffer().isSelected = { 0 };
 	}
+	engine.m_debugLineData.lineVertices.clear();
 
 	// Debug Controls
 	if (input.KeyJustPressed(VK_ESCAPE))
@@ -526,13 +530,22 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 
 	// Update light/shadowmap
-	//light.rotation = XMQuaternionRotationRollPitchYaw(45.f / 360.f * XM_2PI, engine.TimeSinceStart(), 0.f);
-
+	light.rotation = XMQuaternionRotationRollPitchYaw(45.f / 360.f * XM_2PI, engine.TimeSinceStart(), 0.f);
 	engine.m_lightConstantBuffer.data.lightView = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(light.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(light.rotation)));
+
+	lightDebugEntity->position = light.position;
+	lightDebugEntity->rotation = light.rotation;
+
+	if (showLightPosition)
+	{
+		engine.m_debugLineData.AddLine(light.position, light.position + XMVector3TransformNormal({ 0.f, 0.f, 1.f }, XMMatrixRotationQuaternion(light.rotation)), { 0.f, 0.f, 0.f, 1.f }, { 1.f, 1.f, 1.f, 1.f });
+	}
 
 	XMVECTOR lightSpaceMin{};
 	XMVECTOR lightSpaceMax{};
-	XMVECTOR testPositionBuffer[8] = {
+	bool firstLightCalculation = true;
+
+	const XMVECTOR testPositionBuffer[8] = {
 		{ -1., -1., -1.},
 		{ -1., -1.,  1.},
 		{ -1.,  1., -1.},
@@ -544,17 +557,18 @@ void Game::UpdateGame(EngineCore& engine)
 	};
 	for (Entity& entity : entityArena)
 	{
-		if (!entity.checkForShadowBounds) continue;
+		if (!entity.checkForShadowBounds || !entity.GetData().visible) continue;
 
-		XMVECTOR aabbWorldPosition = XMVector3Transform(entity.GetData().aabbLocalPosition, entity.GetBuffer().worldTransform);
-		XMVECTOR aabbWorldSize = XMVector3Transform(entity.GetData().aabbLocalSize, entity.GetBuffer().worldTransform);
+		XMVECTOR aabbWorldPosition = XMVector3Transform(entity.GetData().aabbLocalPosition, XMMatrixTranspose(entity.GetBuffer().worldTransform));
+		XMVECTOR aabbWorldSize = XMVector3TransformNormal(entity.GetData().aabbLocalSize, XMMatrixTranspose(entity.GetBuffer().worldTransform));
 
 		for (int i = 0; i < _countof(testPositionBuffer); i++)
 		{
-			XMVECTOR aabbWorldCorner = XMVectorMultiply(aabbWorldSize, testPositionBuffer[i]);
-			XMVECTOR lightSpacePosition = XMVector3Transform(entity.position + aabbWorldPosition + aabbWorldCorner, engine.m_lightConstantBuffer.data.lightView);
-			lightSpaceMin = XMVectorMin(lightSpacePosition, lightSpaceMin);
-			lightSpaceMax = XMVectorMax(lightSpacePosition, lightSpaceMax);
+			XMVECTOR aabbCorner = XMVectorMultiply(aabbWorldSize, testPositionBuffer[i]);
+			XMVECTOR lightSpacePosition = XMVector3Transform(aabbWorldPosition + aabbCorner, XMMatrixTranspose(engine.m_lightConstantBuffer.data.lightView));
+			lightSpaceMin = firstLightCalculation ? lightSpacePosition : XMVectorMin(lightSpacePosition, lightSpaceMin);
+			lightSpaceMax = firstLightCalculation ? lightSpacePosition : XMVectorMax(lightSpacePosition, lightSpaceMax);
+			firstLightCalculation = false;
 		}
 	}
 
@@ -565,7 +579,57 @@ void Game::UpdateGame(EngineCore& engine)
 	XMStoreFloat3(&lsMin, lightSpaceMin);
 	XMStoreFloat3(&lsMax, lightSpaceMax);
 
-	engine.m_lightConstantBuffer.data.lightProjection = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(lsMin.x, lsMax.x, lsMin.y, lsMax.y, lsMin.z - 10., lsMax.z + 10.));
+	engine.m_lightConstantBuffer.data.lightProjection = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(lsMin.x, lsMax.x, lsMin.y, lsMax.y, lsMin.z, lsMax.z));
+	
+	// Debug view for light space
+	if (showLightSpaceDebug)
+	{
+		const XMVECTOR cubeVertices[8] = {
+		{ NDC_MIN_XY, NDC_MIN_XY, NDC_MIN_Z },
+		{ NDC_MIN_XY, NDC_MIN_XY, NDC_MAX_Z },
+		{ NDC_MIN_XY, NDC_MAX_XY, NDC_MIN_Z },
+		{ NDC_MIN_XY, NDC_MAX_XY, NDC_MAX_Z },
+		{ NDC_MAX_XY, NDC_MIN_XY, NDC_MIN_Z },
+		{ NDC_MAX_XY, NDC_MIN_XY, NDC_MAX_Z },
+		{ NDC_MAX_XY, NDC_MAX_XY, NDC_MIN_Z },
+		{ NDC_MAX_XY, NDC_MAX_XY, NDC_MAX_Z },
+		};
+
+		const XMINT2 cubeEdges[12] = {
+			{ 0, 1 },
+			{ 0, 2 },
+			{ 0, 4 },
+			{ 1, 3 },
+			{ 1, 5 },
+			{ 2, 3 },
+			{ 2, 6 },
+			{ 3, 7 },
+			{ 4, 5 },
+			{ 4, 6 },
+			{ 5, 7 },
+			{ 6, 7 },
+		};
+
+		XMVECTOR det;
+		XMMATRIX lightViewInverse = XMMatrixInverse(&det, XMMatrixTranspose(engine.m_lightConstantBuffer.data.lightView));
+		XMMATRIX lightProjectionInverse = XMMatrixInverse(&det, XMMatrixTranspose(engine.m_lightConstantBuffer.data.lightProjection));
+		XMFLOAT4 cubeColor = { 1., 1., 1., 1. };
+
+		for (int i = 0; i < _countof(cubeEdges); i++)
+		{
+			XMVECTOR edgeStartView = XMVector3Transform(cubeVertices[cubeEdges[i].x], lightProjectionInverse);
+			XMVECTOR edgeEndView = XMVector3Transform(cubeVertices[cubeEdges[i].y], lightProjectionInverse);
+			XMVECTOR edgeStart = XMVector3Transform(edgeStartView, lightViewInverse);
+			XMVECTOR edgeEnd = XMVector3Transform(edgeEndView, lightViewInverse);
+
+			XMFLOAT3 edgeStart3;
+			XMFLOAT3 edgeEnd3;
+			XMStoreFloat3(&edgeStart3, edgeStart);
+			XMStoreFloat3(&edgeEnd3, edgeEnd);
+			*engine.m_debugLineData.lineVertices.new_element() = { edgeStart3, cubeColor };
+			*engine.m_debugLineData.lineVertices.new_element() = { edgeEnd3, cubeColor };
+		}
+	}
 
 	// Post Processing
 	XMVECTOR camPos2d = camera.position;
@@ -588,7 +652,6 @@ void Game::UpdateGame(EngineCore& engine)
 
 	input.NextFrame();
 	input.accessMutex.unlock();
-
 }
 
 float* Game::GetClearColor()
