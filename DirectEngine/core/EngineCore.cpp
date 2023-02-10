@@ -536,6 +536,11 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
         rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
         rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
     }
+    if (config->shadow)
+    {
+        rasterizerDesc.CullMode = D3D12_CULL_MODE_FRONT;
+        rasterizerDesc.SlopeScaledDepthBias = 1.0;
+    }
 
     // Describe and create the graphics pipeline state object (PSO).
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
@@ -562,6 +567,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
 void EngineCore::LoadAssets()
 {
     m_shadowConfig = NewObject(engineArena, PipelineConfig, { L"shadow.hlsl", "VSShadow", "PSShadow", L"Shadow" }, 0);
+    m_shadowConfig->shadow = true;
     CreatePipeline(m_shadowConfig, 0, 0);
 
     m_boneDebugConfig = NewObject(engineArena, PipelineConfig, { L"bones.hlsl", "VSMain", "PSMain", L"Bones" }, 0);
@@ -969,12 +975,11 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
     for (int drawIdx = 0; drawIdx < m_materialCount; drawIdx++)
     {
         MaterialData& data = m_materials[drawIdx];
-        //renderList->SetGraphicsRootDescriptorTable(DIFFUSE, data.diffuse->handle.gpuHandle);
 
         for (int entityIndex = 0; entityIndex < data.entityCount; entityIndex++)
         {
             EntityData* entity = data.entities[entityIndex];
-            if (!entity->visible) continue;
+            if (!entity->visible || entity->wireframe) continue;
             renderList->IASetVertexBuffers(0, 1, &entity->vertexBufferView);
             renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
             renderList->SetGraphicsRootDescriptorTable(BONES, entity->boneConstantBuffer.handles[m_frameIndex].gpuHandle);

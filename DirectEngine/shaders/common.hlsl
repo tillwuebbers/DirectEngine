@@ -130,7 +130,7 @@ LightData PSCalcLightData(PSInputDefault input, float ambientIntensity, float di
 	shadowMapPos.y = -input.lightSpacePosition.y / input.lightSpacePosition.w * .5f + .5f;
 
 	float shadow = 0.;
-	float bias = .003;
+	float bias = 0.00025;
 	
 	float2 offset = (float)(frac(input.position * 0.5) > 0.25);
 	offset.y += offset.x;

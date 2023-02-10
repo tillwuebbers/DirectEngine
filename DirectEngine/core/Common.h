@@ -32,6 +32,7 @@ public:
 		this->textureSlotCount = textureSlotCount;
     }
 
+    bool shadow = false;
     bool wireframe = false;
     bool ignoreDepth = false;
     ShaderDescription shaderDescription;

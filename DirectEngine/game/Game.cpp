@@ -94,7 +94,6 @@ void Game::StartGame(EngineCore& engine)
 	memeTexture = engine.CreateTexture(L"textures/cat.dds");
 
 	// Materials
-	//size_t dirtMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { diffuseTexture }, defaultShader);
 	size_t memeMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { memeTexture }, defaultShader);
 	size_t groundMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, groundShader);
 	size_t laserMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, laserShader);

@@ -96,12 +96,17 @@ TransformNode* CreateMatrices(Model& model, int jointIndex, TransformNode* paren
 
 std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, MemoryArena& vertexArena, MemoryArena& boneArena, MemoryArena& aniamtionArena)
 {
+	auto startTime = std::chrono::high_resolution_clock::now();
+
 	Model model;
 	TinyGLTF loader;
 	std::string err;
 	std::string warn;
 
 	bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, filePath);
+
+	auto duration = std::chrono::high_resolution_clock::now() - startTime;
+	debugLog.Log(std::format("Loading binary for {} took {}ms", filePath, std::chrono::duration_cast<std::chrono::milliseconds>(duration).count()));
 
 	if (!warn.empty())
 	{
@@ -282,7 +287,7 @@ std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& deb
 			meshFiles.emplace_back(MeshFile{ vertices, vertexCount, hierachy, imageName });
 		}
 	}
-
+	
 	return meshFiles;
 }
 
