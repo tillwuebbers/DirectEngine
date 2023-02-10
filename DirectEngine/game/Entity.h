@@ -19,7 +19,6 @@ public:
 	size_t dataIndex;
 
 	bool checkForShadowBounds = true;
-	bool isSpinning = false;
 	uint64_t collisionLayers = 0;
 	bool isActive = true;
 
@@ -27,6 +26,11 @@ public:
 	bool isProjectile = false;
 	float spawnTime = -1000.f;
 	XMVECTOR velocity = {};
+
+	bool isPlayingAnimation = false;
+	bool loopAnimation = true;
+	int animationIndex = 0;
+	float animationTime = 0.f;
 
 	AudioSource audioSource;
 

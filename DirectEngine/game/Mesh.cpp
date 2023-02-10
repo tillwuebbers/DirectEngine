@@ -21,7 +21,7 @@ MeshFile CreateQuad(float width, float height, MemoryArena& vertexArena)
 	vertices[4] = { { 0.f  , 0.f, height }, {}, {0.f, 1.f, 0.f }, {0.f, 1.f}, {}, {} };
 	vertices[5] = { { width, 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f}, {}, {} };
 
-	return MeshFile{ vertices, VERTEX_COUNT, 0, nullptr };
+	return MeshFile{ vertices, VERTEX_COUNT, 0 };
 }
 
 template <typename T>
@@ -52,12 +52,14 @@ XMVECTOR LoadScale(std::vector<double>& scaleVec)
 
 TransformNode* CreateMatrices(Model& model, int jointIndex, TransformNode* parent, TransformNode* nodeList, const float* inverseBindMatrixData)
 {
-	Node& node = model.nodes[model.skins[0].joints[jointIndex]];
+	size_t nodeIndex = model.skins[0].joints[jointIndex];
+	Node& node = model.nodes[nodeIndex];
 
 	TransformNode& transformNode = nodeList[jointIndex];
 	transformNode.baseLocal = DirectX::XMMatrixAffineTransformation(LoadScale(node.scale), XMVECTOR{}, LoadRotation(node.rotation), LoadTranslation(node.translation));
 	transformNode.currentLocal = transformNode.baseLocal;
 	transformNode.parent = parent;
+	transformNode.name = node.name;
 
 	const float* ibmData = &inverseBindMatrixData[jointIndex * 16];
 	transformNode.inverseBind = XMMATRIX(
@@ -92,7 +94,7 @@ TransformNode* CreateMatrices(Model& model, int jointIndex, TransformNode* paren
 	return &nodeList[jointIndex];
 }
 
-std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, MemoryArena& vertexArena, MemoryArena& boneArena)
+std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, MemoryArena& vertexArena, MemoryArena& boneArena, MemoryArena& aniamtionArena)
 {
 	Model model;
 	TinyGLTF loader;
@@ -119,15 +121,72 @@ std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& deb
 	size_t vertexCount = 0;
 	Vertex* vertices;
 
-	size_t boneCount = model.skins[0].joints.size();
-
 	Accessor& inverseBindAccessor = model.accessors[model.skins[0].inverseBindMatrices];
 	assert(inverseBindAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
 	assert(inverseBindAccessor.type == TINYGLTF_TYPE_MAT4);
 	const float* inverseBindMatrices = ReadBuffer<float>(model, inverseBindAccessor);
 
 	TransformHierachy* hierachy = NewObject(boneArena, TransformHierachy);
+	hierachy->nodeCount = model.skins[0].joints.size();
+	for (int i = 0; i < model.skins[0].joints.size(); i++)
+	{
+		hierachy->jointToNodeIndex[i] = model.skins[0].joints[i];
+	}
 	hierachy->root = CreateMatrices(model, 0, nullptr, hierachy->nodes, inverseBindMatrices);
+
+	for (Animation& animation : model.animations)
+	{
+		assert(hierachy->animationCount < MAX_ANIMATIONS);
+		TransformAnimation& transformAnimation = hierachy->animations[hierachy->animationCount] = {};
+		hierachy->animationCount++;
+
+		float maxTime = 0.f;
+		
+		for (AnimationChannel channel : animation.channels)
+		{
+			if (channel.target_path != "rotation") continue;
+
+			assert(animation.samplers.size() > channel.sampler);
+			AnimationSampler& animSampler = animation.samplers[channel.sampler];
+			assert(animSampler.interpolation == "LINEAR");
+
+			assert(model.accessors.size() > animSampler.input);
+			Accessor& timeAccessor = model.accessors[animSampler.input];
+			assert(timeAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+			assert(timeAccessor.type == TINYGLTF_TYPE_SCALAR);
+
+			assert(model.accessors.size() > animSampler.output);
+			Accessor& valueAccessor = model.accessors[animSampler.output];
+			assert(valueAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+			assert(valueAccessor.type == TINYGLTF_TYPE_VEC4);
+
+			const float* times = ReadBuffer<float>(model, timeAccessor);
+			const XMVECTOR* rotations = ReadBuffer<XMVECTOR>(model, valueAccessor);
+
+			assert(transformAnimation.channelCount < MAX_ANIMATION_CHANNELS);
+			TransformAnimationChannel& transformAnimationChannel = transformAnimation.channels[transformAnimation.channelCount] = {};
+			transformAnimation.channelCount++;
+
+			transformAnimationChannel.frameCount = 0;
+			transformAnimationChannel.times = NewArray(aniamtionArena, float, timeAccessor.count);
+			transformAnimationChannel.rotations = NewArray(aniamtionArena, XMVECTOR, timeAccessor.count);
+
+			for (int i = 0; i < timeAccessor.count; i++)
+			{
+				// TODO: resample animation?
+				if (true)
+				{
+					transformAnimationChannel.times[transformAnimationChannel.frameCount] = times[i];
+					transformAnimationChannel.rotations[transformAnimationChannel.frameCount] = rotations[i];
+					transformAnimationChannel.frameCount++;
+					transformAnimationChannel.nodeIndex = channel.target_node;
+				}
+				maxTime = std::max(maxTime, times[i]);
+			}
+		}
+
+		transformAnimation.duration = maxTime;
+	}
 
 	std::vector<MeshFile> meshFiles{};
 
@@ -220,7 +279,7 @@ std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& deb
 				imageName.append(".dds");
 			}
 
-			meshFiles.emplace_back(MeshFile{ vertices, vertexCount, boneCount, hierachy, imageName });
+			meshFiles.emplace_back(MeshFile{ vertices, vertexCount, hierachy, imageName });
 		}
 	}
 

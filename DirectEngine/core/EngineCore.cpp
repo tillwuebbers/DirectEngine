@@ -770,7 +770,7 @@ D3D12_VERTEX_BUFFER_VIEW EngineCore::CreateMesh(const size_t materialIndex, cons
     return view;
 }
 
-size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, size_t boneCount, TransformHierachy* hierachy)
+size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, TransformHierachy* hierachy)
 {
     MaterialData& material = m_materials[materialIndex];
 
@@ -781,8 +781,6 @@ size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_
 
     entity->materialIndex = materialIndex;
     entity->vertexBufferView = meshView;
-
-    entity->boneCount = boneCount;
     entity->transformHierachy = hierachy;
 
     CreateConstantBuffers<EntityConstantBuffer>(entity->constantBuffer, std::format(L"Entity {} Constant Buffer", entity->entityIndex).c_str());
@@ -1057,9 +1055,9 @@ void EngineCore::RenderBones(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
         {
             EntityData* entity = data.entities[entityIndex];
 
-            if (entity->visible)
+            if (entity->visible && entity->transformHierachy != nullptr)
             {
-                for (int boneIndex = 0; boneIndex < entity->boneCount; boneIndex++)
+                for (int boneIndex = 0; boneIndex < entity->transformHierachy->nodeCount; boneIndex++)
                 {
                     renderList->IASetVertexBuffers(0, 1, &cubeVertexView);
                     renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);

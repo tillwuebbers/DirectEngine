@@ -313,7 +313,6 @@ void Game::DrawUI(EngineCore& engine)
 					std::vector<std::string> attributes{};
 					if (entity->isEnemy) attributes.push_back("enemy");
 					if (entity->isProjectile) attributes.push_back("projectile");
-					if (entity->isSpinning) attributes.push_back("speeen");
 					std::string attributesString = std::accumulate(attributes.begin(), attributes.end(), std::string(), [](std::string a, std::string b) { return a + (a.empty() ? "" : ", ") + b; });
 					ImGui::Text("Attributes: %s", attributesString.c_str());
 
@@ -323,10 +322,11 @@ void Game::DrawUI(EngineCore& engine)
 
 					ImGui::InputFloat3("Bounding Center", &entityData.aabbLocalPosition.m128_f32[0], "%.1f");
 					ImGui::InputFloat3("Bounding Extent", &entityData.aabbLocalSize.m128_f32[0], "%.1f");
-					if (entityData.boneCount > 0)
+					if (entityData.transformHierachy != nullptr && entityData.transformHierachy->nodeCount > 0)
 					{
-						ImGui::Text("Bone Count: %d", entityData.boneCount);
-						ImGui::SliderInt("Selected Bone", &boneDebugIndex, 0, entityData.boneCount);
+						ImGui::Checkbox("Play Animation", &entity->isPlayingAnimation);
+						ImGui::Text("Bone Count: %d", entityData.transformHierachy->nodeCount);
+						ImGui::SliderInt("Selected Bone", &boneDebugIndex, 0, entityData.transformHierachy->nodeCount);
 					}
 					ImGui::TreePop();
 				}

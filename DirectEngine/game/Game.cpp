@@ -62,11 +62,11 @@ CollisionResult Game::CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR 
 	return result;
 }
 
-std::vector<Entity*> Game::CreateEntityFromGltf(EngineCore& engine, const char* path, ShaderDescription& shader, RingLog& log, MemoryArena& vertexArena, MemoryArena& boneArena)
+std::vector<Entity*> Game::CreateEntityFromGltf(EngineCore& engine, const char* path, ShaderDescription& shader, RingLog& log, MemoryArena& vertexArena, MemoryArena& boneArena, MemoryArena& aniamtionArena)
 {
 	std::vector<Entity*> result{};
 
-	std::vector<MeshFile> meshFiles = LoadGltfFromFile(path, log, vertexArena, boneArena);
+	std::vector<MeshFile> meshFiles = LoadGltfFromFile(path, log, vertexArena, boneArena, animationArena);
 	for (MeshFile& meshFile : meshFiles)
 	{
 		std::wstring texturePath = { L"textures/" };
@@ -76,7 +76,7 @@ std::vector<Entity*> Game::CreateEntityFromGltf(EngineCore& engine, const char* 
 		size_t materialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { texture }, shader);
 		D3D12_VERTEX_BUFFER_VIEW meshView = engine.CreateMesh(materialIndex, meshFile.vertices, meshFile.vertexCount);
 		
-		result.emplace_back(CreateEntity(engine, materialIndex, meshView, meshFile.boneCount, meshFile.hierachy));
+		result.emplace_back(CreateEntity(engine, materialIndex, meshView, meshFile.hierachy));
 	}
 
 	return result;
@@ -101,17 +101,21 @@ void Game::StartGame(EngineCore& engine)
 
 	// Meshes
 	// TODO: why does mesh need material index, and why doesn't it matter if it's wrong?
-	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", debugLog, vertexUploadArena, boneUploadArena)[0];
+	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", debugLog, vertexUploadArena, boneUploadArena, animationArena)[0];
 	auto cubeMeshView = engine.CreateMesh(memeMaterialIndex, cubeMeshFile.vertices, cubeMeshFile.vertexCount);
 	engine.cubeVertexView = cubeMeshView;
 
 	// Entities
-	for (Entity* entity : CreateEntityFromGltf(engine, "models/kaiju.glb", defaultShader, debugLog, vertexUploadArena, boneUploadArena))
+	for (Entity* entity : CreateEntityFromGltf(engine, "models/kaiju.glb", defaultShader, debugLog, vertexUploadArena, boneUploadArena, animationArena))
 	{
 		entity->name = "Kaiju";
 		entity->GetBuffer().color = { 1.f, 1.f, 1.f };
 		entity->GetData().aabbLocalPosition = { 0.f, 6.f, -3.f };
 		entity->GetData().aabbLocalSize = { 10.f, 12.f, 10.f };
+		entity->isPlayingAnimation = true;
+		entity->loopAnimation = true;
+		entity->animationIndex = 0;
+		entity->animationTime = 0.f;
 	}
 
 	lightDebugEntity = CreateEntity(engine, memeMaterialIndex, cubeMeshView);
@@ -120,7 +124,7 @@ void Game::StartGame(EngineCore& engine)
 
 	for (int i = 0; i < MAX_ENENMY_COUNT; i++)
 	{
-		Entity* enemy = enemies[i] = CreateEntity(engine, memeMaterialIndex, cubeMeshView, cubeMeshFile.boneCount, cubeMeshFile.hierachy);
+		Entity* enemy = enemies[i] = CreateEntity(engine, memeMaterialIndex, cubeMeshView, cubeMeshFile.hierachy);
 		enemy->name = "Enemy";
 		enemy->Disable();
 		enemy->isEnemy = true;
@@ -482,34 +486,73 @@ void Game::UpdateGame(EngineCore& engine)
 	for (Entity& entity : entityArena)
 	{
 		EntityData& entityData = entity.GetData();
-
-		if (entity.isSpinning)
-		{
-			entity.rotation = XMQuaternionRotationAxis(XMVECTOR{0.f, 1.f, 0.f}, static_cast<float>(engine.TimeSinceStart()));
-		}
-
+		
 		if (entityData.transformHierachy != nullptr)
 		{
-			for (int i = 0; i < _countof(entityData.transformHierachy->nodes); i++)
+			if (entity.isPlayingAnimation)
 			{
-				TransformNode& node = entityData.transformHierachy->nodes[i];
-				if (i == boneDebugIndex)
+				entity.animationTime = fmodf(engine.TimeSinceStart(), entityData.transformHierachy->animations[entity.animationIndex].duration);
+			}
+
+			for (int jointIdx = 0; jointIdx < entityData.transformHierachy->nodeCount; jointIdx++)
+			{
+				TransformNode& node = entityData.transformHierachy->nodes[jointIdx];
+				if (jointIdx == boneDebugIndex)
 				{
 					node.currentLocal = XMMatrixMultiply(XMMatrixRotationX(sin(engine.TimeSinceStart())), node.baseLocal);
 				}
-				else
+				else if (!entity.isPlayingAnimation)
 				{
 					node.currentLocal = node.baseLocal;
+				}
+				else
+				{
+					XMVECTOR rotation = { 0., 0., 0., 1. };
+					
+					TransformAnimation& animation = entity.GetData().transformHierachy->animations[entity.animationIndex];
+					for (int channelIdx = 0; channelIdx < animation.channelCount; channelIdx++)
+					{
+						TransformAnimationChannel& channel = animation.channels[channelIdx];
+						if (channel.nodeIndex == entityData.transformHierachy->jointToNodeIndex[jointIdx] && channel.frameCount > 0)
+						{
+							rotation = channel.rotations[channel.frameCount - 1];
+
+							for (int i = 0; i < channel.frameCount; i++)
+							{
+								if (channel.times[i] > entity.animationTime)
+								{
+									if (i == 0)
+									{
+										rotation = channel.rotations[0];
+									}
+									else
+									{
+										rotation = XMQuaternionSlerp(channel.rotations[i - 1], channel.rotations[i], (entity.animationTime - channel.times[i - 1]) / (channel.times[i] - channel.times[i - 1]));
+									}
+									break;
+								}
+							}
+
+							break;
+						}
+					}
+
+					XMVECTOR s;
+					XMVECTOR r;
+					XMVECTOR t;
+					XMMatrixDecompose(&s, &r, &t, node.baseLocal);
+					
+					node.currentLocal = XMMatrixAffineTransformation(s, {}, rotation, t);
 				}
 				entityData.transformHierachy->UpdateNode(&node);
 			}
 		}
 
-		for (int i = 0; i < entityData.boneCount; i++)
+		if (entityData.transformHierachy != nullptr)
 		{
-			assert(i < MAX_BONES);
-			if (entityData.transformHierachy != nullptr)
+			for (int i = 0; i < entityData.transformHierachy->nodeCount; i++)
 			{
+				assert(i < MAX_BONES);
 				entityData.boneConstantBuffer.data.inverseJointBinds[i] = XMMatrixTranspose(entityData.transformHierachy->nodes[i].inverseBind);
 				entityData.boneConstantBuffer.data.jointTransforms[i] = XMMatrixTranspose(entityData.transformHierachy->nodes[i].global);
 			}
@@ -681,12 +724,12 @@ EngineInput& Game::GetInput()
 	return input;
 }
 
-Entity* Game::CreateEntity(EngineCore& engine, size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, size_t boneCount, TransformHierachy* hierachy, MemoryArena* arena)
+Entity* Game::CreateEntity(EngineCore& engine, size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, TransformHierachy* hierachy, MemoryArena* arena)
 {
 	Entity* entity = NewObject(arena == nullptr ? entityArena : *arena, Entity);
 	entity->engine = &engine;
 	entity->materialIndex = materialIndex;
-	entity->dataIndex = engine.CreateEntity(materialIndex, meshView, boneCount, hierachy);
+	entity->dataIndex = engine.CreateEntity(materialIndex, meshView, hierachy);
 	return entity;
 }
 
@@ -694,7 +737,7 @@ Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float w
 {
 	MeshFile file = CreateQuad(width, height, vertexUploadArena);
 	auto meshView = engine.CreateMesh(materialIndex, file.vertices, file.vertexCount);
-	Entity* entity = CreateEntity(engine, materialIndex, meshView, 0, nullptr, arena);
+	Entity* entity = CreateEntity(engine, materialIndex, meshView, nullptr, arena);
 	entity->position = { -width / 2.f, 0.f, -width / 2.f };
 	entity->GetData().aabbLocalPosition = { width / 2.f, -.05f, width / 2.f };
 	entity->GetData().aabbLocalSize = { width, .1f, width };

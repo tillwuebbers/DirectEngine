@@ -95,6 +95,7 @@ public:
 	TypedMemoryArena<Entity> entityArena{};
 	MemoryArena vertexUploadArena{};
 	MemoryArena boneUploadArena{};
+	MemoryArena animationArena{};
 
 	DirectionalLight light{};
 	Camera camera{};
@@ -157,9 +158,9 @@ public:
 
 	CollisionResult CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, uint64_t matchingLayers);
 
-	Entity* CreateEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, size_t boneCount = 0, TransformHierachy* hierachy = nullptr, MemoryArena* arena = nullptr);
+	Entity* CreateEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, TransformHierachy* hierachy = nullptr, MemoryArena* arena = nullptr);
 	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, MemoryArena* arena = nullptr);
-	std::vector<Entity*> CreateEntityFromGltf(EngineCore& engine, const char* path, ShaderDescription& shader, RingLog& log, MemoryArena& vertexArena, MemoryArena& boneArena);
+	std::vector<Entity*> CreateEntityFromGltf(EngineCore& engine, const char* path, ShaderDescription& shader, RingLog& log, MemoryArena& vertexArena, MemoryArena& boneArena, MemoryArena& aniamtionArena);
 	void UpdateCursorState();
 
 	void PlaySound(EngineCore& engine, AudioSource* audioSource, AudioFile file);
