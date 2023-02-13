@@ -137,6 +137,17 @@ std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& deb
 	{
 		hierachy->jointToNodeIndex[i] = model.skins[0].joints[i];
 	}
+	for (int i = 0; i < model.nodes.size(); i++)
+	{
+		for (int j = 0; j < model.skins[0].joints.size(); j++)
+		{
+			if (model.skins[0].joints[j] == i)
+			{
+				hierachy->nodeToJointIndex[i] = j;
+				break;
+			}
+		}
+	}
 	hierachy->root = CreateMatrices(model, 0, nullptr, hierachy->nodes, inverseBindMatrices);
 
 	for (Animation& animation : model.animations)
@@ -149,8 +160,6 @@ std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& deb
 		
 		for (AnimationChannel channel : animation.channels)
 		{
-			if (channel.target_path != "rotation") continue;
-
 			assert(animation.samplers.size() > channel.sampler);
 			AnimationSampler& animSampler = animation.samplers[channel.sampler];
 			assert(animSampler.interpolation == "LINEAR");
@@ -160,32 +169,74 @@ std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& deb
 			assert(timeAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
 			assert(timeAccessor.type == TINYGLTF_TYPE_SCALAR);
 
-			assert(model.accessors.size() > animSampler.output);
-			Accessor& valueAccessor = model.accessors[animSampler.output];
-			assert(valueAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
-			assert(valueAccessor.type == TINYGLTF_TYPE_VEC4);
-
 			const float* times = ReadBuffer<float>(model, timeAccessor);
-			const XMVECTOR* rotations = ReadBuffer<XMVECTOR>(model, valueAccessor);
+			
+			const XMFLOAT3* translations = nullptr;
+			const XMVECTOR* rotations = nullptr;
+			const XMFLOAT3* scales = nullptr;
 
-			assert(transformAnimation.channelCount < MAX_ANIMATION_CHANNELS);
-			TransformAnimationChannel& transformAnimationChannel = transformAnimation.channels[transformAnimation.channelCount] = {};
-			transformAnimation.channelCount++;
+			AnimationData* animData = nullptr;
+			AnimationJointData& animJointData = transformAnimation.jointChannels[hierachy->nodeToJointIndex[channel.target_node]];
 
-			transformAnimationChannel.frameCount = 0;
-			transformAnimationChannel.times = NewArray(aniamtionArena, float, timeAccessor.count);
-			transformAnimationChannel.rotations = NewArray(aniamtionArena, XMVECTOR, timeAccessor.count);
+			if (channel.target_path == "translation")
+			{
+				assert(model.accessors.size() > animSampler.output);
+				Accessor& valueAccessor = model.accessors[animSampler.output];
+				assert(valueAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+				assert(valueAccessor.type == TINYGLTF_TYPE_VEC3);
+				translations = ReadBuffer<XMFLOAT3>(model, valueAccessor);
+				animData = &animJointData.translations;
+			}
+			else if (channel.target_path == "rotation")
+			{
+				assert(model.accessors.size() > animSampler.output);
+				Accessor& valueAccessor = model.accessors[animSampler.output];
+				assert(valueAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+				assert(valueAccessor.type == TINYGLTF_TYPE_VEC4);
+				rotations = ReadBuffer<XMVECTOR>(model, valueAccessor);
+				animData = &animJointData.rotations;
+			}
+			else if (channel.target_path == "scale")
+			{
+				assert(model.accessors.size() > animSampler.output);
+				Accessor& valueAccessor = model.accessors[animSampler.output];
+				assert(valueAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+				assert(valueAccessor.type == TINYGLTF_TYPE_VEC3);
+				scales = ReadBuffer<XMFLOAT3>(model, valueAccessor);
+				animData = &animJointData.scales;
+			}
+			else
+			{
+				debugLog.Warn("Unknown channel target path!");
+				continue;
+			}
 
+			animData->times = NewArray(aniamtionArena, float, timeAccessor.count);
+			animData->data = NewArray(aniamtionArena, XMVECTOR, timeAccessor.count);
+
+			// TODO: resample animation?
 			for (int i = 0; i < timeAccessor.count; i++)
 			{
-				// TODO: resample animation?
-				if (true)
+				if (translations != nullptr)
 				{
-					transformAnimationChannel.times[transformAnimationChannel.frameCount] = times[i];
-					transformAnimationChannel.rotations[transformAnimationChannel.frameCount] = rotations[i];
-					transformAnimationChannel.frameCount++;
-					transformAnimationChannel.nodeIndex = channel.target_node;
+					animData->data[animData->frameCount] = XMLoadFloat3(&translations[i]);
 				}
+				else if (rotations != nullptr)
+				{
+					animData->data[animData->frameCount] = rotations[i];
+				}
+				else if (scales != nullptr)
+				{
+					animData->data[animData->frameCount] = XMLoadFloat3(&scales[i]);
+				}
+				else
+				{
+					assert(false);
+				}
+
+				animData->times[animData->frameCount] = times[i];
+				animData->frameCount++;
+
 				maxTime = std::max(maxTime, times[i]);
 			}
 		}

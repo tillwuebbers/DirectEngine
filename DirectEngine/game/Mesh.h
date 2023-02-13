@@ -36,17 +36,23 @@ struct TransformNode
 	std::string name;
 };
 
-struct TransformAnimationChannel
+struct AnimationData
 {
-	float* times;
-	XMVECTOR* rotations;
 	size_t frameCount;
-	size_t nodeIndex;
+	float* times;
+	XMVECTOR* data;
+};
+
+struct AnimationJointData
+{
+	AnimationData translations{};
+	AnimationData rotations{};
+	AnimationData scales{};
 };
 
 struct TransformAnimation
 {
-	TransformAnimationChannel channels[MAX_ANIMATION_CHANNELS];
+	AnimationJointData jointChannels[MAX_BONES];
 	size_t channelCount;
 	float duration;
 };
@@ -61,6 +67,8 @@ struct TransformHierachy
 	size_t animationCount;
 	// nodeIdx = jointToNodeIndex[jointIdx]
 	size_t jointToNodeIndex[MAX_BONES];
+	// jointIdx = nodeToJointIndex[nodeIdx]
+	size_t nodeToJointIndex[MAX_BONES];
 
 	void UpdateNode(TransformNode* node);
 };

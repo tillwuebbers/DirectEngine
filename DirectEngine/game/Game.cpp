@@ -23,6 +23,28 @@ void CalculateDirectionVectors(XMVECTOR& outForward, XMVECTOR& outRight, XMVECTO
 	outRight = XMVector3Transform(right, camRotation);
 }
 
+XMVECTOR SampleAnimation(AnimationData& animData, float animationTime, XMVECTOR(__vectorcall* interp)(XMVECTOR a, XMVECTOR b, float t))
+{
+	assert(animData.frameCount > 0);
+	for (int i = 0; i < animData.frameCount; i++)
+	{
+		if (animData.times[i] > animationTime)
+		{
+			if (i == 0)
+			{
+				return animData.data[0];
+			}
+			else
+			{
+				float t = (animationTime - animData.times[i - 1]) / (animData.times[i] - animData.times[i - 1]);
+				return interp(animData.data[i - 1], animData.data[i], t);
+			}
+			break;
+		}
+	}
+	return animData.data[animData.frameCount - 1];
+}
+
 CollisionResult Game::CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, uint64_t matchingLayers)
 {
 	CollisionResult result{ nullptr, std::numeric_limits<float>::max() };
@@ -506,42 +528,30 @@ void Game::UpdateGame(EngineCore& engine)
 				}
 				else
 				{
-					XMVECTOR rotation = { 0., 0., 0., 1. };
+					XMVECTOR scale;
+					XMVECTOR rotation;
+					XMVECTOR translation;
+					XMMatrixDecompose(&scale, &rotation, &translation, node.baseLocal);
 					
 					TransformAnimation& animation = entity.GetData().transformHierachy->animations[entity.animationIndex];
-					for (int channelIdx = 0; channelIdx < animation.channelCount; channelIdx++)
+					AnimationData& translationData = animation.jointChannels[jointIdx].translations;
+					AnimationData& rotationData = animation.jointChannels[jointIdx].rotations;
+					AnimationData& scaleData = animation.jointChannels[jointIdx].scales;
+
+					if (translationData.frameCount > 0)
 					{
-						TransformAnimationChannel& channel = animation.channels[channelIdx];
-						if (channel.nodeIndex == entityData.transformHierachy->jointToNodeIndex[jointIdx] && channel.frameCount > 0)
-						{
-							rotation = channel.rotations[channel.frameCount - 1];
-
-							for (int i = 0; i < channel.frameCount; i++)
-							{
-								if (channel.times[i] > entity.animationTime)
-								{
-									if (i == 0)
-									{
-										rotation = channel.rotations[0];
-									}
-									else
-									{
-										rotation = XMQuaternionSlerp(channel.rotations[i - 1], channel.rotations[i], (entity.animationTime - channel.times[i - 1]) / (channel.times[i] - channel.times[i - 1]));
-									}
-									break;
-								}
-							}
-
-							break;
-						}
+						translation = SampleAnimation(translationData, entity.animationTime, &XMVectorLerp);
+					}
+					if (rotationData.frameCount > 0)
+					{
+						rotation = SampleAnimation(rotationData, entity.animationTime, &XMQuaternionSlerp);
+					}
+					if (scaleData.frameCount > 0)
+					{
+						scale = SampleAnimation(scaleData, entity.animationTime, &XMVectorLerp);
 					}
 
-					XMVECTOR s;
-					XMVECTOR r;
-					XMVECTOR t;
-					XMMatrixDecompose(&s, &r, &t, node.baseLocal);
-					
-					node.currentLocal = XMMatrixAffineTransformation(s, {}, rotation, t);
+					node.currentLocal = XMMatrixAffineTransformation(scale, {}, rotation, translation);
 				}
 				entityData.transformHierachy->UpdateNode(&node);
 			}
