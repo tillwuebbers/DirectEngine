@@ -112,8 +112,8 @@ void Game::StartGame(EngineCore& engine)
 	ShaderDescription laserShader{ L"laser.hlsl", "VSMain", "PSMain", L"Laser" };
 
 	// Textures
-	diffuseTexture = engine.CreateTexture(L"textures/ground-diffuse-bc1.dds");
-	memeTexture = engine.CreateTexture(L"textures/cat.dds");
+	diffuseTexture = engine.CreateTexture(L"textures/ground_D.dds");
+	memeTexture = engine.CreateTexture(L"textures/cat_D.dds");
 
 	// Materials
 	size_t memeMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { memeTexture }, defaultShader);

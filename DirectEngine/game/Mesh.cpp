@@ -322,16 +322,11 @@ std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& deb
 			}
 
 			std::string imageName{};
-			if (model.materials.size() > 0 && model.textures.size() > 0 && model.images.size() > 0)
+			if (model.materials.size() > 0)
 			{
 				assert(model.materials.size() > primitive.material);
-				int baseColorIndex = model.materials[primitive.material].pbrMetallicRoughness.baseColorTexture.index;
-				
-				assert(model.textures.size() > baseColorIndex);
-				int imageIndex = model.textures[baseColorIndex].source;
-				
-				assert(model.images.size() > imageIndex);
-				imageName = model.images[imageIndex].name;
+				imageName = model.materials[primitive.material].name;
+				imageName.append(DIFFUSE_SUFFIX);
 				imageName.append(".dds");
 			}
 

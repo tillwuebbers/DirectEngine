@@ -29,6 +29,8 @@
 #define NDC_MIN_Z 0.
 #define NDC_MAX_Z 1.
 
+#define DIFFUSE_SUFFIX "_D"
+
 #ifdef _DEBUG
 #define ISDEBUG true
 #else
