@@ -344,6 +344,10 @@ void TransformHierachy::UpdateNode(TransformNode* node)
 	{
 		node->global = XMMatrixMultiply(node->currentLocal, node->parent->global);
 	}
+	else
+	{
+		node->global = node->currentLocal;
+	}
 
 	for (int i = 0; i < node->childCount; i++)
 	{

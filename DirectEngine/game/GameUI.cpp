@@ -305,7 +305,8 @@ void Game::DrawUI(EngineCore& engine)
 				
 				std::string entityTitle = std::format("{} [{}] ", entity->name, offset);
 				if (entity->isActive) entityTitle.append(ICON_CHECK_FILL);
-				if ((showInactiveEntities || entity->isActive) && ImGui::TreeNodeEx(entity, 0, entityTitle.c_str()))
+				ImGui::PushID(entity);
+				if ((showInactiveEntities || entity->isActive) && ImGui::CollapsingHeader(entityTitle.c_str()))
 				{
 					ImGui::Checkbox("Active", &entity->isActive);
 					ImGui::Checkbox("Visible", &entity->GetData().visible);
@@ -316,20 +317,25 @@ void Game::DrawUI(EngineCore& engine)
 					std::string attributesString = std::accumulate(attributes.begin(), attributes.end(), std::string(), [](std::string a, std::string b) { return a + (a.empty() ? "" : ", ") + b; });
 					ImGui::Text("Attributes: %s", attributesString.c_str());
 
+					ImGui::Separator();
+
+
 					ImGui::InputFloat3("Position", &entity->position.m128_f32[0], "%.1f");
 					ImGui::InputFloat4("Rotation", &entity->rotation.m128_f32[0], "%.1f");
 					ImGui::InputFloat3("Scale", &entity->scale.m128_f32[0], "%.1f");
 
 					ImGui::InputFloat3("Bounding Center", &entityData.aabbLocalPosition.m128_f32[0], "%.1f");
 					ImGui::InputFloat3("Bounding Extent", &entityData.aabbLocalSize.m128_f32[0], "%.1f");
+					
+
 					if (entityData.transformHierachy != nullptr && entityData.transformHierachy->nodeCount > 0)
 					{
+						ImGui::Separator();
 						ImGui::Checkbox("Play Animation", &entity->isPlayingAnimation);
 						ImGui::Text("Bone Count: %d", entityData.transformHierachy->nodeCount);
-						ImGui::SliderInt("Selected Bone", &boneDebugIndex, 0, entityData.transformHierachy->nodeCount);
 					}
-					ImGui::TreePop();
 				}
+				ImGui::PopID();
 			}
 		}
 		ImGui::End();

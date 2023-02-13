@@ -71,8 +71,6 @@ public:
 	FrameDebugData lastFrames[256] = {};
 	size_t lastDebugFrameIndex = 0;
 
-	int boneDebugIndex = 0;
-
 	bool showDemoWindow = false;
 	bool showEscMenu = false;
 	bool showDebugUI = ISDEBUG;

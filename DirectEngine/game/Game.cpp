@@ -508,6 +508,7 @@ void Game::UpdateGame(EngineCore& engine)
 	{
 		EntityData& entityData = entity.GetData();
 		
+		// Update animation transforms
 		if (entityData.transformHierachy != nullptr)
 		{
 			if (entity.isPlayingAnimation)
@@ -518,11 +519,7 @@ void Game::UpdateGame(EngineCore& engine)
 			for (int jointIdx = 0; jointIdx < entityData.transformHierachy->nodeCount; jointIdx++)
 			{
 				TransformNode& node = entityData.transformHierachy->nodes[jointIdx];
-				if (jointIdx == boneDebugIndex)
-				{
-					node.currentLocal = XMMatrixMultiply(XMMatrixRotationX(sin(engine.TimeSinceStart())), node.baseLocal);
-				}
-				else if (!entity.isPlayingAnimation)
+				if (!entity.isPlayingAnimation)
 				{
 					node.currentLocal = node.baseLocal;
 				}
@@ -557,6 +554,7 @@ void Game::UpdateGame(EngineCore& engine)
 			}
 		}
 
+		// Upload new transforms
 		if (entityData.transformHierachy != nullptr)
 		{
 			for (int i = 0; i < entityData.transformHierachy->nodeCount; i++)
@@ -577,6 +575,7 @@ void Game::UpdateGame(EngineCore& engine)
 		CalculateDirectionVectors(entityForwards, entityRight, entity.rotation);
 		XMVECTOR entityUp = XMVector3Cross(entityForwards, entityRight);
 
+		// Update entity audio
 		IXAudio2SourceVoice* audioSourceVoice = entity.audioSource.source;
 		if (audioSourceVoice != nullptr)
 		{
