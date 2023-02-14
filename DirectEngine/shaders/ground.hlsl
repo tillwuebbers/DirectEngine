@@ -5,11 +5,7 @@ PSInputDefault VSMain(float4 position : POSITION, float4 vertColor : COLOR, floa
 	PSInputDefault result = VSCalcDefault(position, normal, uv);
 
 	result.color = color;
-	if (isSelected)
-	{
-		result.color = float4(1., 0., 1., 1.);
-	}
-
+	
 	return result;
 }
 

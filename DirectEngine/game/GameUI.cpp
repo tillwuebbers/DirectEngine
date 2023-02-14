@@ -4,11 +4,31 @@
 
 #include <numeric>
 
-std::string FormatVector3(XMVECTOR in)
+#define SLIDER_SPEED 0.005f
+#define SLIDER_MIN (-1000.f)
+#define SLIDER_MAX 1000.f
+#define SPLIT_V3(v) v.m128_f32[0], v.m128_f32[1], v.m128_f32[2]
+#define SPLIT_V4(v) v.m128_f32[0], v.m128_f32[1], v.m128_f32[2], v.m128_f32[3]
+
+void DisplayMatrix(XMMATRIX& mat)
 {
-	XMFLOAT3 data;
-	XMStoreFloat3(&data, in);
-	return std::format("{:.1f}, {:.1f}, {:.1f}", data.x, data.y, data.z);
+	bool edited = false;
+	XMVECTOR scale, rotation, translation;
+	XMMatrixDecompose(&scale, &rotation, &translation, mat);
+
+	ImGui::Text("%.1f %.1f %.1f %.1f", SPLIT_V4(mat.r[0]));
+	ImGui::SameLine(0.f, 10.f);
+	ImGui::Text("Position: (%.1f, %.1f, %.1f)", SPLIT_V3(translation));
+
+	ImGui::Text("%.1f %.1f %.1f %.1f", SPLIT_V4(mat.r[1]));
+	ImGui::SameLine(0.f, 10.f);
+	ImGui::Text("Rotation: (%.1f, %.1f, %.1f, %.1f)", SPLIT_V4(rotation));
+	
+	ImGui::Text("%.1f %.1f %.1f %.1f", SPLIT_V4(mat.r[2]));
+	ImGui::SameLine(0.f, 10.f);
+	ImGui::Text("Scale: (%.1f, %.1f, %.1f)", SPLIT_V3(scale));
+	
+	ImGui::Text("%.1f %.1f %.1f %.1f", SPLIT_V4(mat.r[3]));
 }
 
 void Game::DrawUI(EngineCore& engine)
@@ -71,8 +91,8 @@ void Game::DrawUI(EngineCore& engine)
 			}
 
 			ImGui::NewLine();
-			ImGui::Text(std::format("Camera Position: {}", FormatVector3(camera.position)).c_str());
-			ImGui::Text(std::format("Camera pitch/yaw: {:.0f}, {:.0f}", playerPitch / XM_2PI * 360.f, playerYaw / XM_2PI * 360.f).c_str());
+			ImGui::Text("Camera Position: %.1f %.1f %.1f", SPLIT_V3(camera.position));
+			ImGui::Text("Camera Rotation: %.1f %.1f", playerPitch / XM_2PI * 360.f, playerYaw / XM_2PI * 360.f);
 
 			ImGui::NewLine();
 
@@ -280,7 +300,6 @@ void Game::DrawUI(EngineCore& engine)
 			ImGui::SetCursorPosX(cursorPos.x + 35.f);
 			ImGui::Text("Vel: %.1f", playerDisplaySpeed);
 
-			ImGui::SliderFloat("Player Height", &playerHeight, 0.1, 5., "%.1f");
 			ImGui::SliderFloat("Acceleration", &playerAcceleration, 1., 200., "%.0f");
 			ImGui::SliderFloat("Friction", &playerFriction, 1., 200., "%.0f");
 			ImGui::SliderFloat("Gravity", &playerGravity, 1., 100., "%.0f");
@@ -301,15 +320,37 @@ void Game::DrawUI(EngineCore& engine)
 			for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 			{
 				int offset = entity - (Entity*)entityArena.base;
-				EntityData& entityData = entity->GetData();
 				
 				std::string entityTitle = std::format("{} [{}] ", entity->name, offset);
 				if (entity->isActive) entityTitle.append(ICON_CHECK_FILL);
 				ImGui::PushID(entity);
 				if ((showInactiveEntities || entity->isActive) && ImGui::CollapsingHeader(entityTitle.c_str()))
 				{
+					if (entity->childCount > 0)
+					{
+						std::string childrenText{ "Children: " };
+						for (int i = 0; i < entity->childCount; i++)
+						{
+							if (i > 0) childrenText.append(", ");
+							childrenText.append(std::format("{} [{}]", entity->children[i]->name, (entity->children[i] - (Entity*)entityArena.base)));
+						}
+						ImGui::Text(childrenText.c_str());
+
+						ImGui::Separator();
+					}
+
 					ImGui::Checkbox("Active", &entity->isActive);
-					ImGui::Checkbox("Visible", &entity->GetData().visible);
+					if (entity->isRendered)
+					{
+						ImGui::Checkbox("Visible", &entity->GetData().visible);
+					}
+					else
+					{
+						bool never = false;
+						ImGui::BeginDisabled();
+						ImGui::Checkbox("Visible", &never);
+						ImGui::EndDisabled();
+					}
 					ImGui::Checkbox("Shadow Bounds", &entity->checkForShadowBounds);
 					std::vector<std::string> attributes{};
 					if (entity->isEnemy) attributes.push_back("enemy");
@@ -319,20 +360,41 @@ void Game::DrawUI(EngineCore& engine)
 
 					ImGui::Separator();
 
+					ImGui::DragFloat3("Position", &entity->position.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
+					ImGui::DragFloat4("Rotation", &entity->rotation.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
+					ImGui::DragFloat3("Scale", &entity->scale.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
 
-					ImGui::InputFloat3("Position", &entity->position.m128_f32[0], "%.1f");
-					ImGui::InputFloat4("Rotation", &entity->rotation.m128_f32[0], "%.1f");
-					ImGui::InputFloat3("Scale", &entity->scale.m128_f32[0], "%.1f");
+					ImGui::Separator();
 
-					ImGui::InputFloat3("Bounding Center", &entityData.aabbLocalPosition.m128_f32[0], "%.1f");
-					ImGui::InputFloat3("Bounding Extent", &entityData.aabbLocalSize.m128_f32[0], "%.1f");
-					
+					ImGui::BeginTabBar("Transform");
+					if (ImGui::BeginTabItem("Local"))
+					{
+						DisplayMatrix(entity->localMatrix);
+						ImGui::EndTabItem();
+					}
+					if (ImGui::BeginTabItem("Global"))
+					{
+						DisplayMatrix(entity->worldMatrix);
+						ImGui::EndTabItem();
+					}
+					ImGui::EndTabBar();
 
-					if (entityData.transformHierachy != nullptr && entityData.transformHierachy->nodeCount > 0)
+
+					if (entity->isRendered)
 					{
 						ImGui::Separator();
-						ImGui::Checkbox("Play Animation", &entity->isPlayingAnimation);
-						ImGui::Text("Bone Count: %d", entityData.transformHierachy->nodeCount);
+
+						EntityData& entityData = entity->GetData();
+
+						ImGui::InputFloat3("Bounding Center", &entityData.aabbLocalPosition.m128_f32[0], "%.1f");
+						ImGui::InputFloat3("Bounding Extent", &entityData.aabbLocalSize.m128_f32[0], "%.1f");
+
+						if (entityData.transformHierachy != nullptr && entityData.transformHierachy->nodeCount > 0)
+						{
+							ImGui::Separator();
+							ImGui::Checkbox("Play Animation", &entity->isPlayingAnimation);
+							ImGui::Text("Bone Count: %d", entityData.transformHierachy->nodeCount);
+						}
 					}
 				}
 				ImGui::PopID();

@@ -9,11 +9,6 @@
 #include "../core/vkcodes.h"
 #include "remixicon.h"
 
-void CreateWorldMatrix(XMMATRIX& out, const XMVECTOR scale, const XMVECTOR rotation, const XMVECTOR position)
-{
-	out = DirectX::XMMatrixTranspose(DirectX::XMMatrixAffineTransformation(scale, XMVECTOR{}, rotation, position));
-}
-
 void CalculateDirectionVectors(XMVECTOR& outForward, XMVECTOR& outRight, XMVECTOR inRotation)
 {
 	XMMATRIX camRotation = XMMatrixRotationQuaternion(inRotation);
@@ -127,6 +122,13 @@ void Game::StartGame(EngineCore& engine)
 	engine.cubeVertexView = cubeMeshView;
 
 	// Entities
+	playerEntity = CreateEmptyEntity(engine);
+	playerEntity->name = "Player";
+	cameraEntity = CreateEmptyEntity(engine);
+	cameraEntity->name = "Camera";
+	cameraEntity->position = { 0.f, 2.f, 0.f };
+	playerEntity->AddChild(cameraEntity);
+
 	for (Entity* entity : CreateEntityFromGltf(engine, "models/kaiju.glb", defaultShader, debugLog, vertexUploadArena, boneUploadArena, animationArena))
 	{
 		entity->name = "Kaiju";
@@ -137,6 +139,7 @@ void Game::StartGame(EngineCore& engine)
 		entity->loopAnimation = true;
 		entity->animationIndex = 0;
 		entity->animationTime = 0.f;
+		playerEntity->AddChild(entity);
 	}
 
 	lightDebugEntity = CreateEntity(engine, memeMaterialIndex, cubeMeshView);
@@ -165,6 +168,7 @@ void Game::StartGame(EngineCore& engine)
 	laser->name = "Laser";
 	laser->checkForShadowBounds = false;
 	laser->Disable();
+	playerEntity->AddChild(laser);
 
 	Entity* groundEntity = CreateQuadEntity(engine, groundMaterialIndex, 100.f, 100.f);
 	groundEntity->name = "Ground";
@@ -199,10 +203,6 @@ void Game::UpdateGame(EngineCore& engine)
 	CalculateDirectionVectors(camForward, camRight, camera.rotation);
 
 	// Reset per frame values
-	for (Entity& entity : entityArena)
-	{
-		entity.GetBuffer().isSelected = { 0 };
-	}
 	engine.m_debugLineData.lineVertices.clear();
 
 	// Debug Controls
@@ -214,10 +214,6 @@ void Game::UpdateGame(EngineCore& engine)
 	if (input.KeyDown(VK_LBUTTON))
 	{
 		CollisionResult collision = CollideWithWorld(camera.position, camForward, ClickTest);
-		if (collision.entity != nullptr)
-		{
-			collision.entity->GetBuffer().isSelected = { 1 };
-		}
 	}
 	if (input.KeyComboJustPressed(VK_KEY_D, VK_CONTROL))
 	{
@@ -236,6 +232,7 @@ void Game::UpdateGame(EngineCore& engine)
 		showDebugImage = !showDebugImage;
 	}
 
+	// Camera controls
 	if (!showEscMenu)
 	{
 		const float maxPitch = XM_PI * 0.49;
@@ -246,10 +243,13 @@ void Game::UpdateGame(EngineCore& engine)
 		if (playerPitch < -maxPitch) playerPitch = -maxPitch;
 	}
 
-	// Camera controls
+	playerEntity->rotation = XMQuaternionRotationRollPitchYaw(0.f, playerYaw, 0.f);
+	cameraEntity->rotation = XMQuaternionRotationRollPitchYaw(playerPitch, 0.f, 0.f);
+
+	// Player movement
 	if (input.KeyComboJustPressed(VK_KEY_R, VK_CONTROL))
 	{
-		camera.position = { 0.f, 0.f, 0.f };
+		playerEntity->position = { 0.f, 0.f, 0.f };
 	}
 
 	float horizontalInput = 0.f;
@@ -266,8 +266,8 @@ void Game::UpdateGame(EngineCore& engine)
 		if (input.KeyDown(VK_SHIFT)) camSpeed *= .1f;
 		if (input.KeyDown(VK_CONTROL)) camSpeed *= 5.f;
 
-		camera.position += camRight * horizontalInput * engine.m_updateDeltaTime * camSpeed;
-		camera.position += camForward * verticalInput * engine.m_updateDeltaTime * camSpeed;
+		playerEntity->position += camRight * horizontalInput * engine.m_updateDeltaTime * camSpeed;
+		playerEntity->position += camForward * verticalInput * engine.m_updateDeltaTime * camSpeed;
 	}
 	else
 	{
@@ -312,13 +312,13 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 
 		// Ground collision
-		CollisionResult floorCollision = CollideWithWorld(camera.position, V3_DOWN, Floor);
-		bool onGround = floorCollision.distance <= playerHeight;
+		const float collisionEpsilon = 0.1;
+		CollisionResult floorCollision = CollideWithWorld(playerEntity->position + XMVECTOR{ 0., collisionEpsilon, 0. }, V3_DOWN, Floor);
+		bool onGround = floorCollision.distance <= collisionEpsilon;
 		if (onGround)
 		{
 			// Move player out of ground
-			XMVECTOR collisionPoint = camera.position + XMVectorScale(V3_DOWN, floorCollision.distance);
-			camera.position = collisionPoint - XMVectorScale(V3_DOWN, playerHeight);
+			playerEntity->position = playerEntity->position + XMVectorScale(V3_DOWN, floorCollision.distance);
 
 			// Stop falling speed
 			playerVelocity = XMVectorSetY(playerVelocity, 0.);
@@ -349,21 +349,11 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 
 		// Apply velocity
-		camera.position += playerVelocity * engine.m_updateDeltaTime;
+		playerEntity->position += playerVelocity * engine.m_updateDeltaTime;
 	}
 
-	// Update Camera
-	camera.rotation = XMQuaternionMultiply(XMQuaternionRotationRollPitchYaw(playerPitch, 0.f, 0.f), XMQuaternionRotationRollPitchYaw(0.f, playerYaw, 0.f));
-	CalculateDirectionVectors(camForward, camRight, camera.rotation);
-
-	engine.m_sceneConstantBuffer.data.cameraView = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
-	engine.m_sceneConstantBuffer.data.cameraProjection = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
-	engine.m_sceneConstantBuffer.data.postProcessing = { contrast, brightness, saturation, fog };
-	engine.m_sceneConstantBuffer.data.fogColor = clearColor;
-	engine.m_sceneConstantBuffer.data.worldCameraPos = camera.position;
-
 	// Spawn enemies
-	if (false && engine.TimeSinceStart() >= lastEnemySpawn + enemySpawnRate)
+	if (spawnEnemies && engine.TimeSinceStart() >= lastEnemySpawn + enemySpawnRate)
 	{
 		lastEnemySpawn = engine.TimeSinceStart();
 
@@ -449,7 +439,7 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 
 	// Shoot!
-	if (input.KeyDown(VK_LBUTTON) && engine.TimeSinceStart() > lastProjectileSpawn + projectileSpawnRate)
+	/*if (input.KeyDown(VK_LBUTTON) && engine.TimeSinceStart() > lastProjectileSpawn + projectileSpawnRate)
 	{
 		for (int i = 0; i < MAX_PROJECTILE_COUNT; i++)
 		{
@@ -467,10 +457,10 @@ void Game::UpdateGame(EngineCore& engine)
 			lastProjectileSpawn = engine.TimeSinceStart();
 			break;
 		}
-	}
+	}*/
 
 	// Laser
-	if (input.KeyDown(VK_RBUTTON) && engine.TimeSinceStart() > lastLaserSpawn + laserSpawnRate)
+	if (input.KeyDown(VK_LBUTTON) && engine.TimeSinceStart() > lastLaserSpawn + laserSpawnRate)
 	{
 		laser->isActive = true;
 		laser->spawnTime = engine.TimeSinceStart();
@@ -506,69 +496,72 @@ void Game::UpdateGame(EngineCore& engine)
 	// Update entities
 	for (Entity& entity : entityArena)
 	{
-		EntityData& entityData = entity.GetData();
-		
-		// Update animation transforms
-		if (entityData.transformHierachy != nullptr)
+		if (entity.isRendered)
 		{
-			if (entity.isPlayingAnimation)
+			EntityData& entityData = entity.GetData();
+
+			// Update animation transforms
+			if (entityData.transformHierachy != nullptr)
 			{
-				entity.animationTime = fmodf(engine.TimeSinceStart(), entityData.transformHierachy->animations[entity.animationIndex].duration);
+				if (entity.isPlayingAnimation)
+				{
+					entity.animationTime = fmodf(engine.TimeSinceStart(), entityData.transformHierachy->animations[entity.animationIndex].duration);
+				}
+
+				for (int jointIdx = 0; jointIdx < entityData.transformHierachy->nodeCount; jointIdx++)
+				{
+					TransformNode& node = entityData.transformHierachy->nodes[jointIdx];
+					if (!entity.isPlayingAnimation)
+					{
+						node.currentLocal = node.baseLocal;
+					}
+					else
+					{
+						XMVECTOR scale;
+						XMVECTOR rotation;
+						XMVECTOR translation;
+						XMMatrixDecompose(&scale, &rotation, &translation, node.baseLocal);
+
+						TransformAnimation& animation = entity.GetData().transformHierachy->animations[entity.animationIndex];
+						AnimationData& translationData = animation.jointChannels[jointIdx].translations;
+						AnimationData& rotationData = animation.jointChannels[jointIdx].rotations;
+						AnimationData& scaleData = animation.jointChannels[jointIdx].scales;
+
+						if (translationData.frameCount > 0)
+						{
+							translation = SampleAnimation(translationData, entity.animationTime, &XMVectorLerp);
+						}
+						if (rotationData.frameCount > 0)
+						{
+							rotation = SampleAnimation(rotationData, entity.animationTime, &XMQuaternionSlerp);
+						}
+						if (scaleData.frameCount > 0)
+						{
+							scale = SampleAnimation(scaleData, entity.animationTime, &XMVectorLerp);
+						}
+
+						node.currentLocal = XMMatrixAffineTransformation(scale, {}, rotation, translation);
+					}
+					entityData.transformHierachy->UpdateNode(&node);
+				}
 			}
 
-			for (int jointIdx = 0; jointIdx < entityData.transformHierachy->nodeCount; jointIdx++)
+			// Upload new transforms
+			if (entityData.transformHierachy != nullptr)
 			{
-				TransformNode& node = entityData.transformHierachy->nodes[jointIdx];
-				if (!entity.isPlayingAnimation)
+				for (int i = 0; i < entityData.transformHierachy->nodeCount; i++)
 				{
-					node.currentLocal = node.baseLocal;
+					assert(i < MAX_BONES);
+					entityData.boneConstantBuffer.data.inverseJointBinds[i] = XMMatrixTranspose(entityData.transformHierachy->nodes[i].inverseBind);
+					entityData.boneConstantBuffer.data.jointTransforms[i] = XMMatrixTranspose(entityData.transformHierachy->nodes[i].global);
 				}
-				else
-				{
-					XMVECTOR scale;
-					XMVECTOR rotation;
-					XMVECTOR translation;
-					XMMatrixDecompose(&scale, &rotation, &translation, node.baseLocal);
-					
-					TransformAnimation& animation = entity.GetData().transformHierachy->animations[entity.animationIndex];
-					AnimationData& translationData = animation.jointChannels[jointIdx].translations;
-					AnimationData& rotationData = animation.jointChannels[jointIdx].rotations;
-					AnimationData& scaleData = animation.jointChannels[jointIdx].scales;
-
-					if (translationData.frameCount > 0)
-					{
-						translation = SampleAnimation(translationData, entity.animationTime, &XMVectorLerp);
-					}
-					if (rotationData.frameCount > 0)
-					{
-						rotation = SampleAnimation(rotationData, entity.animationTime, &XMQuaternionSlerp);
-					}
-					if (scaleData.frameCount > 0)
-					{
-						scale = SampleAnimation(scaleData, entity.animationTime, &XMVectorLerp);
-					}
-
-					node.currentLocal = XMMatrixAffineTransformation(scale, {}, rotation, translation);
-				}
-				entityData.transformHierachy->UpdateNode(&node);
 			}
+
+			entity.GetBuffer().aabbLocalPosition = entityData.aabbLocalPosition;
+			entity.GetBuffer().aabbLocalSize = entityData.aabbLocalSize;
 		}
 
-		// Upload new transforms
-		if (entityData.transformHierachy != nullptr)
-		{
-			for (int i = 0; i < entityData.transformHierachy->nodeCount; i++)
-			{
-				assert(i < MAX_BONES);
-				entityData.boneConstantBuffer.data.inverseJointBinds[i] = XMMatrixTranspose(entityData.transformHierachy->nodes[i].inverseBind);
-				entityData.boneConstantBuffer.data.jointTransforms[i] = XMMatrixTranspose(entityData.transformHierachy->nodes[i].global);
-			}
-		}
-
-		entity.GetBuffer().aabbLocalPosition = entityData.aabbLocalPosition;
-		entity.GetBuffer().aabbLocalSize = entityData.aabbLocalSize;
-
-		CreateWorldMatrix(entity.GetBuffer().worldTransform, entity.scale, entity.rotation, entity.position);
+		entity.UpdateWorldMatrix();
 
 		XMVECTOR entityForwards;
 		XMVECTOR entityRight;
@@ -596,6 +589,21 @@ void Game::UpdateGame(EngineCore& engine)
 			// TODO: low pass filter + reverb
 		}
 	}
+
+	// Update Camera
+	XMVECTOR camTranslation;
+	XMVECTOR camRotation;
+	XMVECTOR camScale; //ignored
+	XMMatrixDecompose(&camScale, &camRotation, &camTranslation, cameraEntity->worldMatrix);
+	camera.position = camTranslation;
+	camera.rotation = camRotation;
+	CalculateDirectionVectors(camForward, camRight, camera.rotation);
+
+	engine.m_sceneConstantBuffer.data.cameraView = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
+	engine.m_sceneConstantBuffer.data.cameraProjection = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
+	engine.m_sceneConstantBuffer.data.postProcessing = { contrast, brightness, saturation, fog };
+	engine.m_sceneConstantBuffer.data.fogColor = clearColor;
+	engine.m_sceneConstantBuffer.data.worldCameraPos = camera.position;
 
 	// Update light/shadowmap
 	light.rotation = XMQuaternionRotationRollPitchYaw(45.f / 360.f * XM_2PI, engine.TimeSinceStart(), 0.f);
@@ -625,10 +633,10 @@ void Game::UpdateGame(EngineCore& engine)
 	};
 	for (Entity& entity : entityArena)
 	{
-		if (!entity.checkForShadowBounds || !entity.GetData().visible) continue;
+		if (!entity.checkForShadowBounds || !entity.isRendered || !entity.GetData().visible) continue;
 
-		XMVECTOR aabbWorldPosition = XMVector3Transform(entity.GetData().aabbLocalPosition, XMMatrixTranspose(entity.GetBuffer().worldTransform));
-		XMVECTOR aabbWorldSize = XMVector3TransformNormal(entity.GetData().aabbLocalSize, XMMatrixTranspose(entity.GetBuffer().worldTransform));
+		XMVECTOR aabbWorldPosition = XMVector3Transform(entity.GetData().aabbLocalPosition, entity.worldMatrix);
+		XMVECTOR aabbWorldSize = XMVector3TransformNormal(entity.GetData().aabbLocalSize, entity.worldMatrix);
 
 		for (int i = 0; i < _countof(testPositionBuffer); i++)
 		{
@@ -732,10 +740,19 @@ EngineInput& Game::GetInput()
 	return input;
 }
 
+Entity* Game::CreateEmptyEntity(EngineCore& engine, MemoryArena* arena)
+{
+	Entity* entity = NewObject(arena == nullptr ? entityArena : *arena, Entity);
+	entity->engine = &engine;
+	entity->isRendered = false;
+	return entity;
+}
+
 Entity* Game::CreateEntity(EngineCore& engine, size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, TransformHierachy* hierachy, MemoryArena* arena)
 {
 	Entity* entity = NewObject(arena == nullptr ? entityArena : *arena, Entity);
 	entity->engine = &engine;
+	entity->isRendered = true;
 	entity->materialIndex = materialIndex;
 	entity->dataIndex = engine.CreateEntity(materialIndex, meshView, hierachy);
 	return entity;

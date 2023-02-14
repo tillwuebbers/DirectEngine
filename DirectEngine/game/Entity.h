@@ -12,9 +12,18 @@ public:
 	XMVECTOR rotation{ 0.f, 0.f, 0.f, 1.f };
 	XMVECTOR scale{ 1.f, 1.f, 1.f };
 
+	MAT_RMAJ localMatrix;
+	MAT_RMAJ worldMatrix;
+
 	const char* name = "Entity";
 
 	EngineCore* engine;
+
+	Entity* parent = nullptr;
+	Entity* children[MAX_ENTITY_CHILDREN];
+	size_t childCount = 0;
+
+	bool isRendered = false;
 	size_t materialIndex;
 	size_t dataIndex;
 
@@ -34,8 +43,11 @@ public:
 
 	AudioSource audioSource;
 
+	void AddChild(Entity* child);
+
 	EntityData& GetData();
 	EntityConstantBuffer& GetBuffer();
+	void UpdateWorldMatrix();
 	XMVECTOR LocalToWorld(XMVECTOR localPosition);
 	XMVECTOR WorldToLocal(XMVECTOR worldPosition);
 	void Disable();
