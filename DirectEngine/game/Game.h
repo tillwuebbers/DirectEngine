@@ -91,9 +91,7 @@ public:
 
 	MemoryArena globalArena{};
 	TypedMemoryArena<Entity> entityArena{};
-	MemoryArena vertexUploadArena{};
-	MemoryArena boneUploadArena{};
-	MemoryArena animationArena{};
+	MemoryArena modelArena{};
 
 	DirectionalLight light{};
 	Camera camera{};
@@ -150,6 +148,8 @@ public:
 	float saturation = 1.;
 	float fog = 0.;
 
+	int newChildId = 0;
+
 	AudioBuffer* soundFiles[8];
 
 	void StartGame(EngineCore& engine) override;
@@ -158,10 +158,10 @@ public:
 
 	CollisionResult CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, uint64_t matchingLayers);
 
-	Entity* CreateEmptyEntity(EngineCore& engine, MemoryArena* arena = nullptr);
-	Entity* CreateEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, TransformHierachy* hierachy = nullptr, MemoryArena* arena = nullptr);
-	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, MemoryArena* arena = nullptr);
-	std::vector<Entity*> CreateEntityFromGltf(EngineCore& engine, const char* path, ShaderDescription& shader, RingLog& log, MemoryArena& vertexArena, MemoryArena& boneArena, MemoryArena& aniamtionArena);
+	Entity* CreateEmptyEntity(EngineCore& engine);
+	Entity* CreateMeshEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView);
+	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height);
+	Entity* CreateEntityFromGltf(EngineCore& engine, const char* path, ShaderDescription& shader, RingLog& log);
 	void UpdateCursorState();
 
 	void PlaySound(EngineCore& engine, AudioSource* audioSource, AudioFile file);

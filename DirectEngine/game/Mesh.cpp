@@ -7,7 +7,9 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define TINYGLTF_USE_CPP14
 #include "../import/tiny_gltf.h"
+
 using namespace tinygltf;
+using namespace std::chrono;
 
 MeshFile CreateQuad(float width, float height, MemoryArena& vertexArena)
 {
@@ -21,7 +23,7 @@ MeshFile CreateQuad(float width, float height, MemoryArena& vertexArena)
 	vertices[4] = { { 0.f  , 0.f, height }, {}, {0.f, 1.f, 0.f }, {0.f, 1.f}, {}, {} };
 	vertices[5] = { { width, 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f}, {}, {} };
 
-	return MeshFile{ vertices, VERTEX_COUNT, 0 };
+	return MeshFile{ vertices, VERTEX_COUNT };
 }
 
 template <typename T>
@@ -94,9 +96,9 @@ TransformNode* CreateMatrices(Model& model, int jointIndex, TransformNode* paren
 	return &nodeList[jointIndex];
 }
 
-std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, MemoryArena& vertexArena, MemoryArena& boneArena, MemoryArena& aniamtionArena)
+GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, MemoryArena& arena)
 {
-	auto startTime = std::chrono::high_resolution_clock::now();
+	auto startTime = high_resolution_clock::now();
 
 	Model model;
 	TinyGLTF loader;
@@ -105,33 +107,34 @@ std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& deb
 
 	bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, filePath);
 
-	auto duration = std::chrono::high_resolution_clock::now() - startTime;
-	debugLog.Log(std::format("Loading binary for {} took {}ms", filePath, std::chrono::duration_cast<std::chrono::milliseconds>(duration).count()));
+	auto duration = high_resolution_clock::now() - startTime;
+	debugLog.Log(std::format("Loading binary for {} took {}ms", filePath, duration_cast<milliseconds>(duration).count()));
 
 	if (!warn.empty())
 	{
-		OutputDebugStringA(std::format("Warn: {}\n", warn).c_str());
+		debugLog.Warn(warn);
 	}
 
 	if (!err.empty())
 	{
-		OutputDebugStringA(std::format("Err: {}\n", err).c_str());
+		debugLog.Error(err);
 	}
 
 	if (!ret)
 	{
-		OutputDebugStringA(std::format("Failed to parse glTF\n").c_str());
+		debugLog.Error("Failed to parse glTF");
 	}
 
 	size_t vertexCount = 0;
 	Vertex* vertices;
+	startTime = high_resolution_clock::now();
 
 	Accessor& inverseBindAccessor = model.accessors[model.skins[0].inverseBindMatrices];
 	assert(inverseBindAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
 	assert(inverseBindAccessor.type == TINYGLTF_TYPE_MAT4);
 	const float* inverseBindMatrices = ReadBuffer<float>(model, inverseBindAccessor);
 
-	TransformHierachy* hierachy = NewObject(boneArena, TransformHierachy);
+	TransformHierachy* hierachy = NewObject(arena, TransformHierachy);
 	hierachy->nodeCount = model.skins[0].joints.size();
 	for (int i = 0; i < model.skins[0].joints.size(); i++)
 	{
@@ -150,10 +153,15 @@ std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& deb
 	}
 	hierachy->root = CreateMatrices(model, 0, nullptr, hierachy->nodes, inverseBindMatrices);
 
+	duration = high_resolution_clock::now() - startTime;
+	debugLog.Log(std::format("Loading matrices took {}ms", duration_cast<milliseconds>(duration).count()));
+	startTime = high_resolution_clock::now();
+
 	for (Animation& animation : model.animations)
 	{
 		assert(hierachy->animationCount < MAX_ANIMATIONS);
 		TransformAnimation& transformAnimation = hierachy->animations[hierachy->animationCount] = {};
+		hierachy->animationNameToIndex.insert({ animation.name, hierachy->animationCount });
 		hierachy->animationCount++;
 
 		float maxTime = 0.f;
@@ -211,8 +219,8 @@ std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& deb
 				continue;
 			}
 
-			animData->times = NewArray(aniamtionArena, float, timeAccessor.count);
-			animData->data = NewArray(aniamtionArena, XMVECTOR, timeAccessor.count);
+			animData->times = NewArray(arena, float, timeAccessor.count);
+			animData->data = NewArray(arena, XMVECTOR, timeAccessor.count);
 
 			// TODO: resample animation?
 			for (int i = 0; i < timeAccessor.count; i++)
@@ -243,6 +251,10 @@ std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& deb
 
 		transformAnimation.duration = maxTime;
 	}
+
+	duration = high_resolution_clock::now() - startTime;
+	debugLog.Log(std::format("Loading animations took {}ms", duration_cast<milliseconds>(duration).count()));
+	startTime = high_resolution_clock::now();
 
 	std::vector<MeshFile> meshFiles{};
 
@@ -280,7 +292,7 @@ std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& deb
 			assert(weightAccessor.type == TINYGLTF_TYPE_VEC4);
 			const float* weightData = ReadBuffer<float>(model, weightAccessor);
 
-			vertices = NewArray(vertexArena, Vertex, indexAccessor.count);
+			vertices = NewArray(arena, Vertex, indexAccessor.count);
 			vertexCount = indexAccessor.count;
 
 			for (int i = 0; i < vertexCount; i++)
@@ -330,11 +342,14 @@ std::vector<MeshFile> LoadGltfFromFile(const std::string& filePath, RingLog& deb
 				imageName.append(".dds");
 			}
 
-			meshFiles.emplace_back(MeshFile{ vertices, vertexCount, hierachy, imageName });
+			meshFiles.emplace_back(MeshFile{ vertices, vertexCount, imageName });
 		}
 	}
+
+	duration = high_resolution_clock::now() - startTime;
+	debugLog.Log(std::format("Loading meshes took {}ms", duration_cast<milliseconds>(duration).count()));
 	
-	return meshFiles;
+	return { meshFiles, hierachy };
 }
 
 void TransformHierachy::UpdateNode(TransformNode* node)

@@ -48,10 +48,8 @@ CollisionResult Game::CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR 
 	{
 		if (entity.isActive && (entity.collisionLayers & matchingLayers) != 0)
 		{
-			EntityData& entityData = entity.GetData();
-
-			XMVECTOR entityCenterWorld = entity.position + entity.LocalToWorld(entityData.aabbLocalPosition);
-			XMVECTOR entitySizeWorld = entity.LocalToWorld(entityData.aabbLocalSize);
+			XMVECTOR entityCenterWorld = entity.position + entity.LocalToWorld(entity.aabbLocalPosition);
+			XMVECTOR entitySizeWorld = entity.LocalToWorld(entity.aabbLocalSize);
 
 			XMVECTOR boxMin = entityCenterWorld - entitySizeWorld / 2.f;
 			XMVECTOR boxMax = entityCenterWorld + entitySizeWorld / 2.f;
@@ -79,26 +77,6 @@ CollisionResult Game::CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR 
 	return result;
 }
 
-std::vector<Entity*> Game::CreateEntityFromGltf(EngineCore& engine, const char* path, ShaderDescription& shader, RingLog& log, MemoryArena& vertexArena, MemoryArena& boneArena, MemoryArena& aniamtionArena)
-{
-	std::vector<Entity*> result{};
-
-	std::vector<MeshFile> meshFiles = LoadGltfFromFile(path, log, vertexArena, boneArena, animationArena);
-	for (MeshFile& meshFile : meshFiles)
-	{
-		std::wstring texturePath = { L"textures/" };
-		texturePath.append(meshFile.textureName.begin(), meshFile.textureName.end());
-		Texture* texture = engine.CreateTexture(texturePath.c_str());
-		
-		size_t materialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { texture }, shader);
-		D3D12_VERTEX_BUFFER_VIEW meshView = engine.CreateMesh(materialIndex, meshFile.vertices, meshFile.vertexCount);
-		
-		result.emplace_back(CreateEntity(engine, materialIndex, meshView, meshFile.hierachy));
-	}
-
-	return result;
-}
-
 void Game::StartGame(EngineCore& engine)
 {
 	// Shaders
@@ -117,7 +95,7 @@ void Game::StartGame(EngineCore& engine)
 
 	// Meshes
 	// TODO: why does mesh need material index, and why doesn't it matter if it's wrong?
-	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", debugLog, vertexUploadArena, boneUploadArena, animationArena)[0];
+	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", debugLog, modelArena).meshes[0];
 	auto cubeMeshView = engine.CreateMesh(memeMaterialIndex, cubeMeshFile.vertices, cubeMeshFile.vertexCount);
 	engine.cubeVertexView = cubeMeshView;
 
@@ -129,26 +107,30 @@ void Game::StartGame(EngineCore& engine)
 	cameraEntity->position = { 0.f, 2.f, 0.f };
 	playerEntity->AddChild(cameraEntity);
 
-	for (Entity* entity : CreateEntityFromGltf(engine, "models/kaiju.glb", defaultShader, debugLog, vertexUploadArena, boneUploadArena, animationArena))
+	Entity* kaijuMeshEntity = CreateEntityFromGltf(engine, "models/kaiju.glb", defaultShader, debugLog);
+	assert(kaijuMeshEntity->isSkinnedRoot);
+	kaijuMeshEntity->name = "KaijuRoot";
+	kaijuMeshEntity->transformHierachy->animationActive = true;
+	kaijuMeshEntity->transformHierachy->animationLoop = true;
+	kaijuMeshEntity->transformHierachy->animationIndex = kaijuMeshEntity->transformHierachy->animationNameToIndex.at("GameIdle");
+	
+	playerEntity->AddChild(kaijuMeshEntity);
+
+	for (int i = 0; i < kaijuMeshEntity->childCount; i++)
 	{
-		entity->name = "Kaiju";
-		entity->GetBuffer().color = { 1.f, 1.f, 1.f };
-		entity->GetData().aabbLocalPosition = { 0.f, 6.f, -3.f };
-		entity->GetData().aabbLocalSize = { 10.f, 12.f, 10.f };
-		entity->isPlayingAnimation = true;
-		entity->loopAnimation = true;
-		entity->animationIndex = 0;
-		entity->animationTime = 0.f;
-		playerEntity->AddChild(entity);
+		// TODO: auto calculate bounds on mesh creation
+		Entity* entity = kaijuMeshEntity->children[i];
+		entity->aabbLocalPosition = { 0.f, 1.5f, -0.5f };
+		entity->aabbLocalSize = { 5.f, 3.f, 3.f };
 	}
 
-	lightDebugEntity = CreateEntity(engine, memeMaterialIndex, cubeMeshView);
+	lightDebugEntity = CreateMeshEntity(engine, memeMaterialIndex, cubeMeshView);
 	lightDebugEntity->name = "LightDebug";
 	lightDebugEntity->scale = { .1f, .1f, .1f };
 
 	for (int i = 0; i < MAX_ENENMY_COUNT; i++)
 	{
-		Entity* enemy = enemies[i] = CreateEntity(engine, memeMaterialIndex, cubeMeshView, cubeMeshFile.hierachy);
+		Entity* enemy = enemies[i] = CreateMeshEntity(engine, memeMaterialIndex, cubeMeshView);
 		enemy->name = "Enemy";
 		enemy->Disable();
 		enemy->isEnemy = true;
@@ -157,14 +139,14 @@ void Game::StartGame(EngineCore& engine)
 
 	for (int i = 0; i < MAX_PROJECTILE_COUNT; i++)
 	{
-		Entity* projectile = projectiles[i] = CreateEntity(engine, laserMaterialIndex, cubeMeshView);
+		Entity* projectile = projectiles[i] = CreateMeshEntity(engine, laserMaterialIndex, cubeMeshView);
 		projectile->name = "Projectile";
 		projectile->Disable();
 		projectile->isProjectile = true;
 		projectile->scale = { .1f, .1f, .1f };
 	}
 
-	laser = CreateEntity(engine, laserMaterialIndex, cubeMeshView);
+	laser = CreateMeshEntity(engine, laserMaterialIndex, cubeMeshView);
 	laser->name = "Laser";
 	laser->checkForShadowBounds = false;
 	laser->Disable();
@@ -496,72 +478,74 @@ void Game::UpdateGame(EngineCore& engine)
 	// Update entities
 	for (Entity& entity : entityArena)
 	{
-		if (entity.isRendered)
+		// Update animation transforms
+		if (entity.isSkinnedRoot)
 		{
-			EntityData& entityData = entity.GetData();
+			TransformHierachy& hierachy = *entity.transformHierachy;
 
-			// Update animation transforms
-			if (entityData.transformHierachy != nullptr)
+			if (hierachy.animationActive)
 			{
-				if (entity.isPlayingAnimation)
-				{
-					entity.animationTime = fmodf(engine.TimeSinceStart(), entityData.transformHierachy->animations[entity.animationIndex].duration);
-				}
-
-				for (int jointIdx = 0; jointIdx < entityData.transformHierachy->nodeCount; jointIdx++)
-				{
-					TransformNode& node = entityData.transformHierachy->nodes[jointIdx];
-					if (!entity.isPlayingAnimation)
-					{
-						node.currentLocal = node.baseLocal;
-					}
-					else
-					{
-						XMVECTOR scale;
-						XMVECTOR rotation;
-						XMVECTOR translation;
-						XMMatrixDecompose(&scale, &rotation, &translation, node.baseLocal);
-
-						TransformAnimation& animation = entity.GetData().transformHierachy->animations[entity.animationIndex];
-						AnimationData& translationData = animation.jointChannels[jointIdx].translations;
-						AnimationData& rotationData = animation.jointChannels[jointIdx].rotations;
-						AnimationData& scaleData = animation.jointChannels[jointIdx].scales;
-
-						if (translationData.frameCount > 0)
-						{
-							translation = SampleAnimation(translationData, entity.animationTime, &XMVectorLerp);
-						}
-						if (rotationData.frameCount > 0)
-						{
-							rotation = SampleAnimation(rotationData, entity.animationTime, &XMQuaternionSlerp);
-						}
-						if (scaleData.frameCount > 0)
-						{
-							scale = SampleAnimation(scaleData, entity.animationTime, &XMVectorLerp);
-						}
-
-						node.currentLocal = XMMatrixAffineTransformation(scale, {}, rotation, translation);
-					}
-					entityData.transformHierachy->UpdateNode(&node);
-				}
+				hierachy.animationTime = fmodf(engine.TimeSinceStart(), hierachy.animations[hierachy.animationIndex].duration);
 			}
 
-			// Upload new transforms
-			if (entityData.transformHierachy != nullptr)
+			for (int jointIdx = 0; jointIdx < hierachy.nodeCount; jointIdx++)
 			{
-				for (int i = 0; i < entityData.transformHierachy->nodeCount; i++)
+				TransformNode& node = hierachy.nodes[jointIdx];
+				if (!hierachy.animationActive)
 				{
-					assert(i < MAX_BONES);
-					entityData.boneConstantBuffer.data.inverseJointBinds[i] = XMMatrixTranspose(entityData.transformHierachy->nodes[i].inverseBind);
-					entityData.boneConstantBuffer.data.jointTransforms[i] = XMMatrixTranspose(entityData.transformHierachy->nodes[i].global);
+					node.currentLocal = node.baseLocal;
 				}
+				else
+				{
+					XMVECTOR scale;
+					XMVECTOR rotation;
+					XMVECTOR translation;
+					XMMatrixDecompose(&scale, &rotation, &translation, node.baseLocal);
+
+					TransformAnimation& animation = hierachy.animations[hierachy.animationIndex];
+					AnimationData& translationData = animation.jointChannels[jointIdx].translations;
+					AnimationData& rotationData = animation.jointChannels[jointIdx].rotations;
+					AnimationData& scaleData = animation.jointChannels[jointIdx].scales;
+
+					if (translationData.frameCount > 0)
+					{
+						translation = SampleAnimation(translationData, hierachy.animationTime, &XMVectorLerp);
+					}
+					if (rotationData.frameCount > 0)
+					{
+						rotation = SampleAnimation(rotationData, hierachy.animationTime, &XMQuaternionSlerp);
+					}
+					if (scaleData.frameCount > 0)
+					{
+						scale = SampleAnimation(scaleData, hierachy.animationTime, &XMVectorLerp);
+					}
+
+					node.currentLocal = XMMatrixAffineTransformation(scale, {}, rotation, translation);
+				}
+				hierachy.UpdateNode(&node);
 			}
 
-			entity.GetBuffer().aabbLocalPosition = entityData.aabbLocalPosition;
-			entity.GetBuffer().aabbLocalSize = entityData.aabbLocalSize;
+			// Upload new transforms to children
+			for (int childIdx = 0; childIdx < entity.childCount; childIdx++)
+			{
+				Entity& child = *entity.children[childIdx];
+				if (child.isSkinnedMesh && child.isRendered)
+				{
+					EntityData& data = child.GetData();
+					for (int i = 0; i < hierachy.nodeCount; i++)
+					{
+						assert(i < MAX_BONES);
+						data.boneConstantBuffer.data.inverseJointBinds[i] = XMMatrixTranspose(hierachy.nodes[i].inverseBind);
+						data.boneConstantBuffer.data.jointTransforms[i] = XMMatrixTranspose(hierachy.nodes[i].global);
+					}
+				}
+			}
 		}
 
-		entity.UpdateWorldMatrix();
+		if (entity.isRendered) {
+			entity.GetBuffer().aabbLocalPosition = entity.aabbLocalPosition;
+			entity.GetBuffer().aabbLocalSize = entity.aabbLocalSize;
+		}
 
 		XMVECTOR entityForwards;
 		XMVECTOR entityRight;
@@ -589,6 +573,16 @@ void Game::UpdateGame(EngineCore& engine)
 			// TODO: low pass filter + reverb
 		}
 	}
+
+	// Update entity matrices
+	for (Entity& entity : entityArena)
+	{
+		if (entity.parent == nullptr)
+		{
+			entity.UpdateWorldMatrix();
+		}
+	}
+
 
 	// Update Camera
 	XMVECTOR camTranslation;
@@ -635,8 +629,8 @@ void Game::UpdateGame(EngineCore& engine)
 	{
 		if (!entity.checkForShadowBounds || !entity.isRendered || !entity.GetData().visible) continue;
 
-		XMVECTOR aabbWorldPosition = XMVector3Transform(entity.GetData().aabbLocalPosition, entity.worldMatrix);
-		XMVECTOR aabbWorldSize = XMVector3TransformNormal(entity.GetData().aabbLocalSize, entity.worldMatrix);
+		XMVECTOR aabbWorldPosition = XMVector3Transform(entity.aabbLocalPosition, entity.worldMatrix);
+		XMVECTOR aabbWorldSize = XMVector3TransformNormal(entity.aabbLocalSize, entity.worldMatrix);
 
 		for (int i = 0; i < _countof(testPositionBuffer); i++)
 		{
@@ -740,33 +734,63 @@ EngineInput& Game::GetInput()
 	return input;
 }
 
-Entity* Game::CreateEmptyEntity(EngineCore& engine, MemoryArena* arena)
+Entity* Game::CreateEmptyEntity(EngineCore& engine)
 {
-	Entity* entity = NewObject(arena == nullptr ? entityArena : *arena, Entity);
+	Entity* entity = NewObject(entityArena, Entity);
 	entity->engine = &engine;
 	entity->isRendered = false;
 	return entity;
 }
 
-Entity* Game::CreateEntity(EngineCore& engine, size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, TransformHierachy* hierachy, MemoryArena* arena)
+Entity* Game::CreateMeshEntity(EngineCore& engine, size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView)
 {
-	Entity* entity = NewObject(arena == nullptr ? entityArena : *arena, Entity);
+	Entity* entity = NewObject(entityArena, Entity);
 	entity->engine = &engine;
 	entity->isRendered = true;
 	entity->materialIndex = materialIndex;
-	entity->dataIndex = engine.CreateEntity(materialIndex, meshView, hierachy);
+	entity->dataIndex = engine.CreateEntity(materialIndex, meshView);
 	return entity;
 }
 
-Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, MemoryArena* arena)
+Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height)
 {
-	MeshFile file = CreateQuad(width, height, vertexUploadArena);
+	MeshFile file = CreateQuad(width, height, modelArena);
 	auto meshView = engine.CreateMesh(materialIndex, file.vertices, file.vertexCount);
-	Entity* entity = CreateEntity(engine, materialIndex, meshView, nullptr, arena);
+	Entity* entity = CreateMeshEntity(engine, materialIndex, meshView);
 	entity->position = { -width / 2.f, 0.f, -width / 2.f };
-	entity->GetData().aabbLocalPosition = { width / 2.f, -.05f, width / 2.f };
-	entity->GetData().aabbLocalSize = { width, .1f, width };
+	entity->aabbLocalPosition = { width / 2.f, -.05f, width / 2.f };
+	entity->aabbLocalSize = { width, .1f, width };
 	return entity;
+}
+
+
+Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, ShaderDescription& shader, RingLog& log)
+{
+	Entity* mainEntity = CreateEmptyEntity(engine);
+
+	GltfResult gltfResult = LoadGltfFromFile(path, log, modelArena);
+	if (gltfResult.transformHierachy != nullptr)
+	{
+		mainEntity->isSkinnedRoot = true;
+		mainEntity->transformHierachy = gltfResult.transformHierachy;
+	}
+
+	for (MeshFile& meshFile : gltfResult.meshes)
+	{
+		std::wstring texturePath = { L"textures/" };
+		texturePath.append(meshFile.textureName.begin(), meshFile.textureName.end());
+		Texture* texture = engine.CreateTexture(texturePath.c_str());
+
+		size_t materialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { texture }, shader);
+		D3D12_VERTEX_BUFFER_VIEW meshView = engine.CreateMesh(materialIndex, meshFile.vertices, meshFile.vertexCount);
+
+		Entity* child = CreateMeshEntity(engine, materialIndex, meshView);
+		child->name = meshFile.textureName.c_str();
+		if (gltfResult.transformHierachy != nullptr) child->isSkinnedMesh = true;
+		mainEntity->AddChild(child);
+	}
+
+	return mainEntity;
 }
 
 void Game::UpdateCursorState()

@@ -118,13 +118,10 @@ struct EntityData
 {
     bool visible = true;
     bool wireframe = false;
-    XMVECTOR aabbLocalPosition = { 0., 0., 0. };
-    XMVECTOR aabbLocalSize = { 1., 1., 1. };
     size_t entityIndex = 0;
     size_t materialIndex = 0;
     ConstantBuffer<EntityConstantBuffer> constantBuffer = {};
     ConstantBuffer<BoneMatricesBuffer> boneConstantBuffer = {};
-    TransformHierachy* transformHierachy;
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
 };
 
@@ -266,7 +263,6 @@ public:
     // TODO: don't init this in game
     D3D12_VERTEX_BUFFER_VIEW cubeVertexView;
     bool renderAABB = false;
-    bool renderBones = false;
     
     // Audio
     IXAudio2* m_audio;
@@ -294,7 +290,7 @@ public:
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
     size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride, std::vector<Texture*> textures, ShaderDescription shaderDesc);
     D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount);
-    size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex, TransformHierachy* hierachy);
+    size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
     void UploadVertices();
     void RenderShadows(ID3D12GraphicsCommandList* renderList);
     void RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);

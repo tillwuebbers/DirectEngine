@@ -16,6 +16,7 @@ public:
 	MAT_RMAJ worldMatrix;
 
 	const char* name = "Entity";
+	bool isActive = true;
 
 	EngineCore* engine;
 
@@ -24,26 +25,27 @@ public:
 	size_t childCount = 0;
 
 	bool isRendered = false;
+	bool isSkinnedMesh = false;
 	size_t materialIndex;
 	size_t dataIndex;
 
+	bool isSkinnedRoot = false;
+	TransformHierachy* transformHierachy;
+
 	bool checkForShadowBounds = true;
+	XMVECTOR aabbLocalPosition = { 0., 0., 0. };
+	XMVECTOR aabbLocalSize = { 1., 1., 1. };
 	uint64_t collisionLayers = 0;
-	bool isActive = true;
 
 	bool isEnemy = false;
 	bool isProjectile = false;
 	float spawnTime = -1000.f;
 	XMVECTOR velocity = {};
 
-	bool isPlayingAnimation = false;
-	bool loopAnimation = true;
-	int animationIndex = 0;
-	float animationTime = 0.f;
-
 	AudioSource audioSource;
 
 	void AddChild(Entity* child);
+	void RemoveChild(Entity* child);
 
 	EntityData& GetData();
 	EntityConstantBuffer& GetBuffer();

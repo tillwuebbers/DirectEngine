@@ -11,7 +11,26 @@ void Entity::AddChild(Entity* child)
 	child->parent = this;
 }
 
-// TODO: separate entities from rendered meshes better
+void Entity::RemoveChild(Entity* child)
+{
+	assert(child != nullptr);
+	assert(child->parent == this);
+	child->parent = nullptr;
+
+	for (size_t i = 0; i < childCount; i++)
+	{
+		if (children[i] == child)
+		{
+			if (childCount > 1)
+			{
+				children[i] = children[childCount - 1];
+			}
+			childCount--;
+			break;
+		}
+	}
+}
+
 EntityData& Entity::GetData()
 {
 	assert(isRendered);
@@ -35,7 +54,6 @@ void Entity::UpdateWorldMatrix()
 	}
 	else
 	{
-		// TODO: this does not update properly, we should update world matrices along the entity tree
 		MAT_RMAJ parentTransform = DirectX::XMMatrixAffineTransformation(parent->scale, XMVECTOR{}, parent->rotation, parent->position);
 		worldMatrix = localMatrix * parent->worldMatrix;
 	}
@@ -43,6 +61,11 @@ void Entity::UpdateWorldMatrix()
 	if (isRendered)
 	{
 		GetBuffer().worldTransform = DirectX::XMMatrixTranspose(worldMatrix);
+	}
+
+	for (size_t i = 0; i < childCount; i++)
+	{
+		children[i]->UpdateWorldMatrix();
 	}
 }
 

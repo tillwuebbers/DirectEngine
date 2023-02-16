@@ -12,7 +12,6 @@
 
 void DisplayMatrix(XMMATRIX& mat)
 {
-	bool edited = false;
 	XMVECTOR scale, rotation, translation;
 	XMMatrixDecompose(&scale, &rotation, &translation, mat);
 
@@ -29,6 +28,32 @@ void DisplayMatrix(XMMATRIX& mat)
 	ImGui::Text("Scale: (%.1f, %.1f, %.1f)", SPLIT_V3(scale));
 	
 	ImGui::Text("%.1f %.1f %.1f %.1f", SPLIT_V4(mat.r[3]));
+}
+
+void DisplayTransformNode(TransformNode* node)
+{
+	if (node->childCount > 0)
+	{
+		if (ImGui::TreeNodeEx(node->name.c_str()))
+		{
+			for (int i = 0; i < node->childCount; i++)
+			{
+				DisplayTransformNode(node->children[i]);
+			}
+			ImGui::TreePop();
+		}
+	}
+	else
+	{
+		ImGui::Text(node->name.c_str());
+	}
+}
+
+void InputSizeT(const char* label, size_t* value)
+{
+	size_t defaultStep = 1;
+	size_t defaultStepBig = 100;
+	ImGui::InputScalar(label, ImGuiDataType_U64, value, (void*)&defaultStep, (void*)&defaultStepBig, "%llu", 0);
 }
 
 void Game::DrawUI(EngineCore& engine)
@@ -201,7 +226,6 @@ void Game::DrawUI(EngineCore& engine)
 			ImGui::NewLine();
 
 			ImGui::Checkbox("Show Bounds", &engine.renderAABB);
-			ImGui::Checkbox("Show Bones", &engine.renderBones);
 		}
 		ImGui::End();
 	}
@@ -326,18 +350,32 @@ void Game::DrawUI(EngineCore& engine)
 				ImGui::PushID(entity);
 				if ((showInactiveEntities || entity->isActive) && ImGui::CollapsingHeader(entityTitle.c_str()))
 				{
-					if (entity->childCount > 0)
+					ImGui::Text(std::format("Children ({})", entity->childCount).c_str());
+					ImGui::SameLine(0, 20);
+					if (ImGui::Button("Add"))
 					{
-						std::string childrenText{ "Children: " };
-						for (int i = 0; i < entity->childCount; i++)
-						{
-							if (i > 0) childrenText.append(", ");
-							childrenText.append(std::format("{} [{}]", entity->children[i]->name, (entity->children[i] - (Entity*)entityArena.base)));
-						}
-						ImGui::Text(childrenText.c_str());
-
-						ImGui::Separator();
+						entity->AddChild((Entity*)entityArena.base + newChildId);
 					}
+					ImGui::SameLine();
+					ImGui::PushItemWidth(100);
+					ImGui::InputInt("", &newChildId);
+					ImGui::PopItemWidth();
+
+					for (int i = 0; i < entity->childCount; i++)
+					{
+						if (ImGui::SmallButton(std::format("{}###{}", ICON_CLOSE_FILL, i).c_str()))
+						{
+							entity->RemoveChild(entity->children[i]);
+							i--;
+							continue;
+						}
+						
+						ImGui::SameLine();
+						ImGui::Text(std::format("{} [{}]", entity->children[i]->name, (entity->children[i] - (Entity*)entityArena.base)).c_str());
+					}
+					
+
+					ImGui::Separator();
 
 					ImGui::Checkbox("Active", &entity->isActive);
 					if (entity->isRendered)
@@ -380,20 +418,25 @@ void Game::DrawUI(EngineCore& engine)
 					ImGui::EndTabBar();
 
 
-					if (entity->isRendered)
+					ImGui::Separator();
+
+					ImGui::DragFloat3("Bounding Center", &entity->aabbLocalPosition.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
+					ImGui::DragFloat3("Bounding Extent", &entity->aabbLocalSize.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
+
+					if (entity->isSkinnedRoot && entity->transformHierachy->nodeCount > 0)
 					{
 						ImGui::Separator();
+						ImGui::Checkbox("Play Animation", &entity->transformHierachy->animationActive);
+						ImGui::SameLine();
+						ImGui::PushItemWidth(100);
+						InputSizeT("Animation Index", &entity->transformHierachy->animationIndex);
+						ImGui::PopItemWidth();
 
-						EntityData& entityData = entity->GetData();
-
-						ImGui::InputFloat3("Bounding Center", &entityData.aabbLocalPosition.m128_f32[0], "%.1f");
-						ImGui::InputFloat3("Bounding Extent", &entityData.aabbLocalSize.m128_f32[0], "%.1f");
-
-						if (entityData.transformHierachy != nullptr && entityData.transformHierachy->nodeCount > 0)
+						std::string nodeTitle = std::format("Bone Count: {}", entity->transformHierachy->nodeCount);
+						if (ImGui::TreeNodeEx(nodeTitle.c_str()))
 						{
-							ImGui::Separator();
-							ImGui::Checkbox("Play Animation", &entity->isPlayingAnimation);
-							ImGui::Text("Bone Count: %d", entityData.transformHierachy->nodeCount);
+							DisplayTransformNode(entity->transformHierachy->root);
+							ImGui::TreePop();
 						}
 					}
 				}

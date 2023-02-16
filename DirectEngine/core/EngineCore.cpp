@@ -776,7 +776,7 @@ D3D12_VERTEX_BUFFER_VIEW EngineCore::CreateMesh(const size_t materialIndex, cons
     return view;
 }
 
-size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView, TransformHierachy* hierachy)
+size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView)
 {
     MaterialData& material = m_materials[materialIndex];
 
@@ -787,7 +787,6 @@ size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_
 
     entity->materialIndex = materialIndex;
     entity->vertexBufferView = meshView;
-    entity->transformHierachy = hierachy;
 
     CreateConstantBuffers<EntityConstantBuffer>(entity->constantBuffer, std::format(L"Entity {} Constant Buffer", entity->entityIndex).c_str());
     CreateConstantBuffers<BoneMatricesBuffer>(entity->boneConstantBuffer, std::format(L"Entity {} Bone Buffer", entity->entityIndex).c_str());
@@ -936,7 +935,6 @@ void EngineCore::PopulateCommandList()
     m_renderCommandList->ClearDepthStencilView(dsvHandleWindow, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
     RenderScene(m_renderCommandList, rtvHandleWindow, dsvHandleWindow);
-    if (renderBones) RenderBones(m_renderCommandList, rtvHandleWindow, dsvHandleWindow);
     RenderWireframe(m_renderCommandList, rtvHandleWindow, dsvHandleWindow);
     RenderDebugLines(m_renderCommandList, rtvHandleWindow, dsvHandleWindow);
     DrawImgui(m_renderCommandList, &rtvHandleWindow);
@@ -1026,51 +1024,6 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
             renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
             renderList->SetGraphicsRootDescriptorTable(BONES, entity->boneConstantBuffer.handles[m_frameIndex].gpuHandle);
             renderList->DrawInstanced(entity->vertexBufferView.SizeInBytes / entity->vertexBufferView.StrideInBytes, 1, 0, 0);
-        }
-    }
-}
-
-void EngineCore::RenderBones(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle)
-{
-    // Set necessary state.
-    renderList->SetPipelineState(m_boneDebugConfig->pipelineState);
-    renderList->SetGraphicsRootSignature(m_boneDebugConfig->rootSignature);
-    renderList->RSSetViewports(1, &m_viewport);
-    renderList->RSSetScissorRects(1, &m_scissorRect);
-
-    // Load heaps
-    ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap };
-    renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
-
-    renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
-    renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
-    renderList->SetGraphicsRoot32BitConstant(CAM, cameraIndex, 0);
-
-    renderList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
-
-    // Record commands.
-    renderList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-    renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-    for (int drawIdx = 0; drawIdx < m_materialCount; drawIdx++)
-    {
-        MaterialData& data = m_materials[drawIdx];
-
-        for (int entityIndex = 0; entityIndex < data.entityCount; entityIndex++)
-        {
-            EntityData* entity = data.entities[entityIndex];
-
-            if (entity->visible && entity->transformHierachy != nullptr)
-            {
-                for (int boneIndex = 0; boneIndex < entity->transformHierachy->nodeCount; boneIndex++)
-                {
-                    renderList->IASetVertexBuffers(0, 1, &cubeVertexView);
-                    renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
-                    renderList->SetGraphicsRootDescriptorTable(BONES, entity->boneConstantBuffer.handles[m_frameIndex].gpuHandle);
-                    renderList->SetGraphicsRoot32BitConstant(CUSTOM_START, boneIndex, 0);
-                    renderList->DrawInstanced(cubeVertexView.SizeInBytes / cubeVertexView.StrideInBytes, 1, 0, 0);
-                }
-            }
         }
     }
 }
