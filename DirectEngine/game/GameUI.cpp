@@ -425,13 +425,22 @@ void Game::DrawUI(EngineCore& engine)
 
 					if (entity->isSkinnedRoot && entity->transformHierachy->nodeCount > 0)
 					{
-						ImGui::Separator();
-						ImGui::Checkbox("Play Animation", &entity->transformHierachy->animationActive);
-						ImGui::SameLine();
-						ImGui::PushItemWidth(100);
-						InputSizeT("Animation Index", &entity->transformHierachy->animationIndex);
-						ImGui::PopItemWidth();
+						TransformHierachy* hierachy = entity->transformHierachy;
 
+						ImGui::Separator();
+						for (int animIdx = 0; animIdx < hierachy->animationCount; animIdx++)
+						{
+							TransformAnimation& animation = hierachy->animations[animIdx];
+
+							if (ImGui::SmallButton(std::format("{}###{}", animation.active ? ICON_PAUSE_FILL : ICON_PLAY_FILL, animation.name.c_str()).c_str()))
+							{
+								animation.active = !animation.active;
+							}
+							ImGui::SameLine();
+							ImGui::Text(animation.name.c_str());
+						}
+
+						ImGui::Separator();
 						std::string nodeTitle = std::format("Bone Count: {}", entity->transformHierachy->nodeCount);
 						if (ImGui::TreeNodeEx(nodeTitle.c_str()))
 						{

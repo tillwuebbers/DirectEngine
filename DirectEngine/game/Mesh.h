@@ -54,8 +54,15 @@ struct AnimationJointData
 struct TransformAnimation
 {
 	AnimationJointData jointChannels[MAX_BONES];
-	size_t channelCount;
-	float duration;
+	bool activeChannels[MAX_BONES];
+	size_t channelCount = 0;
+	std::string name{};
+
+	bool active = false;
+	bool loop = true;
+
+	float time = 0.f;
+	float duration = 0.f;
 };
 
 struct TransformHierachy
@@ -66,18 +73,15 @@ struct TransformHierachy
 	TransformNode* root;
 	TransformAnimation animations[MAX_ANIMATIONS];
 	std::unordered_map<std::string, size_t> animationNameToIndex{};
+
 	size_t animationCount;
 	// nodeIdx = jointToNodeIndex[jointIdx]
 	size_t jointToNodeIndex[MAX_BONES];
 	// jointIdx = nodeToJointIndex[nodeIdx]
 	size_t nodeToJointIndex[MAX_BONES];
 
-	bool animationActive = false;
-	bool animationLoop = true;
-	size_t animationIndex = 0;
-	float animationTime = 0.f;
-
 	void UpdateNode(TransformNode* node);
+	void SetAnimationActive(std::string name, bool state);
 };
 
 struct MeshFile

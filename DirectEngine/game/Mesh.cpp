@@ -161,13 +161,42 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 	{
 		assert(hierachy->animationCount < MAX_ANIMATIONS);
 		TransformAnimation& transformAnimation = hierachy->animations[hierachy->animationCount] = {};
+		transformAnimation.name = animation.name;
+
 		hierachy->animationNameToIndex.insert({ animation.name, hierachy->animationCount });
 		hierachy->animationCount++;
 
+		std::vector<std::string> maskedChannels{};
+		if (animation.extras.Has("mask"))
+		{
+			maskedChannels.push_back(animation.extras.Get("mask").Get<std::string>());
+		}
+
+
 		float maxTime = 0.f;
 		
-		for (AnimationChannel channel : animation.channels)
+		for (AnimationChannel& channel : animation.channels)
 		{
+			// Skip if channel is not in our mask
+			bool& channelActive = transformAnimation.activeChannels[channel.target_node];
+			if (maskedChannels.size() > 0)
+			{
+				std::string& channelNodeName = hierachy->nodes[channel.target_node].name;
+				if (std::find(maskedChannels.begin(), maskedChannels.end(), channelNodeName) == maskedChannels.end())
+				{
+					channelActive = false;
+					//continue; //TODO: Why does this break things?
+				}
+				else
+				{
+					channelActive = true;
+				}
+			}
+			else
+			{
+				channelActive = true;
+			}
+
 			assert(animation.samplers.size() > channel.sampler);
 			AnimationSampler& animSampler = animation.samplers[channel.sampler];
 			assert(animSampler.interpolation == "LINEAR");
@@ -368,4 +397,9 @@ void TransformHierachy::UpdateNode(TransformNode* node)
 	{
 		UpdateNode(node->children[i]);
 	}
+}
+
+void TransformHierachy::SetAnimationActive(std::string name, bool state)
+{
+	animations[animationNameToIndex[name]].active = state;
 }

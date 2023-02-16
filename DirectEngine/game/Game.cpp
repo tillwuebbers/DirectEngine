@@ -104,15 +104,14 @@ void Game::StartGame(EngineCore& engine)
 	playerEntity->name = "Player";
 	cameraEntity = CreateEmptyEntity(engine);
 	cameraEntity->name = "Camera";
-	cameraEntity->position = { 0.f, 2.f, 0.f };
+	cameraEntity->position = { 0.f, 1.85f, 0.15f };
 	playerEntity->AddChild(cameraEntity);
 
 	Entity* kaijuMeshEntity = CreateEntityFromGltf(engine, "models/kaiju.glb", defaultShader, debugLog);
 	assert(kaijuMeshEntity->isSkinnedRoot);
 	kaijuMeshEntity->name = "KaijuRoot";
-	kaijuMeshEntity->transformHierachy->animationActive = true;
-	kaijuMeshEntity->transformHierachy->animationLoop = true;
-	kaijuMeshEntity->transformHierachy->animationIndex = kaijuMeshEntity->transformHierachy->animationNameToIndex.at("GameIdle");
+	kaijuMeshEntity->transformHierachy->SetAnimationActive("BasePose", true);
+	kaijuMeshEntity->transformHierachy->SetAnimationActive("NeckShrink", true);
 	
 	playerEntity->AddChild(kaijuMeshEntity);
 
@@ -217,7 +216,7 @@ void Game::UpdateGame(EngineCore& engine)
 	// Camera controls
 	if (!showEscMenu)
 	{
-		const float maxPitch = XM_PI * 0.49;
+		constexpr float maxPitch = XMConvertToRadians(80.f);
 
 		playerYaw += input.mouseDeltaX * 0.003f;
 		playerPitch += input.mouseDeltaY * 0.003f;
@@ -483,46 +482,58 @@ void Game::UpdateGame(EngineCore& engine)
 		{
 			TransformHierachy& hierachy = *entity.transformHierachy;
 
-			if (hierachy.animationActive)
-			{
-				hierachy.animationTime = fmodf(engine.TimeSinceStart(), hierachy.animations[hierachy.animationIndex].duration);
-			}
-
+			// Reset joints
 			for (int jointIdx = 0; jointIdx < hierachy.nodeCount; jointIdx++)
 			{
 				TransformNode& node = hierachy.nodes[jointIdx];
-				if (!hierachy.animationActive)
+				node.currentLocal = node.baseLocal;
+			}
+
+			// Apply animations
+			for (int animIndex = 0; animIndex < hierachy.animationCount; animIndex++)
+			{
+				TransformAnimation& animation = hierachy.animations[animIndex];
+
+				if (animation.active)
 				{
-					node.currentLocal = node.baseLocal;
+					animation.time = fmodf(engine.TimeSinceStart(), animation.duration);
+
+					for (int jointIdx = 0; jointIdx < hierachy.nodeCount; jointIdx++)
+					{
+						if (animation.activeChannels[jointIdx])
+						{
+							TransformNode& node = hierachy.nodes[jointIdx];
+
+							XMVECTOR translation, rotation, scale;
+							XMMatrixDecompose(&scale, &rotation, &translation, node.currentLocal);
+
+							AnimationData& translationData = animation.jointChannels[jointIdx].translations;
+							AnimationData& rotationData = animation.jointChannels[jointIdx].rotations;
+							AnimationData& scaleData = animation.jointChannels[jointIdx].scales;
+
+							if (translationData.frameCount > 0)
+							{
+								translation = SampleAnimation(translationData, animation.time, &XMVectorLerp);
+							}
+							if (rotationData.frameCount > 0)
+							{
+								rotation = SampleAnimation(rotationData, animation.time, &XMQuaternionSlerp);
+							}
+							if (scaleData.frameCount > 0)
+							{
+								scale = SampleAnimation(scaleData, animation.time, &XMVectorLerp);
+							}
+
+							node.currentLocal = XMMatrixAffineTransformation(scale, V3_ZERO, rotation, translation);
+						}
+					}
 				}
-				else
-				{
-					XMVECTOR scale;
-					XMVECTOR rotation;
-					XMVECTOR translation;
-					XMMatrixDecompose(&scale, &rotation, &translation, node.baseLocal);
+			}
 
-					TransformAnimation& animation = hierachy.animations[hierachy.animationIndex];
-					AnimationData& translationData = animation.jointChannels[jointIdx].translations;
-					AnimationData& rotationData = animation.jointChannels[jointIdx].rotations;
-					AnimationData& scaleData = animation.jointChannels[jointIdx].scales;
-
-					if (translationData.frameCount > 0)
-					{
-						translation = SampleAnimation(translationData, hierachy.animationTime, &XMVectorLerp);
-					}
-					if (rotationData.frameCount > 0)
-					{
-						rotation = SampleAnimation(rotationData, hierachy.animationTime, &XMQuaternionSlerp);
-					}
-					if (scaleData.frameCount > 0)
-					{
-						scale = SampleAnimation(scaleData, hierachy.animationTime, &XMVectorLerp);
-					}
-
-					node.currentLocal = XMMatrixAffineTransformation(scale, {}, rotation, translation);
-				}
-				hierachy.UpdateNode(&node);
+			// Update joint transforms
+			for (int jointIdx = 0; jointIdx < hierachy.nodeCount; jointIdx++)
+			{
+				hierachy.UpdateNode(&hierachy.nodes[jointIdx]);
 			}
 
 			// Upload new transforms to children
@@ -785,7 +796,7 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, ShaderD
 		D3D12_VERTEX_BUFFER_VIEW meshView = engine.CreateMesh(materialIndex, meshFile.vertices, meshFile.vertexCount);
 
 		Entity* child = CreateMeshEntity(engine, materialIndex, meshView);
-		child->name = meshFile.textureName.c_str();
+		child->name = meshFile.textureName;
 		if (gltfResult.transformHierachy != nullptr) child->isSkinnedMesh = true;
 		mainEntity->AddChild(child);
 	}

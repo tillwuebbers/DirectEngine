@@ -15,7 +15,7 @@ public:
 	MAT_RMAJ localMatrix;
 	MAT_RMAJ worldMatrix;
 
-	const char* name = "Entity";
+	std::string name = "Entity";
 	bool isActive = true;
 
 	EngineCore* engine;
