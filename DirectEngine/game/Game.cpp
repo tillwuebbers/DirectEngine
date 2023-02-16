@@ -4,19 +4,8 @@
 #include <format>
 #include <limits>
 
-#include "../core/Audio.h"
-
 #include "../core/vkcodes.h"
 #include "remixicon.h"
-
-void CalculateDirectionVectors(XMVECTOR& outForward, XMVECTOR& outRight, XMVECTOR inRotation)
-{
-	XMMATRIX camRotation = XMMatrixRotationQuaternion(inRotation);
-	XMVECTOR right{ 1, 0, 0 };
-	XMVECTOR forward{ 0, 0, 1 };
-	outForward = XMVector3Transform(forward, camRotation);
-	outRight = XMVector3Transform(right, camRotation);
-}
 
 XMVECTOR SampleAnimation(AnimationData& animData, float animationTime, XMVECTOR(__vectorcall* interp)(XMVECTOR a, XMVECTOR b, float t))
 {
@@ -179,9 +168,8 @@ void Game::UpdateGame(EngineCore& engine)
 	input.UpdateMousePosition();
 
 	// Read camera rotation into vectors
-	XMVECTOR camForward;
-	XMVECTOR camRight;
-	CalculateDirectionVectors(camForward, camRight, camera.rotation);
+	XMVECTOR camForward, camRight, camUp;
+	CalculateDirectionVectors(camForward, camRight, camUp, camera.rotation);
 
 	// Reset per frame values
 	engine.m_debugLineData.lineVertices.clear();
@@ -558,31 +546,7 @@ void Game::UpdateGame(EngineCore& engine)
 			entity.GetBuffer().aabbLocalSize = entity.aabbLocalSize;
 		}
 
-		XMVECTOR entityForwards;
-		XMVECTOR entityRight;
-		CalculateDirectionVectors(entityForwards, entityRight, entity.rotation);
-		XMVECTOR entityUp = XMVector3Cross(entityForwards, entityRight);
-
-		// Update entity audio
-		IXAudio2SourceVoice* audioSourceVoice = entity.audioSource.source;
-		if (audioSourceVoice != nullptr)
-		{
-			X3DAUDIO_EMITTER& emitter = entity.audioSource.audioEmitter;
-			XMStoreFloat3(&emitter.OrientFront, entityForwards);
-			XMStoreFloat3(&emitter.OrientTop, entityUp);
-			XMStoreFloat3(&emitter.Position, entity.position);
-			XMStoreFloat3(&emitter.Velocity, entity.velocity);
-
-			XAUDIO2_VOICE_DETAILS audioSourceDetails;
-			audioSourceVoice->GetVoiceDetails(&audioSourceDetails);
-
-			X3DAUDIO_DSP_SETTINGS* dspSettings = emitter.ChannelCount == 1 ? &engine.m_audioDspSettingsMono : &engine.m_audioDspSettingsStereo;
-
-			X3DAudioCalculate(engine.m_3daudio, &playerAudioListener, &entity.audioSource.audioEmitter, X3DAUDIO_CALCULATE_MATRIX | X3DAUDIO_CALCULATE_DOPPLER | X3DAUDIO_CALCULATE_LPF_DIRECT | X3DAUDIO_CALCULATE_REVERB, dspSettings);
-			audioSourceVoice->SetOutputMatrix(engine.m_audioMasteringVoice, audioSourceDetails.InputChannels, engine.m_audioVoiceDetails.InputChannels, dspSettings->pMatrixCoefficients);
-			audioSourceVoice->SetFrequencyRatio(dspSettings->DopplerFactor);
-			// TODO: low pass filter + reverb
-		}
+		entity.UpdateAudio(engine, &playerAudioListener);
 	}
 
 	// Update entity matrices
@@ -602,7 +566,7 @@ void Game::UpdateGame(EngineCore& engine)
 	XMMatrixDecompose(&camScale, &camRotation, &camTranslation, cameraEntity->worldMatrix);
 	camera.position = camTranslation;
 	camera.rotation = camRotation;
-	CalculateDirectionVectors(camForward, camRight, camera.rotation);
+	CalculateDirectionVectors(camForward, camRight, camUp, camera.rotation);
 
 	engine.m_sceneConstantBuffer.data.cameraView = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
 	engine.m_sceneConstantBuffer.data.cameraProjection = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
@@ -653,8 +617,8 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 	}
 
-	XMVECTOR lightRight;
-	CalculateDirectionVectors(engine.m_lightConstantBuffer.data.sunDirection, lightRight, light.rotation);
+	XMVECTOR lightRight, lightUp;
+	CalculateDirectionVectors(engine.m_lightConstantBuffer.data.sunDirection, lightRight, lightUp, light.rotation);
 	XMFLOAT3 lsMin;
 	XMFLOAT3 lsMax;
 	XMStoreFloat3(&lsMin, lightSpaceMin);
