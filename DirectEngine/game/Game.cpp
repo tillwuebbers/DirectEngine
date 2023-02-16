@@ -7,43 +7,6 @@
 #include "../core/vkcodes.h"
 #include "remixicon.h"
 
-CollisionResult Game::CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, uint64_t matchingLayers)
-{
-	CollisionResult result{ nullptr, std::numeric_limits<float>::max() };
-
-	for (Entity& entity : entityArena)
-	{
-		if (entity.isActive && (entity.collisionLayers & matchingLayers) != 0)
-		{
-			XMVECTOR entityCenterWorld = entity.position + entity.LocalToWorld(entity.aabbLocalPosition);
-			XMVECTOR entitySizeWorld = entity.LocalToWorld(entity.aabbLocalSize);
-
-			XMVECTOR boxMin = entityCenterWorld - entitySizeWorld / 2.f;
-			XMVECTOR boxMax = entityCenterWorld + entitySizeWorld / 2.f;
-
-			XMVECTOR t0 = XMVectorDivide(XMVectorSubtract(boxMin, rayOrigin), rayDirection);
-			XMVECTOR t1 = XMVectorDivide(XMVectorSubtract(boxMax, rayOrigin), rayDirection);
-			XMVECTOR tmin = XMVectorMin(t0, t1);
-			XMVECTOR tmax = XMVectorMax(t0, t1);
-
-			XMFLOAT3 tMinValues;
-			XMFLOAT3 tMaxValues;
-			XMStoreFloat3(&tMinValues, tmin);
-			XMStoreFloat3(&tMaxValues, tmax);
-
-			float minDistance = std::max(std::max(tMinValues.x, tMinValues.y), tMinValues.z);
-			float maxDistance = std::min(std::min(tMaxValues.x, tMaxValues.y), tMaxValues.z);
-			if (minDistance <= maxDistance && minDistance < result.distance)
-			{
-				result.distance = minDistance;
-				result.entity = &entity;
-			}
-		}
-	}
-
-	return result;
-}
-
 void Game::StartGame(EngineCore& engine)
 {
 	// Shaders
@@ -689,6 +652,43 @@ void Game::UpdateCursorState()
 	{
 		flags |= ImGuiConfigFlags_NoMouse;
 	}
+}
+
+CollisionResult Game::CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, uint64_t matchingLayers)
+{
+	CollisionResult result{ nullptr, std::numeric_limits<float>::max() };
+
+	for (Entity& entity : entityArena)
+	{
+		if (entity.isActive && (entity.collisionLayers & matchingLayers) != 0)
+		{
+			XMVECTOR entityCenterWorld = entity.position + entity.LocalToWorld(entity.aabbLocalPosition);
+			XMVECTOR entitySizeWorld = entity.LocalToWorld(entity.aabbLocalSize);
+
+			XMVECTOR boxMin = entityCenterWorld - entitySizeWorld / 2.f;
+			XMVECTOR boxMax = entityCenterWorld + entitySizeWorld / 2.f;
+
+			XMVECTOR t0 = XMVectorDivide(XMVectorSubtract(boxMin, rayOrigin), rayDirection);
+			XMVECTOR t1 = XMVectorDivide(XMVectorSubtract(boxMax, rayOrigin), rayDirection);
+			XMVECTOR tmin = XMVectorMin(t0, t1);
+			XMVECTOR tmax = XMVectorMax(t0, t1);
+
+			XMFLOAT3 tMinValues;
+			XMFLOAT3 tMaxValues;
+			XMStoreFloat3(&tMinValues, tmin);
+			XMStoreFloat3(&tMaxValues, tmax);
+
+			float minDistance = std::max(std::max(tMinValues.x, tMinValues.y), tMinValues.z);
+			float maxDistance = std::min(std::min(tMaxValues.x, tMaxValues.y), tMaxValues.z);
+			if (minDistance <= maxDistance && minDistance < result.distance)
+			{
+				result.distance = minDistance;
+				result.entity = &entity;
+			}
+		}
+	}
+
+	return result;
 }
 
 void Game::PlaySound(EngineCore& engine, AudioSource* audioSource, AudioFile file)
