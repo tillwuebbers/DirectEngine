@@ -52,9 +52,12 @@ public:
 	EntityConstantBuffer& GetBuffer();
 	void UpdateWorldMatrix();
 	void UpdateAudio(EngineCore& engine, const X3DAUDIO_LISTENER* audioListener);
+	void UpdateAnimation(EngineCore& engine);
 	XMVECTOR LocalToWorld(XMVECTOR localPosition);
 	XMVECTOR WorldToLocal(XMVECTOR worldPosition);
 	void Disable();
 };
 
 void CalculateDirectionVectors(XMVECTOR& outForward, XMVECTOR& outRight, XMVECTOR& outUp, XMVECTOR inRotation);
+
+XMVECTOR SampleAnimation(AnimationData& animData, float animationTime, XMVECTOR(__vectorcall* interp)(XMVECTOR a, XMVECTOR b, float t));

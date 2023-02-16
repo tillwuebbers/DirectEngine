@@ -7,28 +7,6 @@
 #include "../core/vkcodes.h"
 #include "remixicon.h"
 
-XMVECTOR SampleAnimation(AnimationData& animData, float animationTime, XMVECTOR(__vectorcall* interp)(XMVECTOR a, XMVECTOR b, float t))
-{
-	assert(animData.frameCount > 0);
-	for (int i = 0; i < animData.frameCount; i++)
-	{
-		if (animData.times[i] > animationTime)
-		{
-			if (i == 0)
-			{
-				return animData.data[0];
-			}
-			else
-			{
-				float t = (animationTime - animData.times[i - 1]) / (animData.times[i] - animData.times[i - 1]);
-				return interp(animData.data[i - 1], animData.data[i], t);
-			}
-			break;
-		}
-	}
-	return animData.data[animData.frameCount - 1];
-}
-
 CollisionResult Game::CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, uint64_t matchingLayers)
 {
 	CollisionResult result{ nullptr, std::numeric_limits<float>::max() };
@@ -465,81 +443,7 @@ void Game::UpdateGame(EngineCore& engine)
 	// Update entities
 	for (Entity& entity : entityArena)
 	{
-		// Update animation transforms
-		if (entity.isSkinnedRoot)
-		{
-			TransformHierachy& hierachy = *entity.transformHierachy;
-
-			// Reset joints
-			for (int jointIdx = 0; jointIdx < hierachy.nodeCount; jointIdx++)
-			{
-				TransformNode& node = hierachy.nodes[jointIdx];
-				node.currentLocal = node.baseLocal;
-			}
-
-			// Apply animations
-			for (int animIndex = 0; animIndex < hierachy.animationCount; animIndex++)
-			{
-				TransformAnimation& animation = hierachy.animations[animIndex];
-
-				if (animation.active)
-				{
-					animation.time = fmodf(engine.TimeSinceStart(), animation.duration);
-
-					for (int jointIdx = 0; jointIdx < hierachy.nodeCount; jointIdx++)
-					{
-						if (animation.activeChannels[jointIdx])
-						{
-							TransformNode& node = hierachy.nodes[jointIdx];
-
-							XMVECTOR translation, rotation, scale;
-							XMMatrixDecompose(&scale, &rotation, &translation, node.currentLocal);
-
-							AnimationData& translationData = animation.jointChannels[jointIdx].translations;
-							AnimationData& rotationData = animation.jointChannels[jointIdx].rotations;
-							AnimationData& scaleData = animation.jointChannels[jointIdx].scales;
-
-							if (translationData.frameCount > 0)
-							{
-								translation = SampleAnimation(translationData, animation.time, &XMVectorLerp);
-							}
-							if (rotationData.frameCount > 0)
-							{
-								rotation = SampleAnimation(rotationData, animation.time, &XMQuaternionSlerp);
-							}
-							if (scaleData.frameCount > 0)
-							{
-								scale = SampleAnimation(scaleData, animation.time, &XMVectorLerp);
-							}
-
-							node.currentLocal = XMMatrixAffineTransformation(scale, V3_ZERO, rotation, translation);
-						}
-					}
-				}
-			}
-
-			// Update joint transforms
-			for (int jointIdx = 0; jointIdx < hierachy.nodeCount; jointIdx++)
-			{
-				hierachy.UpdateNode(&hierachy.nodes[jointIdx]);
-			}
-
-			// Upload new transforms to children
-			for (int childIdx = 0; childIdx < entity.childCount; childIdx++)
-			{
-				Entity& child = *entity.children[childIdx];
-				if (child.isSkinnedMesh && child.isRendered)
-				{
-					EntityData& data = child.GetData();
-					for (int i = 0; i < hierachy.nodeCount; i++)
-					{
-						assert(i < MAX_BONES);
-						data.boneConstantBuffer.data.inverseJointBinds[i] = XMMatrixTranspose(hierachy.nodes[i].inverseBind);
-						data.boneConstantBuffer.data.jointTransforms[i] = XMMatrixTranspose(hierachy.nodes[i].global);
-					}
-				}
-			}
-		}
+		entity.UpdateAnimation(engine);
 
 		if (entity.isRendered) {
 			entity.GetBuffer().aabbLocalPosition = entity.aabbLocalPosition;
