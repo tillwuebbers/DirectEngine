@@ -14,6 +14,11 @@ MemoryArena::MemoryArena(size_t capacity) :
 	allocationGranularity = info.dwAllocationGranularity;
 }
 
+inline size_t Align(size_t value, size_t alignment)
+{
+	return (value + alignment - 1) & ~(alignment - 1);
+}
+
 void* MemoryArena::Allocate(size_t size)
 {
 	const size_t newUsed = used + size;
@@ -22,11 +27,10 @@ void* MemoryArena::Allocate(size_t size)
 	if (newUsed > committed)
 	{
 		const size_t required = newUsed - committed;
-		// TODO: round committed bytes to page boundaries automatically?
-		//const size_t commitAmount = ...;
+		const size_t allocationSize = Align(required, allocationGranularity);
 
-		VirtualAlloc(base + committed, required, MEM_COMMIT, PAGE_READWRITE);
-		committed += required;
+		VirtualAlloc(base + committed, allocationSize, MEM_COMMIT, PAGE_READWRITE);
+		committed += allocationSize;
 	}
 
 	uint8_t* result = base + used;
