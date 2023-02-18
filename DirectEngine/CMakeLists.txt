@@ -3,35 +3,9 @@
 #
 cmake_minimum_required (VERSION 3.12)
 
-
-# Add source to this project's executable.
-add_executable (${PROJECT_NAME} WIN32
-                "DirectEngine.cpp"
-                "DirectEngine.h"
-                "Helpers.h"
-                "core/Audio.h"
-                "core/Audio.cpp"
-                "core/Coroutine.h"
-                "core/Common.h"
-                "core/ComStack.cpp"
-                "core/ComStack.h"
-                "core/Constants.h"
-                "core/DDS.h"
-                "core/EngineCore.cpp"
-                "core/EngineCore.h"
-                "core/Input.h"
-                "core/Input.cpp"
-                "core/Memory.h"
-                "core/Memory.cpp"
-                "core/ShadowMap.cpp"
-                "core/ShadowMap.h"
-                "core/Texture.h"
-                "core/Texture.cpp"
-                "core/UI.cpp"
-                "core/UI.h"
-                "core/vkcodes.h"
-                
-                "imgui/remixicon.h"
+file (GLOB CORE_CODE core/*.h core/*.cpp)
+file (GLOB GAME_CODE game/*.h game/*.cpp)
+file (GLOB IMPORT_CODE "imgui/remixicon.h"
                 "imgui/ImGuiProfilerRenderer.h"
                 "imgui/ProfilerTask.h"
                 "import/tiny_gltf.h"
@@ -39,20 +13,16 @@ add_executable (${PROJECT_NAME} WIN32
                 "import/stb_image.h"
                 "import/stb_image_write.h"
                 "directx-tex/DDSTextureLoader12.h"
-                "directx-tex/DDSTextureLoader12.cpp"
-                "game/Entity.h"
-                "game/Entity.cpp"
-                "game/IGame.h"
-                "game/Game.h"
-                "game/Game.cpp"
-                "game/GameUI.cpp"
-                "game/Puzzle.cpp"
-                "game/Puzzle.h"
-                "game/Log.h"
-                "game/Log.cpp"
-                "game/Mesh.h"
-                "game/Mesh.cpp")
+                "directx-tex/DDSTextureLoader12.cpp")
 
+# Add source to this project's executable.
+add_executable (${PROJECT_NAME} WIN32
+                "DirectEngine.cpp"
+                "DirectEngine.h"
+                "Helpers.h"
+                ${CORE_CODE}
+                ${GAME_CODE}
+                ${IMPORT_CODE})
 
 # imgui
 set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
@@ -133,7 +103,13 @@ add_custom_command(
                 
 # idk
 target_compile_definitions(${PROJECT_NAME} PRIVATE "UNICODE;_UNICODE")
+set_property(TARGET DirectEngine PROPERTY CXX_STANDARD 20)
 
-if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET DirectEngine PROPERTY CXX_STANDARD 20)
+if (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:RELWITHDEBINFO>:/PROFILE>)
+endif()
+
+# tests
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_subdirectory(tests)
 endif()

@@ -21,6 +21,7 @@ inline size_t Align(size_t value, size_t alignment)
 
 void* MemoryArena::Allocate(size_t size)
 {
+	assert(size >= 0);
 	const size_t newUsed = used + size;
 	assert(newUsed <= capacity);
 

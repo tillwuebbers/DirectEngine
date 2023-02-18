@@ -6,6 +6,8 @@
 #include <cstddef>
 #include <assert.h>
 
+inline size_t Align(size_t value, size_t alignment);
+
 // Custom allocation, still figuring out how to use this best.
 // WARNING: Anything allocated inside a memory arena won't get it's desctructor called (intentionally).
 // Don't store std::string or similar in here!
