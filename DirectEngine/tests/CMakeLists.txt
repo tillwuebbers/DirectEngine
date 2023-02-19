@@ -12,7 +12,7 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-add_executable("DirectEngineTest" "Animation.cpp" "TestCommon.h" ${CORE_CODE} ${GAME_CODE} ${IMPORT_CODE})
+add_executable("DirectEngineTest" "GameTest.cpp" "TestCommon.h" ${CORE_CODE} ${GAME_CODE} ${IMPORT_CODE} "EngineTest.cpp" "Tests.cpp")
 
 target_sources("DirectEngineTest"
                 PRIVATE

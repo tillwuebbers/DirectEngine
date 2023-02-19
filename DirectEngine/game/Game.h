@@ -48,6 +48,12 @@ struct CollisionResult
 	float distance;
 };
 
+struct ShadowSpaceBounds
+{
+	XMFLOAT3 min;
+	XMFLOAT3 max;
+};
+
 struct Camera
 {
 	XMVECTOR position{ 0.f, 0.f, 0.f };
@@ -57,6 +63,8 @@ struct Camera
 	float nearClip = .1f;
 	float farClip = 1000.f;
 };
+
+MAT_RMAJ CalculateShadowCamProjection(const MAT_RMAJ& camViewMatrix, const MAT_RMAJ& camProjectionMatrix, const MAT_RMAJ& lightViewMatrix);
 
 class Game : public IGame
 {

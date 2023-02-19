@@ -435,15 +435,20 @@ void Game::UpdateGame(EngineCore& engine)
 	camera.rotation = camRotation;
 	CalculateDirectionVectors(camForward, camRight, camUp, camera.rotation);
 
-	engine.m_sceneConstantBuffer.data.cameraView = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
-	engine.m_sceneConstantBuffer.data.cameraProjection = XMMatrixTranspose(XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip));
+	MAT_RMAJ camView = XMMatrixMultiply(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
+	MAT_RMAJ camProj = XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip);
+
+	engine.m_sceneConstantBuffer.data.cameraView = XMMatrixTranspose(camView);
+	engine.m_sceneConstantBuffer.data.cameraProjection = XMMatrixTranspose(camProj);
 	engine.m_sceneConstantBuffer.data.postProcessing = { contrast, brightness, saturation, fog };
 	engine.m_sceneConstantBuffer.data.fogColor = clearColor;
 	engine.m_sceneConstantBuffer.data.worldCameraPos = camera.position;
 
 	// Update light/shadowmap
 	light.rotation = XMQuaternionRotationRollPitchYaw(45.f / 360.f * XM_2PI, engine.TimeSinceStart(), 0.f);
-	engine.m_lightConstantBuffer.data.lightView = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(XMVectorScale(light.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(light.rotation)));
+
+	MAT_RMAJ lightView = XMMatrixMultiply(XMMatrixTranslationFromVector(XMVectorScale(light.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(light.rotation)));
+	engine.m_lightConstantBuffer.data.lightView = XMMatrixTranspose(lightView);
 
 	lightDebugEntity->position = light.position;
 	lightDebugEntity->rotation = light.rotation;
@@ -453,45 +458,11 @@ void Game::UpdateGame(EngineCore& engine)
 		engine.m_debugLineData.AddLine(light.position, light.position + XMVector3TransformNormal({ 0.f, 0.f, 1.f }, XMMatrixRotationQuaternion(light.rotation)), { 0.f, 0.f, 0.f, 1.f }, { 1.f, 1.f, 1.f, 1.f });
 	}
 
-	XMVECTOR lightSpaceMin{};
-	XMVECTOR lightSpaceMax{};
-	bool firstLightCalculation = true;
-
-	const XMVECTOR testPositionBuffer[8] = {
-		{ -1., -1., -1.},
-		{ -1., -1.,  1.},
-		{ -1.,  1., -1.},
-		{ -1.,  1.,  1.},
-		{  1., -1., -1.},
-		{  1., -1.,  1.},
-		{  1.,  1., -1.},
-		{  1.,  1.,  1.},
-	};
-	for (Entity& entity : entityArena)
-	{
-		if (!entity.checkForShadowBounds || !entity.isRendered || !entity.GetData().visible) continue;
-
-		XMVECTOR aabbWorldPosition = XMVector3Transform(entity.aabbLocalPosition, entity.worldMatrix);
-		XMVECTOR aabbWorldSize = XMVector3TransformNormal(entity.aabbLocalSize, entity.worldMatrix);
-
-		for (int i = 0; i < _countof(testPositionBuffer); i++)
-		{
-			XMVECTOR aabbCorner = XMVectorMultiply(aabbWorldSize, testPositionBuffer[i]);
-			XMVECTOR lightSpacePosition = XMVector3Transform(aabbWorldPosition + aabbCorner, XMMatrixTranspose(engine.m_lightConstantBuffer.data.lightView));
-			lightSpaceMin = firstLightCalculation ? lightSpacePosition : XMVectorMin(lightSpacePosition, lightSpaceMin);
-			lightSpaceMax = firstLightCalculation ? lightSpacePosition : XMVectorMax(lightSpacePosition, lightSpaceMax);
-			firstLightCalculation = false;
-		}
-	}
-
 	XMVECTOR lightRight, lightUp;
 	CalculateDirectionVectors(engine.m_lightConstantBuffer.data.sunDirection, lightRight, lightUp, light.rotation);
-	XMFLOAT3 lsMin;
-	XMFLOAT3 lsMax;
-	XMStoreFloat3(&lsMin, lightSpaceMin);
-	XMStoreFloat3(&lsMax, lightSpaceMax);
 
-	engine.m_lightConstantBuffer.data.lightProjection = XMMatrixTranspose(XMMatrixOrthographicOffCenterLH(lsMin.x, lsMax.x, lsMin.y, lsMax.y, lsMin.z, lsMax.z));
+	MAT_RMAJ shadowSpaceMatrix = CalculateShadowCamProjection(camView, camProj, lightView);
+	engine.m_lightConstantBuffer.data.lightProjection = XMMatrixTranspose(shadowSpaceMatrix);
 	
 	// Debug view for light space
 	if (showLightSpaceDebug)
@@ -709,4 +680,42 @@ void Game::Warn(const std::string& message)
 void Game::Error(const std::string& message)
 {
 	if (!stopLog) debugLog.Error(message);
+}
+
+MAT_RMAJ CalculateShadowCamProjection(const MAT_RMAJ& camViewMatrix, const MAT_RMAJ& camProjectionMatrix, const MAT_RMAJ& lightViewMatrix)
+{
+	XMVECTOR ndcTestPoints[] = {
+		{ -1.f, -1.f, 0.f, 1.f },
+		{  1.f, -1.f, 0.f, 1.f },
+		{ -1.f,  1.f, 0.f, 1.f },
+		{  1.f,  1.f, 0.f, 1.f },
+		{ -1.f, -1.f, 1.f, 1.f },
+		{  1.f, -1.f, 1.f, 1.f },
+		{ -1.f,  1.f, 1.f, 1.f },
+		{  1.f,  1.f, 1.f, 1.f },
+	};
+
+	XMVECTOR worldTestPoints[8];
+	for (size_t i = 0; i < 8; i++)
+	{
+		XMVECTOR camViewPoint = XMVector3TransformCoord(ndcTestPoints[i], XMMatrixInverse(nullptr, camProjectionMatrix));
+		worldTestPoints[i] = XMVector3TransformCoord(camViewPoint, XMMatrixInverse(nullptr, camViewMatrix));
+	}
+
+	XMVECTOR lightSpaceTestPoints[8];
+	for (size_t i = 0; i < 8; i++)
+	{
+		lightSpaceTestPoints[i] = XMVector3Transform(worldTestPoints[i], lightViewMatrix);
+	}
+
+	XMVECTOR lsMin = lightSpaceTestPoints[0];
+	XMVECTOR lsMax = lightSpaceTestPoints[0];
+
+	for (size_t i = 1; i < 8; i++)
+	{
+		lsMin = XMVectorMin(lsMin, lightSpaceTestPoints[i]);
+		lsMax = XMVectorMax(lsMax, lightSpaceTestPoints[i]);
+	}
+
+	return XMMatrixOrthographicOffCenterLH(XMVectorGetX(lsMin), XMVectorGetX(lsMax), XMVectorGetY(lsMin), XMVectorGetY(lsMax), XMVectorGetZ(lsMin), XMVectorGetZ(lsMax));
 }
