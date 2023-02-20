@@ -1,4 +1,4 @@
-#include "common.hlsl"
+#include "util/common.hlsl"
 
 Texture2D diffuseTexture : register(t7);
 

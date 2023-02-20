@@ -1,4 +1,4 @@
-#include "common.hlsl"
+#include "util/common.hlsl"
 
 PSInputDefault VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL, float2 uv : UV)
 {

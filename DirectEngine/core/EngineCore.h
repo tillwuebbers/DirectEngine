@@ -288,7 +288,7 @@ public:
     Texture* CreateTexture(const wchar_t* filePath);
     void InitGPUTexture(Texture& outTexture, DXGI_FORMAT format, UINT width, UINT height, const wchar_t* name);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
-    size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride, std::vector<Texture*> textures, ShaderDescription shaderDesc);
+    size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride, const std::vector<Texture*>& textures, const std::wstring& shaderName);
     D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount);
     size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
     void UploadVertices();

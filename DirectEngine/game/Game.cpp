@@ -1,5 +1,7 @@
 #include "Game.h"
 
+#include "../Helpers.h"
+
 #include <array>
 #include <format>
 #include <limits>
@@ -9,25 +11,36 @@
 
 void Game::StartGame(EngineCore& engine)
 {
+	INIT_TIMER(timer);
+
 	// Shaders
-	ShaderDescription defaultShader{ L"entity.hlsl", "VSMain", "PSMain", L"Main" };
-	ShaderDescription groundShader{ L"ground.hlsl", "VSMain", "PSMain", L"Ground" };
-	ShaderDescription laserShader{ L"laser.hlsl", "VSMain", "PSMain", L"Laser" };
+	std::wstring defaultShader = L"entity";
+	std::wstring groundShader = L"ground";
+	std::wstring laserShader = L"laser";
 
 	// Textures
 	diffuseTexture = engine.CreateTexture(L"textures/ground_D.dds");
 	memeTexture = engine.CreateTexture(L"textures/cat_D.dds");
+
+	LOG_TIMER(timer, "Test Textures", debugLog);
+	RESET_TIMER(timer);
 
 	// Materials
 	size_t memeMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { memeTexture }, defaultShader);
 	size_t groundMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, groundShader);
 	size_t laserMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, laserShader);
 
+	LOG_TIMER(timer, "Test Materials", debugLog);
+	RESET_TIMER(timer);
+
 	// Meshes
 	// TODO: why does mesh need material index, and why doesn't it matter if it's wrong?
 	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", debugLog, modelArena).meshes[0];
 	auto cubeMeshView = engine.CreateMesh(memeMaterialIndex, cubeMeshFile.vertices, cubeMeshFile.vertexCount);
 	engine.cubeVertexView = cubeMeshView;
+
+	LOG_TIMER(timer, "Test Cube Mesh", debugLog);
+	RESET_TIMER(timer);
 
 	// Entities
 	playerEntity = CreateEmptyEntity(engine);
@@ -37,7 +50,14 @@ void Game::StartGame(EngineCore& engine)
 	cameraEntity->position = { 0.f, 1.85f, 0.15f };
 	playerEntity->AddChild(cameraEntity);
 
+	LOG_TIMER(timer, "Camera Entity", debugLog);
+	RESET_TIMER(timer);
+
 	Entity* kaijuMeshEntity = CreateEntityFromGltf(engine, "models/kaiju.glb", defaultShader, debugLog);
+
+	LOG_TIMER(timer, "Kaiju Entity", debugLog);
+	RESET_TIMER(timer);
+
 	assert(kaijuMeshEntity->isSkinnedRoot);
 	kaijuMeshEntity->name = "KaijuRoot";
 	kaijuMeshEntity->transformHierachy->SetAnimationActive("BasePose", true);
@@ -52,6 +72,9 @@ void Game::StartGame(EngineCore& engine)
 		entity->aabbLocalPosition = { 0.f, 1.5f, -0.5f };
 		entity->aabbLocalSize = { 5.f, 3.f, 3.f };
 	}
+
+	LOG_TIMER(timer, "Kaiju Children", debugLog);
+	RESET_TIMER(timer);
 
 	lightDebugEntity = CreateMeshEntity(engine, memeMaterialIndex, cubeMeshView);
 	lightDebugEntity->name = "LightDebug";
@@ -92,6 +115,9 @@ void Game::StartGame(EngineCore& engine)
 
 	light.position = { 10.f, 10.f, 10.f };
 
+	LOG_TIMER(timer, "Other Entities", debugLog);
+	RESET_TIMER(timer);
+
 	// Audio
 	soundFiles[(size_t)AudioFile::PlayerDamage] = LoadAudioFile(L"audio/chord.wav", globalArena);
 	soundFiles[(size_t)AudioFile::EnemyDeath] = LoadAudioFile(L"audio/tada.wav", globalArena);
@@ -100,6 +126,9 @@ void Game::StartGame(EngineCore& engine)
 	// Finish setup
 	engine.UploadVertices();
 	UpdateCursorState();
+
+	LOG_TIMER(timer, "Finalize", debugLog);
+	RESET_TIMER(timer);
 }
 
 void Game::UpdateGame(EngineCore& engine)
@@ -461,7 +490,9 @@ void Game::UpdateGame(EngineCore& engine)
 	XMVECTOR lightRight, lightUp;
 	CalculateDirectionVectors(engine.m_lightConstantBuffer.data.sunDirection, lightRight, lightUp, light.rotation);
 
-	MAT_RMAJ shadowSpaceMatrix = CalculateShadowCamProjection(camView, camProj, lightView);
+	MAT_RMAJ shadowSpaceMatrix;
+	shadowSpaceMatrix = CalculateShadowCamProjection(camView, camProj, lightView);
+	
 	engine.m_lightConstantBuffer.data.lightProjection = XMMatrixTranspose(shadowSpaceMatrix);
 	
 	// Debug view for light space
@@ -577,7 +608,7 @@ Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float w
 }
 
 
-Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, ShaderDescription& shader, RingLog& log)
+Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, const std::wstring& shaderName, RingLog& log)
 {
 	Entity* mainEntity = CreateEmptyEntity(engine);
 
@@ -588,19 +619,28 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, ShaderD
 		mainEntity->transformHierachy = gltfResult.transformHierachy;
 	}
 
+	INIT_TIMER(timer);
+
 	for (MeshFile& meshFile : gltfResult.meshes)
 	{
 		std::wstring texturePath = { L"textures/" };
 		texturePath.append(meshFile.textureName.begin(), meshFile.textureName.end());
 		Texture* texture = engine.CreateTexture(texturePath.c_str());
+		LOG_TIMER(timer, "Texture for model", debugLog);
+		RESET_TIMER(timer);
 
-		size_t materialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { texture }, shader);
+		size_t materialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { texture }, shaderName);
 		D3D12_VERTEX_BUFFER_VIEW meshView = engine.CreateMesh(materialIndex, meshFile.vertices, meshFile.vertexCount);
+		LOG_TIMER(timer, "Create material and mesh for model", debugLog);
+		RESET_TIMER(timer);
 
 		Entity* child = CreateMeshEntity(engine, materialIndex, meshView);
 		child->name = meshFile.textureName;
 		if (gltfResult.transformHierachy != nullptr) child->isSkinnedMesh = true;
 		mainEntity->AddChild(child);
+
+		LOG_TIMER(timer, "Create entity for model", debugLog);
+		RESET_TIMER(timer);
 	}
 
 	return mainEntity;

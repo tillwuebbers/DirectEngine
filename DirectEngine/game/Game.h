@@ -61,7 +61,7 @@ struct Camera
 	float fovX = 0.f;
 	float fovY = 45.f;
 	float nearClip = .1f;
-	float farClip = 1000.f;
+	float farClip = 10.f;
 };
 
 MAT_RMAJ CalculateShadowCamProjection(const MAT_RMAJ& camViewMatrix, const MAT_RMAJ& camProjectionMatrix, const MAT_RMAJ& lightViewMatrix);
@@ -169,7 +169,7 @@ public:
 	Entity* CreateEmptyEntity(EngineCore& engine);
 	Entity* CreateMeshEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView);
 	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height);
-	Entity* CreateEntityFromGltf(EngineCore& engine, const char* path, ShaderDescription& shader, RingLog& log);
+	Entity* CreateEntityFromGltf(EngineCore& engine, const char* path, const std::wstring& shaderName, RingLog& log);
 	void UpdateCursorState();
 
 	void PlaySound(EngineCore& engine, AudioSource* audioSource, AudioFile file);

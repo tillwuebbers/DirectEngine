@@ -1,4 +1,4 @@
-#include "common.hlsl"
+#include "util/common.hlsl"
 
 struct PSInput
 {
@@ -6,7 +6,7 @@ struct PSInput
 	float4 color : COLOR;
 };
 
-PSInput VSLine(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL, float2 uv : UV)
+PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL, float2 uv : UV)
 {
 	PSInput result;
 	
@@ -16,7 +16,7 @@ PSInput VSLine(float4 position : POSITION, float4 vertColor : COLOR, float3 norm
 	return result;
 }
 
-float4 PSLine(PSInput input) : SV_TARGET
+float4 PSMain(PSInput input) : SV_TARGET
 {
 	return input.color;
 }

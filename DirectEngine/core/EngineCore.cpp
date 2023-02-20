@@ -216,7 +216,7 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
         ThrowIfFailed(D3D12CreateDevice(hardwareAdapter.Get(), D3D_FEATURE_LEVEL_11_0, NewComObject(comPointers, &m_device)));
     }
 
-#ifdef ISDEBUG
+#if ISDEBUG
     ComPtr<ID3D12InfoQueue> infoQueue = nullptr;
     m_device->QueryInterface(IID_PPV_ARGS(&infoQueue));
 
@@ -451,7 +451,7 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
             OutputDebugStringA(reinterpret_cast<const char*>(error->GetBufferPointer()));
         }
         ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), NewComObject(comPointers, &config->rootSignature)));
-        config->rootSignature->SetName(config->shaderDescription.debugName);
+        config->rootSignature->SetName(config->shaderName.c_str());
     }
 
     CreatePipelineState(config);
@@ -459,14 +459,17 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
 
 void EngineCore::CreatePipelineState(PipelineConfig* config)
 {
+    INIT_TIMER(timer);
+
     ComPtr<ID3DBlob> vertexShader;
     ComPtr<ID3DBlob> pixelShader;
 
-#if ISDEBUG
+#if ENABLE_SHADER_HOTLOAD
     // Enable better shader debugging with the graphics debugging tools.
     UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
     std::wstring path = std::wstring(L"../../../../DirectEngine/shaders/");
     path.append(config->shaderDescription.shaderFileName);
+    path.append(L".hlsl");
     const wchar_t* shaderPath = path.c_str();
     Sleep(100);
 
@@ -489,18 +492,13 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
             Sleep(100);
         }
     }
-#else
-    UINT compileFlags = 0;
-    std::wstring path = std::wstring(L"shaders/");
-    path.append(config->shaderDescription.shaderFileName);
-    const wchar_t* shaderPath = path.c_str();
-#endif
 
     ComPtr<ID3DBlob> vsErrors;
     ComPtr<ID3D10Blob> psErrors;
 
     m_shaderError.clear();
     config->creationError = D3DCompileFromFile(shaderPath, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, config->shaderDescription.vsEntryName, "vs_5_0", compileFlags, 0, &vertexShader, &vsErrors);
+
     if (vsErrors)
     {
         m_shaderError = std::format("Vertex Shader Errors:\n{}\n", (LPCSTR)vsErrors->GetBufferPointer());
@@ -517,6 +515,26 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
         OutputDebugStringA(m_shaderError.c_str());
     }
     if (FAILED(config->creationError)) return;
+#else
+    UINT compileFlags = 0;
+    std::wstring path = std::wstring(L"shaders_bin/");
+    path.append(config->shaderName);
+
+    std::wstring vsPath = path;
+    vsPath.append(L".vert.cso");
+
+    std::wstring psPath = path;
+    psPath.append(L".frag.cso");
+
+    config->creationError = D3DReadFileToBlob(vsPath.c_str(), &vertexShader);
+    if (FAILED(config->creationError)) return;
+
+    config->creationError = D3DReadFileToBlob(psPath.c_str(), &pixelShader);
+    if (FAILED(config->creationError)) return;
+#endif
+
+    OUTPUT_TIMERW(timer, L"Load Shaders");
+    RESET_TIMER(timer);
 
     // Define the vertex input layout.
     D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
@@ -561,25 +579,28 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
     psoDesc.DSVFormat = DEPTH_BUFFER_FORMAT;
 
     config->creationError = m_device->CreateGraphicsPipelineState(&psoDesc, NewComObjectReplace(comPointers, &config->pipelineState));
-    config->pipelineState->SetName(config->shaderDescription.debugName);
+    config->pipelineState->SetName(config->shaderName.c_str());
+
+    OUTPUT_TIMERW(timer, L"Create Pipeline State");
+    RESET_TIMER(timer);
 }
 
 void EngineCore::LoadAssets()
 {
-    m_shadowConfig = NewObject(engineArena, PipelineConfig, { L"shadow.hlsl", "VSShadow", "PSShadow", L"Shadow" }, 0);
+    m_shadowConfig = NewObject(engineArena, PipelineConfig, L"shadow", 0);
     m_shadowConfig->shadow = true;
     CreatePipeline(m_shadowConfig, 0, 0);
 
-    m_boneDebugConfig = NewObject(engineArena, PipelineConfig, { L"bones.hlsl", "VSMain", "PSMain", L"Bones" }, 0);
+    m_boneDebugConfig = NewObject(engineArena, PipelineConfig, L"bones", 0);
     m_boneDebugConfig->wireframe = true;
     m_boneDebugConfig->ignoreDepth = true;
     CreatePipeline(m_boneDebugConfig, 0, 1);
     
-    m_wireframeConfig = NewObject(engineArena, PipelineConfig, { L"aabb.hlsl", "VSWire", "PSWire", L"Wireframe" }, 0);
+    m_wireframeConfig = NewObject(engineArena, PipelineConfig, L"aabb", 0);
     m_wireframeConfig->wireframe = true;
     CreatePipeline(m_wireframeConfig, 0, 0);
     
-    m_debugLineConfig = NewObject(engineArena, PipelineConfig, { L"debugline.hlsl", "VSLine", "PSLine", L"Debug Line" }, 0);
+    m_debugLineConfig = NewObject(engineArena, PipelineConfig, L"debugline", 0);
     m_debugLineConfig->wireframe = true;
     m_debugLineConfig->ignoreDepth = true;
     m_debugLineConfig->topologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
@@ -718,8 +739,10 @@ void EngineCore::UploadTexture(const TextureData& textureData, std::vector<D3D12
     m_device->CreateShaderResourceView(targetTexture.buffer, &srvDesc, targetTexture.handle.cpuHandle);
 }
 
-size_t EngineCore::CreateMaterial(const size_t maxVertices, const size_t vertexStride, std::vector<Texture*> textures, ShaderDescription shaderDesc)
+size_t EngineCore::CreateMaterial(const size_t maxVertices, const size_t vertexStride, const std::vector<Texture*>& textures, const std::wstring& shaderName)
 {
+    INIT_TIMER(timer);
+
     const size_t maxByteCount = vertexStride * maxVertices;
 
     assert(m_materialCount < MAX_MATERIALS);
@@ -733,8 +756,15 @@ size_t EngineCore::CreateMaterial(const size_t maxVertices, const size_t vertexS
     {
         data.textures[i] = textures[i];
     }
-    data.pipeline = NewObject(engineArena, PipelineConfig, shaderDesc, textures.size());
+
+    OUTPUT_TIMERW(timer, L"Init");
+    RESET_TIMER(timer);
+
+    data.pipeline = NewObject(engineArena, PipelineConfig, shaderName, textures.size());
     CreatePipeline(data.pipeline, 0, 0);
+
+    OUTPUT_TIMERW(timer, L"Pipeline");
+    RESET_TIMER(timer);
 
     // Create buffer for upload
     CD3DX12_HEAP_PROPERTIES tempHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
@@ -747,6 +777,9 @@ size_t EngineCore::CreateMaterial(const size_t maxVertices, const size_t vertexS
     CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(maxByteCount);
     ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, NewComObject(comPointers, &data.vertexBuffer)));
     data.vertexBuffer->SetName(L"Vertex Buffer");
+
+    OUTPUT_TIMERW(timer, L"Buffers");
+    RESET_TIMER(timer);
 
     return dataIndex;
 }

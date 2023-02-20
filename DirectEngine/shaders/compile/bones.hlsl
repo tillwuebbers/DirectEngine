@@ -1,4 +1,4 @@
-#include "common.hlsl"
+#include "util/common.hlsl"
 
 cbuffer DrawConstants : register(b7)
 {

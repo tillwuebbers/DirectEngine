@@ -1,11 +1,11 @@
-#include "common.hlsl"
+#include "util/common.hlsl"
 
 struct PSInput
 {
 	float4 position : SV_POSITION;
 };
 
-PSInput VSShadow(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL, float2 uv : UV, float4 boneWeights : BONE_WEIGHTS, uint4 boneIndices : BONE_INDICES)
+PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL, float2 uv : UV, float4 boneWeights : BONE_WEIGHTS, uint4 boneIndices : BONE_INDICES)
 {
 	float4 pos = position;
 	if (boneWeights[0] > 0.01)
@@ -26,7 +26,7 @@ PSInput VSShadow(float4 position : POSITION, float4 vertColor : COLOR, float3 no
 	return result;
 }
 
-float4 PSShadow(PSInput input) : SV_TARGET
+float4 PSMain(PSInput input) : SV_TARGET
 {
 	return float4(0., 0., 0., 1.);
 }

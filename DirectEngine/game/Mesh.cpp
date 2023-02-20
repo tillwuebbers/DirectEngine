@@ -1,5 +1,7 @@
 #include "Mesh.h"
 
+#include "../Helpers.h"
+
 #include <format>
 
 #define TINYGLTF_IMPLEMENTATION
@@ -98,7 +100,7 @@ TransformNode* CreateMatrices(Model& model, int jointIndex, TransformNode* paren
 
 GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, MemoryArena& arena)
 {
-	auto startTime = high_resolution_clock::now();
+	INIT_TIMER(timer);
 
 	Model model;
 	TinyGLTF loader;
@@ -107,8 +109,8 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 
 	bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, filePath);
 
-	auto duration = high_resolution_clock::now() - startTime;
-	debugLog.Log(std::format("Loading binary for {} took {}ms", filePath, duration_cast<milliseconds>(duration).count()));
+	LOG_TIMER(timer, "Load Model Binary", debugLog);
+	RESET_TIMER(timer);
 
 	if (!warn.empty())
 	{
@@ -127,7 +129,6 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 
 	size_t vertexCount = 0;
 	Vertex* vertices;
-	startTime = high_resolution_clock::now();
 
 	Accessor& inverseBindAccessor = model.accessors[model.skins[0].inverseBindMatrices];
 	assert(inverseBindAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
@@ -153,9 +154,8 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 	}
 	hierachy->root = CreateMatrices(model, 0, nullptr, hierachy->nodes, inverseBindMatrices);
 
-	duration = high_resolution_clock::now() - startTime;
-	debugLog.Log(std::format("Loading matrices took {}ms", duration_cast<milliseconds>(duration).count()));
-	startTime = high_resolution_clock::now();
+	LOG_TIMER(timer, "Load Hierachy", debugLog);
+	RESET_TIMER(timer);
 
 	for (Animation& animation : model.animations)
 	{
@@ -281,9 +281,8 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 		transformAnimation.duration = maxTime;
 	}
 
-	duration = high_resolution_clock::now() - startTime;
-	debugLog.Log(std::format("Loading animations took {}ms", duration_cast<milliseconds>(duration).count()));
-	startTime = high_resolution_clock::now();
+	LOG_TIMER(timer, "Animations", debugLog);
+	RESET_TIMER(timer);
 
 	std::vector<MeshFile> meshFiles{};
 
@@ -375,8 +374,8 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 		}
 	}
 
-	duration = high_resolution_clock::now() - startTime;
-	debugLog.Log(std::format("Loading meshes took {}ms", duration_cast<milliseconds>(duration).count()));
+	LOG_TIMER(timer, "Meshes", debugLog);
+	RESET_TIMER(timer);
 	
 	return { meshFiles, hierachy };
 }

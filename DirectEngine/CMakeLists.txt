@@ -14,6 +14,7 @@ file (GLOB IMPORT_CODE "imgui/remixicon.h"
                 "import/stb_image_write.h"
                 "directx-tex/DDSTextureLoader12.h"
                 "directx-tex/DDSTextureLoader12.cpp")
+file (GLOB SHADER_CODE "${CMAKE_CURRENT_SOURCE_DIR}/shaders/compile/*.hlsl")
 
 # Add source to this project's executable.
 add_executable (${PROJECT_NAME} WIN32
@@ -22,7 +23,8 @@ add_executable (${PROJECT_NAME} WIN32
                 "Helpers.h"
                 ${CORE_CODE}
                 ${GAME_CODE}
-                ${IMPORT_CODE})
+                ${IMPORT_CODE}
+                ${SHADER_CODE})
 
 # imgui
 set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
@@ -77,31 +79,47 @@ target_compile_options(${PROJECT_NAME} PRIVATE /W3 /w34456 /w34189 /w44305 /w442
 file(COPY "Montserrat-Regular.ttf" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY "remixicon.ttf" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
+set(SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+cmake_path(NATIVE_PATH SHADER_DIR SHADER_DIR_NATIVE)
+set(SHADER_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders_bin")
+
 add_custom_command(
-        TARGET ${PROJECT_NAME} POST_BUILD
+        TARGET ${PROJECT_NAME} PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${CMAKE_CURRENT_SOURCE_DIR}/audio
                 ${CMAKE_CURRENT_BINARY_DIR}/audio)
 
 add_custom_command(
-        TARGET ${PROJECT_NAME} POST_BUILD
+        TARGET ${PROJECT_NAME} PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
-                ${CMAKE_CURRENT_SOURCE_DIR}/shaders
-                ${CMAKE_CURRENT_BINARY_DIR}/shaders)
+                ${SHADER_DIR}
+                ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
 
 add_custom_command(
-        TARGET ${PROJECT_NAME} POST_BUILD
+        TARGET ${PROJECT_NAME} PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${CMAKE_CURRENT_SOURCE_DIR}/models
                 ${CMAKE_CURRENT_BINARY_DIR}/models)
                 
 add_custom_command(
-        TARGET ${PROJECT_NAME} POST_BUILD
+        TARGET ${PROJECT_NAME} PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${CMAKE_CURRENT_SOURCE_DIR}/textures
                 ${CMAKE_CURRENT_BINARY_DIR}/textures)
                 
-# idk
+# compile shaders
+target_include_directories(${PROJECT_NAME} PRIVATE "${SHADER_DIR}")
+foreach(SHADER_FILE ${SHADER_CODE})
+    get_filename_component(SHADER_NAME ${SHADER_FILE} NAME_WE)
+
+    add_custom_command(
+        OUTPUT "${SHADER_OUT_DIR}/${SHADER_NAME}.vert.cso" "${SHADER_OUT_DIR}/${SHADER_NAME}.frag.cso"
+        COMMAND dxc /T vs_6_0 /E "VSMain" /Fo "${SHADER_OUT_DIR}/${SHADER_NAME}.vert.cso" /I ${SHADER_DIR_NATIVE} "${SHADER_FILE}" && dxc /T ps_6_0 /E "PSMain" /Fo "${SHADER_OUT_DIR}/${SHADER_NAME}.frag.cso" /I ${SHADER_DIR_NATIVE} "${SHADER_FILE}"
+        MAIN_DEPENDENCY "${SHADER_FILE}"
+    )
+endforeach()
+
+# cpp/windows stuff
 target_compile_definitions(${PROJECT_NAME} PRIVATE "UNICODE;_UNICODE")
 set_property(TARGET DirectEngine PROPERTY CXX_STANDARD 20)
 
@@ -112,4 +130,11 @@ endif()
 # tests
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_subdirectory(tests)
+endif()
+
+# custom flags
+target_compile_definitions(${PROJECT_NAME} PRIVATE "ENABLE_TIMERS")
+
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    # target_compile_definitions(${PROJECT_NAME} PRIVATE "ENABLE_SHADER_HOTLOAD")
 endif()

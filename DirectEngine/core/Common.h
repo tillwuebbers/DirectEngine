@@ -15,27 +15,19 @@ struct Texture
     DescriptorHandle handle;
 };
 
-struct ShaderDescription
-{
-    const wchar_t* shaderFileName;
-    const char* vsEntryName;
-    const char* psEntryName;
-    const wchar_t* debugName;
-};
-
 class PipelineConfig
 {
 public:
-    PipelineConfig(ShaderDescription shaderDescription, size_t textureSlotCount)
+    PipelineConfig(const std::wstring& shaderName, size_t textureSlotCount)
     {
-		this->shaderDescription = shaderDescription;
-		this->textureSlotCount = textureSlotCount;
+		this->shaderName = shaderName;
+        this->textureSlotCount = textureSlotCount;
     }
 
     bool shadow = false;
     bool wireframe = false;
     bool ignoreDepth = false;
-    ShaderDescription shaderDescription;
+    std::wstring shaderName;
     size_t textureSlotCount = 0;
 	D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
