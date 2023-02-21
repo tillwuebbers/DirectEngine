@@ -199,6 +199,7 @@ void CalculateDirectionVectors(XMVECTOR& outForward, XMVECTOR& outRight, XMVECTO
 
 XMVECTOR SampleAnimation(AnimationData& animData, float animationTime, XMVECTOR(__vectorcall* interp)(XMVECTOR a, XMVECTOR b, float t))
 {
+	assert(animData.data != nullptr);
 	assert(animData.frameCount > 0);
 	for (int i = 0; i < animData.frameCount; i++)
 	{
@@ -213,7 +214,6 @@ XMVECTOR SampleAnimation(AnimationData& animData, float animationTime, XMVECTOR(
 				float t = (animationTime - animData.times[i - 1]) / (animData.times[i] - animData.times[i - 1]);
 				return interp(animData.data[i - 1], animData.data[i], t);
 			}
-			break;
 		}
 	}
 	return animData.data[animData.frameCount - 1];

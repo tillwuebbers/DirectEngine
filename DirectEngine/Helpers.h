@@ -45,7 +45,10 @@ inline std::chrono::steady_clock::time_point StartTimer()
 inline std::string EndTimer(std::chrono::steady_clock::time_point startTime, std::string funcName, std::string info)
 {
     float durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTime).count();
-    return std::format("{}: {}ms ({})", funcName, durationMs, info);
+    std::string message = std::format("{}: {}ms ({})", funcName, durationMs, info);
+    std::string messageN = message + "\r\n";
+    OutputDebugStringA(messageN.c_str());
+    return message;
 }
 
 inline std::wstring EndTimer(std::chrono::steady_clock::time_point startTime, std::wstring funcName, std::wstring info)

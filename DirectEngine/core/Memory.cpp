@@ -39,6 +39,13 @@ void* MemoryArena::Allocate(size_t size)
 	return result;
 }
 
+void* MemoryArena::AllocateAligned(size_t size, size_t alignment)
+{
+	size_t difference = Align(used, alignment) - used;
+	Allocate(difference);
+	return Allocate(size);
+}
+
 void MemoryArena::Reset(bool freePages)
 {
 	if (freePages)

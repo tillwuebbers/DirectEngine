@@ -249,7 +249,7 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 			}
 
 			animData->times = NewArray(arena, float, timeAccessor.count);
-			animData->data = NewArray(arena, XMVECTOR, timeAccessor.count);
+			animData->data = NewArrayAligned(arena, XMVECTOR, timeAccessor.count, 16);
 
 			// TODO: resample animation?
 			for (int i = 0; i < timeAccessor.count; i++)

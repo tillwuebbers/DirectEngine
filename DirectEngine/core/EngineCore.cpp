@@ -516,7 +516,6 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
     }
     if (FAILED(config->creationError)) return;
 #else
-    UINT compileFlags = 0;
     std::wstring path = std::wstring(L"shaders_bin/");
     path.append(config->shaderName);
 

@@ -1,7 +1,4 @@
-﻿# CMakeList.txt : CMake project for DirectEngine, include source and define
-# project specific logic here.
-#
-cmake_minimum_required (VERSION 3.12)
+﻿cmake_minimum_required (VERSION 3.12)
 
 file (GLOB CORE_CODE core/*.h core/*.cpp)
 file (GLOB GAME_CODE game/*.h game/*.cpp)

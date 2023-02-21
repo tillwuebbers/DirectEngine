@@ -23,6 +23,7 @@ public:
 
     MemoryArena(size_t capacity = 1024 * 1024 * 1024);
     void* Allocate(size_t size);
+    void* AllocateAligned(size_t size, size_t alignment);
     void Reset(bool freePages = false);
 
     // Copying this thing is probably a very bad idea (and moving it shouldn't be necessary).
@@ -63,7 +64,9 @@ public:
 };
 
 #define NewObject(arena, type, ...) new((arena).Allocate(sizeof(type))) type(__VA_ARGS__)
+#define NewObjectAligned(arena, type, alignment, ...) new((arena).AllocateAligned(sizeof(type), (alignment))) type(__VA_ARGS__)
 #define NewArray(arena, type, count, ...) new((arena).Allocate(sizeof(type) * (count))) type[count](__VA_ARGS__)
+#define NewArrayAligned(arena, type, count, alignment, ...) new((arena).AllocateAligned(sizeof(type) * (count), (alignment))) type[count](__VA_ARGS__)
 
 template <typename T>
 class ArenaList
