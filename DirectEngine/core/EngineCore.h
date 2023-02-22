@@ -217,10 +217,15 @@ public:
     UINT m_rtvDescriptorSize;
     UINT m_dsvDescriptorSize;
 
+    UINT m_constantBufferCount = 0;
+    UINT m_depthStencilViewCount = 2; // main dsv, shadow dsv
+    UINT m_renderTargetViewCount = FrameCount;
+
     // App resources
     ConstantBuffer<SceneConstantBuffer> m_sceneConstantBuffer = {};
     ConstantBuffer<LightConstantBuffer> m_lightConstantBuffer = {};
     ShadowMap* m_shadowmap = nullptr;
+    RenderTexture* m_renderTexture = nullptr;
     ID3D12Resource* m_textureUploadHeaps[MAX_TEXTURE_UPLOADS] = {};
     size_t m_textureUploadIndex = 0;
     MaterialData m_materials[MAX_MATERIALS] = {};
@@ -263,6 +268,7 @@ public:
     // TODO: don't init this in game
     D3D12_VERTEX_BUFFER_VIEW cubeVertexView;
     bool renderAABB = false;
+    const float m_renderTargetClearColor[4] = {0.0f, 0.0f, 0.0f, 1.0f};
     
     // Audio
     IXAudio2* m_audio;
@@ -282,9 +288,11 @@ public:
     void CreateGameWindow(const wchar_t* windowClassName, HINSTANCE hInst, uint32_t width, uint32_t height);
     void LoadPipeline(LUID* requiredLuid);
     void LoadSizeDependentResources();
+    DescriptorHandle CreateDepthStencilView(UINT width, UINT height, ComStack& comStack, ID3D12Resource** bufferTarget, int fixedOffset = -1);
     void CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount);
     void CreatePipelineState(PipelineConfig* config);
     void LoadAssets();
+    RenderTexture* CreateRenderTexture(UINT width, UINT height);
     Texture* CreateTexture(const wchar_t* filePath);
     void InitGPUTexture(Texture& outTexture, DXGI_FORMAT format, UINT width, UINT height, const wchar_t* name);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
@@ -293,7 +301,7 @@ public:
     size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
     void UploadVertices();
     void RenderShadows(ID3D12GraphicsCommandList* renderList);
-    void RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
+    void RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, bool skipRenderTextures = false);
     void RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
     void RenderBones(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
     void RenderDebugLines(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
@@ -309,9 +317,6 @@ public:
     double TimeSinceStart();
     double TimeSinceFrameStart();
 
-    // TODO: be smarter about this?
-    UINT cbcount = 0;
-
     void Transition(ID3D12GraphicsCommandList* renderList, ID3D12Resource* resource, D3D12_RESOURCE_STATES from, D3D12_RESOURCE_STATES to)
     {
         CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(resource, from, to);
@@ -320,15 +325,37 @@ public:
 
     DescriptorHandle GetNewDescriptorHandle()
     {
-        D3D12_CPU_DESCRIPTOR_HANDLE cpuHeapStart = m_cbvHeap->GetCPUDescriptorHandleForHeapStart();
-        CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHeapEntry{};
-        cpuHeapEntry.InitOffsetted(cpuHeapStart, cbcount * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        assert(m_constantBufferCount < m_cbvHeap->GetDesc().NumDescriptors);
 
-        D3D12_GPU_DESCRIPTOR_HANDLE gpuHeapStart = m_cbvHeap->GetGPUDescriptorHandleForHeapStart();
-        CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHeapEntry{};
-        gpuHeapEntry.InitOffsetted(gpuHeapStart, cbcount * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        UINT incrementSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHeapEntry(m_cbvHeap->GetCPUDescriptorHandleForHeapStart(), m_constantBufferCount, incrementSize);
+        CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHeapEntry(m_cbvHeap->GetGPUDescriptorHandleForHeapStart(), m_constantBufferCount, incrementSize);
 
-        cbcount++;
+        m_constantBufferCount++;
+        return { cpuHeapEntry, gpuHeapEntry };
+    }
+
+    DescriptorHandle GetNewRTVHandle()
+    {
+        assert(m_renderTargetViewCount < m_rtvHeap->GetDesc().NumDescriptors);
+
+        UINT incrementSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHeapEntry(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_renderTargetViewCount, incrementSize);
+		CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHeapEntry(m_rtvHeap->GetGPUDescriptorHandleForHeapStart(), m_renderTargetViewCount, incrementSize);
+
+		m_renderTargetViewCount++;
+		return { cpuHeapEntry, gpuHeapEntry };
+    }
+
+    DescriptorHandle GetNewDSVHandle()
+    {
+        assert(m_depthStencilViewCount < m_depthStencilHeap->GetDesc().NumDescriptors);
+
+        UINT incrementSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+        CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHeapEntry(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart(), m_depthStencilViewCount, incrementSize);
+        CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHeapEntry(m_depthStencilHeap->GetGPUDescriptorHandleForHeapStart(), m_depthStencilViewCount, incrementSize);
+
+        m_depthStencilViewCount++;
         return { cpuHeapEntry, gpuHeapEntry };
     }
 

@@ -389,7 +389,7 @@ void Game::DrawUI(EngineCore& engine)
 						ImGui::Checkbox("Visible", &never);
 						ImGui::EndDisabled();
 					}
-					ImGui::Checkbox("Shadow Bounds", &entity->checkForShadowBounds);
+
 					std::vector<std::string> attributes{};
 					if (entity->isEnemy) attributes.push_back("enemy");
 					if (entity->isProjectile) attributes.push_back("projectile");

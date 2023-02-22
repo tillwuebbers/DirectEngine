@@ -20,3 +20,17 @@ struct ShadowMap
 	void SetSize(UINT newWidth, UINT newHeight);
 	void Build(ID3D12Device* device, ComStack& comStack);
 };
+
+struct RenderTexture
+{
+	UINT width;
+	UINT height;
+	DXGI_FORMAT format;
+	CD3DX12_VIEWPORT viewport;
+	CD3DX12_RECT scissorRect;
+
+	Texture texture{};
+	ID3D12Resource* dsvBuffer;
+	DescriptorHandle rtvHandle{};
+	DescriptorHandle dsvHandle{};
+};

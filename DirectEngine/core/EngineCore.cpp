@@ -234,7 +234,7 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
 
         // Depth/Stencil descriptor heap
         D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
-        dsvHeapDesc.NumDescriptors = FrameCount * 3; // TODO
+        dsvHeapDesc.NumDescriptors = 3; // Main, shadow, render texture
         dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
         dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         ThrowIfFailed(m_device->CreateDescriptorHeap(&dsvHeapDesc, NewComObject(comPointers, &m_depthStencilHeap)));
@@ -258,7 +258,6 @@ void EngineCore::LoadSizeDependentResources()
 {
     // Create frame resources.
     {
-
         D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
         rtvDesc.Format = DISPLAY_FORMAT;
         rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
@@ -275,25 +274,44 @@ void EngineCore::LoadSizeDependentResources()
     }
 
     // depth/stencil view
+    CreateDepthStencilView(m_width, m_height, comPointersSizeDependent, &m_depthStencilBuffer, 0);
+}
+
+DescriptorHandle EngineCore::CreateDepthStencilView(UINT width, UINT height, ComStack& comStack, ID3D12Resource** bufferTarget, int fixedOffset)
+{
+    assert(bufferTarget != nullptr);
+
+    D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
+    depthStencilDesc.Format = DEPTH_BUFFER_FORMAT;
+    depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+    depthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
+
+    D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
+    depthOptimizedClearValue.Format = DEPTH_BUFFER_FORMAT;
+    depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
+    depthOptimizedClearValue.DepthStencil.Stencil = 0;
+
+    CD3DX12_HEAP_PROPERTIES heapType(D3D12_HEAP_TYPE_DEFAULT);
+    CD3DX12_RESOURCE_DESC depthTexture = CD3DX12_RESOURCE_DESC::Tex2D(DEPTH_BUFFER_FORMAT_TYPELESS, width, height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
+
+    ThrowIfFailed(m_device->CreateCommittedResource(&heapType, D3D12_HEAP_FLAG_NONE, &depthTexture, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, NewComObject(comStack, bufferTarget)));
+    (*bufferTarget)->SetName(L"Depth/Stencil Buffer");
+
+    DescriptorHandle dsvHandle;
+    if (fixedOffset >= 0)
     {
-        D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
-        depthStencilDesc.Format = DEPTH_BUFFER_FORMAT;
-        depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-        depthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
-
-        D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
-        depthOptimizedClearValue.Format = DEPTH_BUFFER_FORMAT;
-        depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
-        depthOptimizedClearValue.DepthStencil.Stencil = 0;
-
-        CD3DX12_HEAP_PROPERTIES heapType(D3D12_HEAP_TYPE_DEFAULT);
-        CD3DX12_RESOURCE_DESC depthTexture = CD3DX12_RESOURCE_DESC::Tex2D(DEPTH_BUFFER_FORMAT_TYPELESS, m_width, m_height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
-
-        ThrowIfFailed(m_device->CreateCommittedResource(&heapType, D3D12_HEAP_FLAG_NONE, &depthTexture, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, NewComObject(comPointersSizeDependent, &m_depthStencilBuffer)));
-        m_depthStencilBuffer->SetName(L"Depth/Stencil Buffer");
-
-        m_device->CreateDepthStencilView(m_depthStencilBuffer, &depthStencilDesc, m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart());
+        dsvHandle = {
+            CD3DX12_CPU_DESCRIPTOR_HANDLE(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart(), fixedOffset, m_dsvDescriptorSize),
+            CD3DX12_GPU_DESCRIPTOR_HANDLE(m_depthStencilHeap->GetGPUDescriptorHandleForHeapStart(), fixedOffset, m_dsvDescriptorSize)
+        };
     }
+    else
+    {
+        dsvHandle = GetNewDSVHandle();
+    }
+
+    m_device->CreateDepthStencilView(*bufferTarget, &depthStencilDesc, dsvHandle.cpuHandle);
+    return dsvHandle;
 }
 
 void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount)
@@ -581,12 +599,16 @@ void EngineCore::LoadAssets()
         m_lightConstantBuffer.UploadData(i);
     }
 
+    // Shadowmap
     m_shadowmap = NewObject(engineArena, ShadowMap, DEPTH_BUFFER_FORMAT_TYPELESS);
 
     m_shadowmap->depthStencilViewCPU = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart(), 1, m_dsvDescriptorSize);
     m_shadowmap->shaderResourceViewHandle = GetNewDescriptorHandle();
     m_shadowmap->SetSize(SHADOWMAP_SIZE, SHADOWMAP_SIZE);
     m_shadowmap->Build(m_device, comPointers);
+
+    // Render texture
+    m_renderTexture = CreateRenderTexture(2048, 2048);
 
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
     {
@@ -608,6 +630,29 @@ void EngineCore::LoadAssets()
     }
 }
 
+RenderTexture* EngineCore::CreateRenderTexture(UINT width, UINT height)
+{
+    RenderTexture* result = NewObject(engineArena, RenderTexture);
+    InitGPUTexture(result->texture, DISPLAY_FORMAT, width, height, L"Render Texture");
+    
+    result->width = width;
+    result->height = height;
+    result->format = DISPLAY_FORMAT;
+    result->viewport = CD3DX12_VIEWPORT{ 0.f, 0.f, static_cast<float>(width), static_cast<float>(height) };
+    result->scissorRect = CD3DX12_RECT{ 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
+
+    result->rtvHandle = GetNewRTVHandle();
+
+    D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+    rtvDesc.Format = DISPLAY_FORMAT;
+    rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+    m_device->CreateRenderTargetView(result->texture.buffer, &rtvDesc, result->rtvHandle.cpuHandle);
+
+    result->dsvHandle = CreateDepthStencilView(width, height, comPointers, &result->dsvBuffer);
+
+    return result;
+}
+
 Texture* EngineCore::CreateTexture(const wchar_t* filePath)
 {
 	assert(m_textureCount < MAX_TEXTURE_UPLOADS);
@@ -627,15 +672,20 @@ Texture* EngineCore::CreateTexture(const wchar_t* filePath)
 void EngineCore::InitGPUTexture(Texture& outTexture, DXGI_FORMAT format, UINT width, UINT height, const wchar_t* name)
 {
     D3D12_RESOURCE_DESC textureDesc = CD3DX12_RESOURCE_DESC::Tex2D(format, width, height);
+    textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+    // clear color
+    CD3DX12_CLEAR_VALUE clearColor(format, m_renderTargetClearColor);
+
     CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_DEFAULT);
-    m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, NewComObject(comPointers, &outTexture.buffer));
+    m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clearColor, NewComObject(comPointers, &outTexture.buffer));
     outTexture.buffer->SetName(name);
 
     outTexture.handle = GetNewDescriptorHandle();
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.Format = textureDesc.Format;
+    srvDesc.Format = format;
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Texture2D.MipLevels = 1; // TODO?
     m_device->CreateShaderResourceView(outTexture.buffer, &srvDesc, outTexture.handle.cpuHandle);
@@ -860,7 +910,7 @@ void EngineCore::ExecCommandList(ID3D12GraphicsCommandList* commandList)
 void EngineCore::PopulateCommandList()
 {
     // Desktop Render
-    BeginProfile("Render Stage 1", ImColor::HSV(.0, .5, 1.));
+    BeginProfile("Render Setup", ImColor::HSV(.4, .05, 1.));
 
     // Command list allocators can only be reset when the associated 
     // command lists have finished execution on the GPU; apps should use 
@@ -891,8 +941,10 @@ void EngineCore::PopulateCommandList()
     D3D12_CPU_DESCRIPTOR_HANDLE rtvHandleWindow = m_swapchainRtvHandles[m_frameIndex];
     D3D12_CPU_DESCRIPTOR_HANDLE dsvHandleWindow = m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart();
     ID3D12Resource* renderTargetWindow = m_renderTargets[m_frameIndex];
+    EndProfile("Render Setup");
 
-    // Stage 1
+    // Shadows
+    BeginProfile("Render Shadows", ImColor::HSV(.5, .1, 1.));
     RenderShadows(m_renderCommandList);
 
     Transition(m_renderCommandList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COPY_SOURCE);
@@ -900,10 +952,28 @@ void EngineCore::PopulateCommandList()
     Transition(m_renderCommandList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
     ExecCommandList(m_renderCommandList);
-    EndProfile("Render Stage 1");
+    EndProfile("Render Shadows");
+
+    // Render Textures
+    BeginProfile("RenderTextures", ImColor::HSV(.6, .2, 1.));
+    ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
+
+    m_renderCommandList->RSSetViewports(1, &m_renderTexture->viewport);
+    m_renderCommandList->RSSetScissorRects(1, &m_renderTexture->scissorRect);
+
+    Transition(m_renderCommandList, m_renderTexture->texture.buffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+    m_renderCommandList->ClearRenderTargetView(m_renderTexture->rtvHandle.cpuHandle, m_renderTargetClearColor, 0, nullptr);
+    m_renderCommandList->ClearDepthStencilView(m_renderTexture->dsvHandle.cpuHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+    RenderScene(m_renderCommandList, m_renderTexture->rtvHandle.cpuHandle, m_renderTexture->dsvHandle.cpuHandle, true);
+
+    Transition(m_renderCommandList, m_renderTexture->texture.buffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+    ExecCommandList(m_renderCommandList);
+    EndProfile("RenderTextures");
 
     // 'Main' render
-    BeginProfile("Render Stage 2", ImColor::HSV(.0, .7, 1.));
+    BeginProfile("Render Main", ImColor::HSV(.7, .3, 1.));
 
     ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
     Transition(m_renderCommandList, renderTargetWindow, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -911,14 +981,17 @@ void EngineCore::PopulateCommandList()
     m_renderCommandList->ClearRenderTargetView(rtvHandleWindow, m_game->GetClearColor(), 0, nullptr);
     m_renderCommandList->ClearDepthStencilView(dsvHandleWindow, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
+    m_renderCommandList->RSSetViewports(1, &m_viewport);
+    m_renderCommandList->RSSetScissorRects(1, &m_scissorRect);
+
     RenderScene(m_renderCommandList, rtvHandleWindow, dsvHandleWindow);
     RenderWireframe(m_renderCommandList, rtvHandleWindow, dsvHandleWindow);
     RenderDebugLines(m_renderCommandList, rtvHandleWindow, dsvHandleWindow);
     DrawImgui(m_renderCommandList, &rtvHandleWindow);
+    
     Transition(m_renderCommandList, renderTargetWindow, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-
     ExecCommandList(m_renderCommandList);
-    EndProfile("Render Stage 2");
+    EndProfile("Render Main");
 }
 
 void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
@@ -940,11 +1013,10 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
     // Barrier to transition shadow map
     Transition(renderList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE shadowHandle(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart(), 1, m_dsvDescriptorSize);
-    renderList->OMSetRenderTargets(0, nullptr, FALSE, &shadowHandle);
+    renderList->OMSetRenderTargets(0, nullptr, FALSE, &m_shadowmap->depthStencilViewCPU);
 
     // Record commands.
-    renderList->ClearDepthStencilView(shadowHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+    renderList->ClearDepthStencilView(m_shadowmap->depthStencilViewCPU, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     for (int drawIdx = 0; drawIdx < m_materialCount; drawIdx++)
@@ -963,11 +1035,8 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
     }
 }
 
-void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle)
+void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, bool skipRenderTextures)
 {
-    renderList->RSSetViewports(1, &m_viewport);
-    renderList->RSSetScissorRects(1, &m_scissorRect);
-
     renderList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
     ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap };
@@ -988,10 +1057,20 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
         renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
         renderList->SetGraphicsRoot32BitConstant(CAM, cameraIndex, 0);
 
+        bool skipRender = false;
         for (int textureIdx = 0; textureIdx < data.pipeline->textureSlotCount; textureIdx++)
         {
-            renderList->SetGraphicsRootDescriptorTable(CUSTOM_START + textureIdx, data.textures[textureIdx]->handle.gpuHandle);
+            if (!skipRenderTextures || data.textures[textureIdx] != &m_renderTexture->texture)
+            {
+                renderList->SetGraphicsRootDescriptorTable(CUSTOM_START + textureIdx, data.textures[textureIdx]->handle.gpuHandle);
+            }
+            else
+            {
+                skipRender = true;
+            }
         }
+
+        if (skipRender) continue;
 
         for (int entityIndex = 0; entityIndex < data.entityCount; entityIndex++)
         {

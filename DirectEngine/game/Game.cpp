@@ -17,6 +17,7 @@ void Game::StartGame(EngineCore& engine)
 	std::wstring defaultShader = L"entity";
 	std::wstring groundShader = L"ground";
 	std::wstring laserShader = L"laser";
+	std::wstring textureQuad = L"texturequad";
 
 	// Textures
 	diffuseTexture = engine.CreateTexture(L"textures/ground_D.dds");
@@ -29,6 +30,7 @@ void Game::StartGame(EngineCore& engine)
 	size_t memeMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { memeTexture }, defaultShader);
 	size_t groundMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, groundShader);
 	size_t laserMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, laserShader);
+	size_t textureQuadMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTexture->texture }, textureQuad);
 
 	LOG_TIMER(timer, "Test Materials", debugLog);
 	RESET_TIMER(timer);
@@ -43,6 +45,9 @@ void Game::StartGame(EngineCore& engine)
 	RESET_TIMER(timer);
 
 	// Entities
+	renderTextureTestEntity = CreateMeshEntity(engine, textureQuadMaterialIndex, cubeMeshView);
+	renderTextureTestEntity->position = { 3.f, 1.f, 0.f };
+
 	playerEntity = CreateEmptyEntity(engine);
 	playerEntity->name = "Player";
 	cameraEntity = CreateEmptyEntity(engine);
@@ -100,7 +105,6 @@ void Game::StartGame(EngineCore& engine)
 
 	laser = CreateMeshEntity(engine, laserMaterialIndex, cubeMeshView);
 	laser->name = "Laser";
-	laser->checkForShadowBounds = false;
 	laser->Disable();
 	playerEntity->AddChild(laser);
 

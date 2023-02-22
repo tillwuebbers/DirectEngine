@@ -33,7 +33,6 @@ public:
 	bool isSkinnedRoot = false;
 	TransformHierachy* transformHierachy;
 
-	bool checkForShadowBounds = true;
 	XMVECTOR aabbLocalPosition = { 0., 0., 0. };
 	XMVECTOR aabbLocalSize = { 1., 1., 1. };
 	uint64_t collisionLayers = 0;
