@@ -1,6 +1,6 @@
 #include "util/common.hlsl"
 
-cbuffer DrawConstants : register(b7)
+cbuffer DrawConstants : register(b6)
 {
 	uint boneIndex;
 };

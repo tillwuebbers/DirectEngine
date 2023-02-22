@@ -144,8 +144,6 @@ void SetInputUp(size_t button)
 // Window event callback (runs on window thread, be careful with accessing game engine data that might be in use in render thread!)
 LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	if (engineCore == nullptr) return 0;
-
 	ImGuiInputBlock blockedInputs{};
 	if (cursorVisible)
 	{
@@ -244,6 +242,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 		RAWINPUT* raw = (RAWINPUT*)lpb;
 		if (raw->header.dwType == RIM_TYPEMOUSE)
 		{
+			if (engineCore == nullptr) return 0;
 			EngineInput& input = engineCore->m_game->GetInput();
 			input.accessMutex.lock();
 			input.mouseDeltaAccX += raw->data.mouse.lLastX;

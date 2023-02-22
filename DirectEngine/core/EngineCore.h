@@ -50,10 +50,9 @@ enum RootSignatureOffset : UINT
     LIGHT = 1,
     ENTITY = 2,
     BONES = 3,
-    XR = 4,
+    CAMERA = 4,
     SHADOWMAP = 5,
-    CAM = 6,
-    CUSTOM_START = 7,
+    CUSTOM_START = 6,
 };
 
 struct FrameDebugData
@@ -77,13 +76,8 @@ struct ConstantBuffer
 
 struct SceneConstantBuffer
 {
-    MAT_CMAJ cameraView = {};
-    MAT_CMAJ cameraProjection = {};
-    XMVECTOR postProcessing = {};
-    XMVECTOR fogColor = {};
-    XMVECTOR worldCameraPos = {};
     XMVECTOR time;
-    float padding[14];
+    float padding[(256 - 16) / 4];
 };
 static_assert((sizeof(SceneConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
@@ -106,6 +100,17 @@ struct EntityConstantBuffer
     float padding[(256 - 64 - 3 * 16 - 16) / 4];
 };
 static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
+
+struct CameraConstantBuffer
+{
+	MAT_CMAJ cameraView = {};
+	MAT_CMAJ cameraProjection = {};
+	XMVECTOR postProcessing = {};
+	XMVECTOR fogColor = {};
+	XMVECTOR worldCameraPos = {};
+	float padding[(256 - 2 * 64 - 3 * 16) / 4];
+};
+static_assert((sizeof(CameraConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
 struct BoneMatricesBuffer
 {
@@ -163,6 +168,24 @@ public:
     }
 };
 
+struct CameraData
+{
+    ConstantBuffer<CameraConstantBuffer> constantBuffer = {};
+    XMVECTOR position{ 0.f, 0.f, 0.f };
+    XMVECTOR rotation{ 0.f, 0.f, 0.f, 1.f };
+    float fovY = 45.f;
+    float aspectRatio = 1.f;
+    float nearClip = .1f;
+    float farClip = 100.f;
+    bool skipRenderTextures = false;
+
+    void UpdateMatrices()
+    {
+        constantBuffer.data.cameraView = XMMatrixTranspose(XMMatrixMultiply(XMMatrixTranslationFromVector(XMVectorScale(position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(rotation))));
+        constantBuffer.data.cameraProjection = XMMatrixTranspose(XMMatrixPerspectiveFovLH(fovY, aspectRatio, nearClip, farClip));
+    }
+};
+
 class EngineCore
 {
 public:
@@ -209,7 +232,6 @@ public:
     ID3D12GraphicsCommandList* m_renderCommandList = nullptr;
     bool m_scheduleUpload = false;
     PipelineConfig* m_shadowConfig;
-    PipelineConfig* m_boneDebugConfig;
     PipelineConfig* m_wireframeConfig;
     PipelineConfig* m_debugLineConfig;
     
@@ -225,14 +247,18 @@ public:
     ConstantBuffer<SceneConstantBuffer> m_sceneConstantBuffer = {};
     ConstantBuffer<LightConstantBuffer> m_lightConstantBuffer = {};
     ShadowMap* m_shadowmap = nullptr;
-    RenderTexture* m_renderTexture = nullptr;
     ID3D12Resource* m_textureUploadHeaps[MAX_TEXTURE_UPLOADS] = {};
     size_t m_textureUploadIndex = 0;
     MaterialData m_materials[MAX_MATERIALS] = {};
     size_t m_materialCount = 0;
 	Texture m_textures[MAX_TEXTURE_UPLOADS] = {};
 	size_t m_textureCount = 0;
-    uint32_t cameraIndex = 0;
+    CameraData m_cameras[MAX_CAMERAS] = {};
+    uint32_t m_cameraCount = 0;
+
+    CameraData* mainCamera = nullptr;
+    CameraData* renderTextureCamera = nullptr;
+    RenderTexture* m_renderTexture = nullptr;
 
     // Synchronization objects
     UINT m_frameIndex = 0;
@@ -288,10 +314,11 @@ public:
     void CreateGameWindow(const wchar_t* windowClassName, HINSTANCE hInst, uint32_t width, uint32_t height);
     void LoadPipeline(LUID* requiredLuid);
     void LoadSizeDependentResources();
+    void LoadAssets();
+    CameraData* CreateCamera();
     DescriptorHandle CreateDepthStencilView(UINT width, UINT height, ComStack& comStack, ID3D12Resource** bufferTarget, int fixedOffset = -1);
     void CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount);
     void CreatePipelineState(PipelineConfig* config);
-    void LoadAssets();
     RenderTexture* CreateRenderTexture(UINT width, UINT height);
     Texture* CreateTexture(const wchar_t* filePath);
     void InitGPUTexture(Texture& outTexture, DXGI_FORMAT format, UINT width, UINT height, const wchar_t* name);
@@ -301,10 +328,10 @@ public:
     size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
     void UploadVertices();
     void RenderShadows(ID3D12GraphicsCommandList* renderList);
-    void RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, bool skipRenderTextures = false);
-    void RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
-    void RenderBones(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
-    void RenderDebugLines(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle);
+    void RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);
+    void RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);
+    void RenderBones(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);
+    void RenderDebugLines(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);
     void ExecCommandList(ID3D12GraphicsCommandList* commandList);
     void PopulateCommandList();
     void MoveToNextFrame();

@@ -116,7 +116,7 @@ void Game::DrawUI(EngineCore& engine)
 			}
 
 			ImGui::NewLine();
-			ImGui::Text("Camera Position: %.1f %.1f %.1f", SPLIT_V3(camera.position));
+			ImGui::Text("Camera Position: %.1f %.1f %.1f", SPLIT_V3(engine.mainCamera->position));
 			ImGui::Text("Camera Rotation: %.1f %.1f", playerPitch / XM_2PI * 360.f, playerYaw / XM_2PI * 360.f);
 
 			ImGui::NewLine();

@@ -330,20 +330,19 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
         std::vector<CD3DX12_DESCRIPTOR_RANGE1> ranges{CUSTOM_START + config->textureSlotCount + constantBufferCount};
         std::vector<CD3DX12_ROOT_PARAMETER1> rootParameters{CUSTOM_START + config->textureSlotCount + constantBufferCount + rootConstantCount};
 
-        ranges[SCENE].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, SCENE, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
-        ranges[LIGHT].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, LIGHT, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
-        ranges[ENTITY].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, ENTITY, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
-        ranges[BONES].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, BONES, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
-        ranges[XR].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, XR, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+        ranges[SCENE]    .Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, SCENE,     0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+        ranges[LIGHT]    .Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, LIGHT,     0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+        ranges[ENTITY]   .Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, ENTITY,    0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+        ranges[BONES]    .Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, BONES,     0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+        ranges[CAMERA]   .Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, CAMERA,    0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         ranges[SHADOWMAP].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, SHADOWMAP, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         
-        rootParameters[SCENE].InitAsDescriptorTable(1, &ranges[SCENE], D3D12_SHADER_VISIBILITY_ALL);
-        rootParameters[LIGHT].InitAsDescriptorTable(1, &ranges[LIGHT], D3D12_SHADER_VISIBILITY_ALL);
-        rootParameters[ENTITY].InitAsDescriptorTable(1, &ranges[ENTITY], D3D12_SHADER_VISIBILITY_VERTEX);
-        rootParameters[BONES].InitAsDescriptorTable(1, &ranges[BONES], D3D12_SHADER_VISIBILITY_VERTEX);
-        rootParameters[XR].InitAsDescriptorTable(1, &ranges[XR], D3D12_SHADER_VISIBILITY_VERTEX);
+        rootParameters[SCENE]    .InitAsDescriptorTable(1, &ranges[SCENE],     D3D12_SHADER_VISIBILITY_ALL);
+        rootParameters[LIGHT]    .InitAsDescriptorTable(1, &ranges[LIGHT],     D3D12_SHADER_VISIBILITY_ALL);
+        rootParameters[ENTITY]   .InitAsDescriptorTable(1, &ranges[ENTITY],    D3D12_SHADER_VISIBILITY_VERTEX);
+        rootParameters[BONES]    .InitAsDescriptorTable(1, &ranges[BONES],     D3D12_SHADER_VISIBILITY_VERTEX);
+        rootParameters[CAMERA]   .InitAsDescriptorTable(1, &ranges[CAMERA],    D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[SHADOWMAP].InitAsDescriptorTable(1, &ranges[SHADOWMAP], D3D12_SHADER_VISIBILITY_PIXEL);
-        rootParameters[CAM].InitAsConstants(1, CAM);
         
         for (int i = 0; i < config->textureSlotCount; i++)
         {
@@ -553,11 +552,6 @@ void EngineCore::LoadAssets()
     m_shadowConfig->shadow = true;
     CreatePipeline(m_shadowConfig, 0, 0);
 
-    m_boneDebugConfig = NewObject(engineArena, PipelineConfig, L"bones", 0);
-    m_boneDebugConfig->wireframe = true;
-    m_boneDebugConfig->ignoreDepth = true;
-    CreatePipeline(m_boneDebugConfig, 0, 1);
-    
     m_wireframeConfig = NewObject(engineArena, PipelineConfig, L"aabb", 0);
     m_wireframeConfig->wireframe = true;
     CreatePipeline(m_wireframeConfig, 0, 0);
@@ -589,6 +583,11 @@ void EngineCore::LoadAssets()
     // Create the upload command list
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_uploadCommandAllocators[m_frameIndex], nullptr, NewComObject(comPointers, &m_uploadCommandList)));
     m_uploadCommandList->SetName(L"Upload Command List");
+
+    // Cameras
+    mainCamera = CreateCamera();
+    renderTextureCamera = CreateCamera();
+    renderTextureCamera->skipRenderTextures = true;
 
     // Shader values for scene
     CreateConstantBuffers<SceneConstantBuffer>(m_sceneConstantBuffer, L"Scene Constant Buffer");
@@ -628,6 +627,17 @@ void EngineCore::LoadAssets()
         // complete before continuing.
         WaitForGpu();
     }
+}
+
+CameraData* EngineCore::CreateCamera()
+{
+    assert(m_cameraCount < MAX_CAMERAS);
+    CameraData& cam = m_cameras[m_cameraCount] = {};
+    m_cameraCount++;
+
+    CreateConstantBuffers(cam.constantBuffer, L"Camera Constant Buffer");
+
+    return &cam;
 }
 
 RenderTexture* EngineCore::CreateRenderTexture(UINT width, UINT height)
@@ -925,7 +935,6 @@ void EngineCore::PopulateCommandList()
     // Upload Data
     m_sceneConstantBuffer.UploadData(m_frameIndex);
     m_lightConstantBuffer.UploadData(m_frameIndex);
-    cameraIndex = 0;
 
     for (int matIndex = 0; matIndex < m_materialCount; matIndex++)
     {
@@ -936,6 +945,15 @@ void EngineCore::PopulateCommandList()
             entityData->boneConstantBuffer.UploadData(m_frameIndex);
         }
     }
+
+    mainCamera->aspectRatio = m_aspectRatio;
+    for (int camIndex = 0; camIndex < m_cameraCount; camIndex++)
+	{
+		CameraData& cameraData = m_cameras[camIndex];
+        cameraData.constantBuffer.data.worldCameraPos = cameraData.position;
+        cameraData.UpdateMatrices();
+		cameraData.constantBuffer.UploadData(m_frameIndex);
+	}
 
     // Setup Handles
     D3D12_CPU_DESCRIPTOR_HANDLE rtvHandleWindow = m_swapchainRtvHandles[m_frameIndex];
@@ -965,7 +983,7 @@ void EngineCore::PopulateCommandList()
 
     m_renderCommandList->ClearRenderTargetView(m_renderTexture->rtvHandle.cpuHandle, m_renderTargetClearColor, 0, nullptr);
     m_renderCommandList->ClearDepthStencilView(m_renderTexture->dsvHandle.cpuHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-    RenderScene(m_renderCommandList, m_renderTexture->rtvHandle.cpuHandle, m_renderTexture->dsvHandle.cpuHandle, true);
+    RenderScene(m_renderCommandList, m_renderTexture->rtvHandle.cpuHandle, m_renderTexture->dsvHandle.cpuHandle, renderTextureCamera);
 
     Transition(m_renderCommandList, m_renderTexture->texture.buffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
@@ -984,9 +1002,9 @@ void EngineCore::PopulateCommandList()
     m_renderCommandList->RSSetViewports(1, &m_viewport);
     m_renderCommandList->RSSetScissorRects(1, &m_scissorRect);
 
-    RenderScene(m_renderCommandList, rtvHandleWindow, dsvHandleWindow);
-    RenderWireframe(m_renderCommandList, rtvHandleWindow, dsvHandleWindow);
-    RenderDebugLines(m_renderCommandList, rtvHandleWindow, dsvHandleWindow);
+    RenderScene(m_renderCommandList, rtvHandleWindow, dsvHandleWindow, mainCamera);
+    RenderWireframe(m_renderCommandList, rtvHandleWindow, dsvHandleWindow, mainCamera);
+    RenderDebugLines(m_renderCommandList, rtvHandleWindow, dsvHandleWindow, mainCamera);
     DrawImgui(m_renderCommandList, &rtvHandleWindow);
     
     Transition(m_renderCommandList, renderTargetWindow, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
@@ -1008,7 +1026,6 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
 
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
-    renderList->SetGraphicsRoot32BitConstant(CAM, cameraIndex, 0);
 
     // Barrier to transition shadow map
     Transition(renderList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
@@ -1035,7 +1052,7 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
     }
 }
 
-void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, bool skipRenderTextures)
+void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera)
 {
     renderList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
@@ -1054,13 +1071,13 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
 
         renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
         renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
+        renderList->SetGraphicsRootDescriptorTable(CAMERA, camera->constantBuffer.handles[m_frameIndex].gpuHandle);
         renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
-        renderList->SetGraphicsRoot32BitConstant(CAM, cameraIndex, 0);
 
         bool skipRender = false;
         for (int textureIdx = 0; textureIdx < data.pipeline->textureSlotCount; textureIdx++)
         {
-            if (!skipRenderTextures || data.textures[textureIdx] != &m_renderTexture->texture)
+            if (!camera->skipRenderTextures || data.textures[textureIdx] != &m_renderTexture->texture)
             {
                 renderList->SetGraphicsRootDescriptorTable(CUSTOM_START + textureIdx, data.textures[textureIdx]->handle.gpuHandle);
             }
@@ -1084,7 +1101,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
     }
 }
 
-void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle)
+void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera)
 {
     // Set necessary state.
     renderList->SetPipelineState(m_wireframeConfig->pipelineState);
@@ -1098,7 +1115,7 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CP
 
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
-    renderList->SetGraphicsRoot32BitConstant(CAM, cameraIndex, 0);
+    renderList->SetGraphicsRootDescriptorTable(CAMERA, camera->constantBuffer.handles[m_frameIndex].gpuHandle);
 
     renderList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
@@ -1133,7 +1150,7 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CP
     }
 }
 
-void EngineCore::RenderDebugLines(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle)
+void EngineCore::RenderDebugLines(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera)
 {
     // Set necessary state.
     renderList->SetPipelineState(m_debugLineConfig->pipelineState);
@@ -1146,7 +1163,7 @@ void EngineCore::RenderDebugLines(ID3D12GraphicsCommandList* renderList, D3D12_C
     renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
-    renderList->SetGraphicsRoot32BitConstant(CAM, cameraIndex, 0);
+    renderList->SetGraphicsRootDescriptorTable(CAMERA, camera->constantBuffer.handles[m_frameIndex].gpuHandle);
 
     renderList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
@@ -1227,16 +1244,6 @@ void EngineCore::OnShaderReload()
         _com_error err(m_shadowConfig->creationError);
 
         m_shaderError.append("Failed to create shadow pipeline state: ");
-        m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
-        return;
-    }
-
-    CreatePipelineState(m_boneDebugConfig);
-    if (FAILED(m_boneDebugConfig->creationError))
-    {
-        _com_error err(m_boneDebugConfig->creationError);
-
-        m_shaderError.append("Failed to create bone pipeline state: ");
         m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
         return;
     }

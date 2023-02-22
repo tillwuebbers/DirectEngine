@@ -114,7 +114,6 @@ void Game::StartGame(EngineCore& engine)
 	groundEntity->collisionLayers |= Floor;
 
 	// Defaults
-	camera.position = { 0.f, 10.f, 0.f };
 	playerPitch = XM_PI;
 
 	light.position = { 10.f, 10.f, 10.f };
@@ -143,7 +142,7 @@ void Game::UpdateGame(EngineCore& engine)
 
 	// Read camera rotation into vectors
 	XMVECTOR camForward, camRight, camUp;
-	CalculateDirectionVectors(camForward, camRight, camUp, camera.rotation);
+	CalculateDirectionVectors(camForward, camRight, camUp, engine.mainCamera->rotation);
 
 	// Reset per frame values
 	engine.m_debugLineData.lineVertices.clear();
@@ -156,7 +155,7 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 	if (input.KeyDown(VK_LBUTTON))
 	{
-		CollisionResult collision = CollideWithWorld(camera.position, camForward, ClickTest);
+		CollisionResult collision = CollideWithWorld(engine.mainCamera->position, camForward, ClickTest);
 	}
 	if (input.KeyComboJustPressed(VK_KEY_D, VK_CONTROL))
 	{
@@ -327,7 +326,7 @@ void Game::UpdateGame(EngineCore& engine)
 		Entity* enemy = enemies[i];
 		if (!enemy->isActive) continue;
 
-		XMVECTOR toPlayer = XMVector3Normalize(camera.position - enemy->position);
+		XMVECTOR toPlayer = XMVector3Normalize(engine.mainCamera->position - enemy->position);
 		enemy->velocity += XMVectorScale(toPlayer, engine.m_updateDeltaTime * enemyAcceleration);
 		float enemySpeed = XMVector3Length(enemy->velocity).m128_f32[0];
 		if (enemySpeed > enemyMaxSpeed)
@@ -338,7 +337,7 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 
 	// Kinda hacky enemy collision detection
-	CollisionResult enemyCollision = CollideWithWorld(camera.position, V3_DOWN, Dead);
+	CollisionResult enemyCollision = CollideWithWorld(engine.mainCamera->position, V3_DOWN, Dead);
 	if (enemyCollision.distance <= 0.f && enemyCollision.entity != nullptr)
 	{
 		Warn("DED");
@@ -409,18 +408,17 @@ void Game::UpdateGame(EngineCore& engine)
 		laser->spawnTime = engine.TimeSinceStart();
 		laser->GetData().visible = true;
 
-		XMVECTOR handPosition = camera.position + XMVector3Transform(PLAYER_HAND_OFFSET, engine.m_sceneConstantBuffer.data.cameraView);
-		laser->position = handPosition + camForward * LASER_LENGTH / 2.f;
-		laser->rotation = camera.rotation;
+		laser->position = {};
+		laser->rotation = XMQuaternionIdentity();
 		laser->scale = { .1f, .1f, LASER_LENGTH };
-		
+
 		lastLaserSpawn = engine.TimeSinceStart();
 		PlaySound(engine, &playerAudioSource, AudioFile::Shoot);
 
 		bool keepHitting = true;
 		while (keepHitting)
 		{
-			CollisionResult collision = CollideWithWorld(handPosition, camForward, Dead);
+			CollisionResult collision = CollideWithWorld(engine.mainCamera->position, camForward, Dead);
 			keepHitting = collision.distance <= LASER_LENGTH;
 			if (keepHitting)
 			{
@@ -433,7 +431,7 @@ void Game::UpdateGame(EngineCore& engine)
 	// Player Audio
 	XMStoreFloat3(&playerAudioListener.OrientFront, camForward);
 	XMStoreFloat3(&playerAudioListener.OrientTop, XMVector3Cross(camForward, camRight));
-	XMStoreFloat3(&playerAudioListener.Position, camera.position);
+	XMStoreFloat3(&playerAudioListener.Position, engine.mainCamera->position);
 	XMStoreFloat3(&playerAudioListener.Velocity, playerVelocity);
 
 	// Update entities
@@ -458,24 +456,21 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 	}
 
-
 	// Update Camera
-	XMVECTOR camTranslation;
-	XMVECTOR camRotation;
-	XMVECTOR camScale; //ignored
+	XMVECTOR camTranslation, camRotation, camScale;
 	XMMatrixDecompose(&camScale, &camRotation, &camTranslation, cameraEntity->worldMatrix);
-	camera.position = camTranslation;
-	camera.rotation = camRotation;
-	CalculateDirectionVectors(camForward, camRight, camUp, camera.rotation);
+	engine.mainCamera->position = camTranslation;
+	engine.mainCamera->rotation = camRotation;
+	engine.renderTextureCamera->position = { 3.f, 3.f, 3.f };
 
-	MAT_RMAJ camView = XMMatrixMultiply(XMMatrixTranslationFromVector(XMVectorScale(camera.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(camera.rotation)));
-	MAT_RMAJ camProj = XMMatrixPerspectiveFovLH(camera.fovY, engine.m_aspectRatio, camera.nearClip, camera.farClip);
+	CalculateDirectionVectors(camForward, camRight, camUp, engine.mainCamera->rotation);
 
-	engine.m_sceneConstantBuffer.data.cameraView = XMMatrixTranspose(camView);
-	engine.m_sceneConstantBuffer.data.cameraProjection = XMMatrixTranspose(camProj);
-	engine.m_sceneConstantBuffer.data.postProcessing = { contrast, brightness, saturation, fog };
-	engine.m_sceneConstantBuffer.data.fogColor = clearColor;
-	engine.m_sceneConstantBuffer.data.worldCameraPos = camera.position;
+	for (int i = 0; i < engine.m_cameraCount; i++)
+	{
+		CameraConstantBuffer& cambuf = engine.m_cameras[i].constantBuffer.data;
+		cambuf.postProcessing = { contrast, brightness, saturation, fog };
+		cambuf.fogColor = clearColor;
+	}
 
 	// Update light/shadowmap
 	light.rotation = XMQuaternionRotationRollPitchYaw(45.f / 360.f * XM_2PI, engine.TimeSinceStart(), 0.f);
@@ -485,6 +480,7 @@ void Game::UpdateGame(EngineCore& engine)
 
 	lightDebugEntity->position = light.position;
 	lightDebugEntity->rotation = light.rotation;
+	renderTextureTestEntity->rotation = light.rotation;
 
 	if (showLightPosition)
 	{
@@ -494,8 +490,9 @@ void Game::UpdateGame(EngineCore& engine)
 	XMVECTOR lightRight, lightUp;
 	CalculateDirectionVectors(engine.m_lightConstantBuffer.data.sunDirection, lightRight, lightUp, light.rotation);
 
-	MAT_RMAJ shadowSpaceMatrix;
-	shadowSpaceMatrix = CalculateShadowCamProjection(camView, camProj, lightView);
+	MAT_RMAJ camView = XMMatrixTranspose(engine.m_cameras[0].constantBuffer.data.cameraView);
+	MAT_RMAJ camProj = XMMatrixTranspose(engine.m_cameras[0].constantBuffer.data.cameraProjection);
+	MAT_RMAJ shadowSpaceMatrix = CalculateShadowCamProjection(camView, camProj, lightView);
 	
 	engine.m_lightConstantBuffer.data.lightProjection = XMMatrixTranspose(shadowSpaceMatrix);
 	
@@ -550,7 +547,7 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 
 	// Post Processing
-	XMVECTOR camPos2d = camera.position;
+	XMVECTOR camPos2d = engine.mainCamera->position;
 	camPos2d.m128_f32[1] = 0.f;
 	float distanceFromSpawn = XMVector3Length(camPos2d).m128_f32[0];
 	float maxDistance = 40.f;

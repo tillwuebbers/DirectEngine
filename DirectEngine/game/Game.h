@@ -54,16 +54,6 @@ struct ShadowSpaceBounds
 	XMFLOAT3 max;
 };
 
-struct Camera
-{
-	XMVECTOR position{ 0.f, 0.f, 0.f };
-	XMVECTOR rotation{ 0.f, 0.f, 0.f, 1.f };
-	float fovX = 0.f;
-	float fovY = 45.f;
-	float nearClip = .1f;
-	float farClip = 10.f;
-};
-
 MAT_RMAJ CalculateShadowCamProjection(const MAT_RMAJ& camViewMatrix, const MAT_RMAJ& camProjectionMatrix, const MAT_RMAJ& lightViewMatrix);
 
 class Game : public IGame
@@ -102,7 +92,6 @@ public:
 	MemoryArena modelArena{};
 
 	DirectionalLight light{};
-	Camera camera{};
 	EngineInput input{ globalArena };
 	Texture* diffuseTexture{};
 	Texture* memeTexture{};

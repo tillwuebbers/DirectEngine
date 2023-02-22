@@ -17,7 +17,7 @@ PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 norm
 	float4 worldPos = mul(position, aabbTransform);
 	float4 worldOffset = mul(float4(aabbLocalPosition, 0.), worldTransform);
 
-	result.position = mul(worldPos + worldOffset, VSGetVP());
+	result.position = mul(worldPos + worldOffset, mul(cameraView, cameraProjection));
 
 	return result;
 }

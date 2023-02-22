@@ -3,11 +3,6 @@ SamplerState smoothSampler : register(s1);
 
 cbuffer SceneConstantBuffer : register(b0)
 {
-	float4x4 cameraView;
-	float4x4 cameraProjection;
-	float4 postProcessing;
-	float3 fogColor;
-	float3 worldCameraPos;
 	float4 time;
 };
 
@@ -33,20 +28,16 @@ cbuffer BoneMatricesBuffer : register(b3)
 	float4x4 jointTransforms[128];
 };
 
-cbuffer XrBuffer : register(b4)
+cbuffer CameraConstantBuffer : register(b4)
 {
-	float4x4 camViewL;
-	float4x4 camViewR;
-	float4x4 camProjectionL;
-	float4x4 camProjectionR;
+	float4x4 cameraView;
+	float4x4 cameraProjection;
+	float4 postProcessing;
+	float3 fogColor;
+	float3 worldCameraPos;
 }
 
 Texture2D shadowmapTexture : register(t5);
-
-cbuffer CamConstants : register(b6)
-{
-	uint camIndex;
-};
 
 struct PSInputDefault
 {
@@ -60,9 +51,7 @@ struct PSInputDefault
 
 float4x4 VSGetVP()
 {
-	if      (camIndex == 1) { return mul(camViewL, camProjectionL); }
-	else if (camIndex == 2) { return mul(camViewR, camProjectionR); }
-	else                    { return mul(cameraView, cameraProjection); }
+	return mul(cameraView, cameraProjection);
 }
 
 PSInputDefault VSCalcDefault(float4 position, float3 normal, float2 uv)
