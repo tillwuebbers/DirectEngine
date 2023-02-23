@@ -35,7 +35,7 @@ public:
 
 	XMVECTOR aabbLocalPosition = { 0., 0., 0. };
 	XMVECTOR aabbLocalSize = { 1., 1., 1. };
-	uint64_t collisionLayers = 0;
+	unsigned int collisionLayers = 0;
 
 	bool isEnemy = false;
 	bool isProjectile = false;

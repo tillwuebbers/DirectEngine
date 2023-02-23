@@ -21,7 +21,7 @@ using namespace DirectX;
 #define PLAYER_HAND_OFFSET XMVECTOR{ 0.05f, -.2f, .1f }
 #define LASER_LENGTH 100.f
 
-enum CollisionLayers : uint64_t
+enum CollisionLayers : unsigned int
 {
 	None = 0,
 	ClickTest = 1,

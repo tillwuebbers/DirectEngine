@@ -420,6 +420,10 @@ void Game::DrawUI(EngineCore& engine)
 
 					ImGui::Separator();
 
+					ImGui::CheckboxFlags("ClickTest", &entity->collisionLayers, CollisionLayers::ClickTest);
+					ImGui::CheckboxFlags("Floor", &entity->collisionLayers, CollisionLayers::Floor);
+					ImGui::CheckboxFlags("Dead", &entity->collisionLayers, CollisionLayers::Dead);
+
 					ImGui::DragFloat3("Bounding Center", &entity->aabbLocalPosition.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
 					ImGui::DragFloat3("Bounding Extent", &entity->aabbLocalSize.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
 

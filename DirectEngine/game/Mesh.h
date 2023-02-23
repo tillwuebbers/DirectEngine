@@ -89,6 +89,7 @@ struct MeshFile
 	Vertex* vertices;
 	size_t vertexCount = 0;
 	std::string textureName{};
+	size_t textureCount = 0; // TODO use better solution
 };
 
 struct GltfResult

@@ -58,6 +58,8 @@ void Game::StartGame(EngineCore& engine)
 	LOG_TIMER(timer, "Camera Entity", debugLog);
 	RESET_TIMER(timer);
 
+	Entity* levelEntity = CreateEntityFromGltf(engine, "models/testlevel.glb", groundShader, debugLog);
+
 	Entity* kaijuMeshEntity = CreateEntityFromGltf(engine, "models/kaiju.glb", defaultShader, debugLog);
 
 	LOG_TIMER(timer, "Kaiju Entity", debugLog);
@@ -112,6 +114,7 @@ void Game::StartGame(EngineCore& engine)
 	groundEntity->name = "Ground";
 	groundEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
 	groundEntity->collisionLayers |= Floor;
+	groundEntity->position = XMVectorSetY(groundEntity->position, -.01f);
 
 	// Defaults
 	playerPitch = XM_PI;
@@ -624,13 +627,20 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, const s
 
 	for (MeshFile& meshFile : gltfResult.meshes)
 	{
-		std::wstring texturePath = { L"textures/" };
-		texturePath.append(meshFile.textureName.begin(), meshFile.textureName.end());
-		Texture* texture = engine.CreateTexture(texturePath.c_str());
+		// TODO: read shader root signaure instead, check number/type of texture, load textures accordingly
+		std::vector<Texture*> textures{};
+		for (int i = 0; i < meshFile.textureCount; i++)
+		{
+			std::wstring texturePath = { L"textures/" };
+			texturePath.append(meshFile.textureName.begin(), meshFile.textureName.end());
+			texturePath.append(L".dds");
+
+			textures.push_back(engine.CreateTexture(texturePath.c_str()));
+		}
 		LOG_TIMER(timer, "Texture for model", debugLog);
 		RESET_TIMER(timer);
 
-		size_t materialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { texture }, shaderName);
+		size_t materialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), textures, shaderName);
 		D3D12_VERTEX_BUFFER_VIEW meshView = engine.CreateMesh(materialIndex, meshFile.vertices, meshFile.vertexCount);
 		LOG_TIMER(timer, "Create material and mesh for model", debugLog);
 		RESET_TIMER(timer);

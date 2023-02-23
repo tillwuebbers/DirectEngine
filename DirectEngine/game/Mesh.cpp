@@ -109,9 +109,6 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 
 	bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, filePath);
 
-	LOG_TIMER(timer, "Load Model Binary", debugLog);
-	RESET_TIMER(timer);
-
 	if (!warn.empty())
 	{
 		debugLog.Warn(warn);
@@ -130,158 +127,167 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 	size_t vertexCount = 0;
 	Vertex* vertices;
 
-	Accessor& inverseBindAccessor = model.accessors[model.skins[0].inverseBindMatrices];
-	assert(inverseBindAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
-	assert(inverseBindAccessor.type == TINYGLTF_TYPE_MAT4);
-	const float* inverseBindMatrices = ReadBuffer<float>(model, inverseBindAccessor);
-
-	TransformHierachy* hierachy = NewObject(arena, TransformHierachy);
-	hierachy->nodeCount = model.skins[0].joints.size();
-	for (int i = 0; i < model.skins[0].joints.size(); i++)
-	{
-		hierachy->jointToNodeIndex[i] = model.skins[0].joints[i];
-	}
-	for (int i = 0; i < model.nodes.size(); i++)
-	{
-		for (int j = 0; j < model.skins[0].joints.size(); j++)
-		{
-			if (model.skins[0].joints[j] == i)
-			{
-				hierachy->nodeToJointIndex[i] = j;
-				break;
-			}
-		}
-	}
-	hierachy->root = CreateMatrices(model, 0, nullptr, hierachy->nodes, inverseBindMatrices);
-
-	LOG_TIMER(timer, "Load Hierachy", debugLog);
+	LOG_TIMER(timer, "Load Model Binary", debugLog);
 	RESET_TIMER(timer);
 
-	for (Animation& animation : model.animations)
+	TransformHierachy* hierachy = nullptr;
+
+	if (model.skins.size() > 0)
 	{
-		assert(hierachy->animationCount < MAX_ANIMATIONS);
-		TransformAnimation& transformAnimation = hierachy->animations[hierachy->animationCount] = {};
-		transformAnimation.name = animation.name;
+		Accessor& inverseBindAccessor = model.accessors[model.skins[0].inverseBindMatrices];
+		assert(inverseBindAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+		assert(inverseBindAccessor.type == TINYGLTF_TYPE_MAT4);
+		const float* inverseBindMatrices = ReadBuffer<float>(model, inverseBindAccessor);
 
-		hierachy->animationNameToIndex.insert({ animation.name, hierachy->animationCount });
-		hierachy->animationCount++;
-
-		std::vector<std::string> maskedChannels{};
-		if (animation.extras.Has("mask"))
+		hierachy = NewObject(arena, TransformHierachy);
+		hierachy->nodeCount = model.skins[0].joints.size();
+		for (int i = 0; i < model.skins[0].joints.size(); i++)
 		{
-			maskedChannels.push_back(animation.extras.Get("mask").Get<std::string>());
+			hierachy->jointToNodeIndex[i] = model.skins[0].joints[i];
 		}
-
-
-		float maxTime = 0.f;
-		
-		for (AnimationChannel& channel : animation.channels)
+		for (int i = 0; i < model.nodes.size(); i++)
 		{
-			// Skip if channel is not in our mask
-			bool& channelActive = transformAnimation.activeChannels[channel.target_node];
-			if (maskedChannels.size() > 0)
+			for (int j = 0; j < model.skins[0].joints.size(); j++)
 			{
-				std::string& channelNodeName = hierachy->nodes[channel.target_node].name;
-				if (std::find(maskedChannels.begin(), maskedChannels.end(), channelNodeName) == maskedChannels.end())
+				if (model.skins[0].joints[j] == i)
 				{
-					channelActive = false;
-					//continue; //TODO: Why does this break things?
+					hierachy->nodeToJointIndex[i] = j;
+					break;
+				}
+			}
+		}
+		hierachy->root = CreateMatrices(model, 0, nullptr, hierachy->nodes, inverseBindMatrices);
+
+		LOG_TIMER(timer, "Load Hierachy", debugLog);
+		RESET_TIMER(timer);
+
+		for (Animation& animation : model.animations)
+		{
+			assert(hierachy->animationCount < MAX_ANIMATIONS);
+			TransformAnimation& transformAnimation = hierachy->animations[hierachy->animationCount] = {};
+			transformAnimation.name = animation.name;
+
+			hierachy->animationNameToIndex.insert({ animation.name, hierachy->animationCount });
+			hierachy->animationCount++;
+
+			std::vector<std::string> maskedChannels{};
+			if (animation.extras.Has("mask"))
+			{
+				maskedChannels.push_back(animation.extras.Get("mask").Get<std::string>());
+			}
+
+
+			float maxTime = 0.f;
+
+			for (AnimationChannel& channel : animation.channels)
+			{
+				// Skip if channel is not in our mask
+				bool& channelActive = transformAnimation.activeChannels[channel.target_node];
+				if (maskedChannels.size() > 0)
+				{
+					std::string& channelNodeName = hierachy->nodes[channel.target_node].name;
+					if (std::find(maskedChannels.begin(), maskedChannels.end(), channelNodeName) == maskedChannels.end())
+					{
+						channelActive = false;
+						//continue; //TODO: Why does this break things?
+					}
+					else
+					{
+						channelActive = true;
+					}
 				}
 				else
 				{
 					channelActive = true;
 				}
-			}
-			else
-			{
-				channelActive = true;
-			}
 
-			assert(animation.samplers.size() > channel.sampler);
-			AnimationSampler& animSampler = animation.samplers[channel.sampler];
-			assert(animSampler.interpolation == "LINEAR");
+				assert(animation.samplers.size() > channel.sampler);
+				AnimationSampler& animSampler = animation.samplers[channel.sampler];
+				assert(animSampler.interpolation == "LINEAR");
 
-			assert(model.accessors.size() > animSampler.input);
-			Accessor& timeAccessor = model.accessors[animSampler.input];
-			assert(timeAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
-			assert(timeAccessor.type == TINYGLTF_TYPE_SCALAR);
+				assert(model.accessors.size() > animSampler.input);
+				Accessor& timeAccessor = model.accessors[animSampler.input];
+				assert(timeAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+				assert(timeAccessor.type == TINYGLTF_TYPE_SCALAR);
 
-			const float* times = ReadBuffer<float>(model, timeAccessor);
-			
-			const XMFLOAT3* translations = nullptr;
-			const XMVECTOR* rotations = nullptr;
-			const XMFLOAT3* scales = nullptr;
+				const float* times = ReadBuffer<float>(model, timeAccessor);
 
-			AnimationData* animData = nullptr;
-			AnimationJointData& animJointData = transformAnimation.jointChannels[hierachy->nodeToJointIndex[channel.target_node]];
+				const XMFLOAT3* translations = nullptr;
+				const XMVECTOR* rotations = nullptr;
+				const XMFLOAT3* scales = nullptr;
 
-			if (channel.target_path == "translation")
-			{
-				assert(model.accessors.size() > animSampler.output);
-				Accessor& valueAccessor = model.accessors[animSampler.output];
-				assert(valueAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
-				assert(valueAccessor.type == TINYGLTF_TYPE_VEC3);
-				translations = ReadBuffer<XMFLOAT3>(model, valueAccessor);
-				animData = &animJointData.translations;
-			}
-			else if (channel.target_path == "rotation")
-			{
-				assert(model.accessors.size() > animSampler.output);
-				Accessor& valueAccessor = model.accessors[animSampler.output];
-				assert(valueAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
-				assert(valueAccessor.type == TINYGLTF_TYPE_VEC4);
-				rotations = ReadBuffer<XMVECTOR>(model, valueAccessor);
-				animData = &animJointData.rotations;
-			}
-			else if (channel.target_path == "scale")
-			{
-				assert(model.accessors.size() > animSampler.output);
-				Accessor& valueAccessor = model.accessors[animSampler.output];
-				assert(valueAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
-				assert(valueAccessor.type == TINYGLTF_TYPE_VEC3);
-				scales = ReadBuffer<XMFLOAT3>(model, valueAccessor);
-				animData = &animJointData.scales;
-			}
-			else
-			{
-				debugLog.Warn("Unknown channel target path!");
-				continue;
-			}
+				AnimationData* animData = nullptr;
+				AnimationJointData& animJointData = transformAnimation.jointChannels[hierachy->nodeToJointIndex[channel.target_node]];
 
-			animData->times = NewArray(arena, float, timeAccessor.count);
-			animData->data = NewArrayAligned(arena, XMVECTOR, timeAccessor.count, 16);
-
-			// TODO: resample animation?
-			for (int i = 0; i < timeAccessor.count; i++)
-			{
-				if (translations != nullptr)
+				if (channel.target_path == "translation")
 				{
-					animData->data[animData->frameCount] = XMLoadFloat3(&translations[i]);
+					assert(model.accessors.size() > animSampler.output);
+					Accessor& valueAccessor = model.accessors[animSampler.output];
+					assert(valueAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+					assert(valueAccessor.type == TINYGLTF_TYPE_VEC3);
+					translations = ReadBuffer<XMFLOAT3>(model, valueAccessor);
+					animData = &animJointData.translations;
 				}
-				else if (rotations != nullptr)
+				else if (channel.target_path == "rotation")
 				{
-					animData->data[animData->frameCount] = rotations[i];
+					assert(model.accessors.size() > animSampler.output);
+					Accessor& valueAccessor = model.accessors[animSampler.output];
+					assert(valueAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+					assert(valueAccessor.type == TINYGLTF_TYPE_VEC4);
+					rotations = ReadBuffer<XMVECTOR>(model, valueAccessor);
+					animData = &animJointData.rotations;
 				}
-				else if (scales != nullptr)
+				else if (channel.target_path == "scale")
 				{
-					animData->data[animData->frameCount] = XMLoadFloat3(&scales[i]);
+					assert(model.accessors.size() > animSampler.output);
+					Accessor& valueAccessor = model.accessors[animSampler.output];
+					assert(valueAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+					assert(valueAccessor.type == TINYGLTF_TYPE_VEC3);
+					scales = ReadBuffer<XMFLOAT3>(model, valueAccessor);
+					animData = &animJointData.scales;
 				}
 				else
 				{
-					assert(false);
+					debugLog.Warn("Unknown channel target path!");
+					continue;
 				}
 
-				animData->times[animData->frameCount] = times[i];
-				animData->frameCount++;
+				animData->times = NewArray(arena, float, timeAccessor.count);
+				animData->data = NewArrayAligned(arena, XMVECTOR, timeAccessor.count, 16);
 
-				maxTime = std::max(maxTime, times[i]);
+				// TODO: resample animation?
+				for (int i = 0; i < timeAccessor.count; i++)
+				{
+					if (translations != nullptr)
+					{
+						animData->data[animData->frameCount] = XMLoadFloat3(&translations[i]);
+					}
+					else if (rotations != nullptr)
+					{
+						animData->data[animData->frameCount] = rotations[i];
+					}
+					else if (scales != nullptr)
+					{
+						animData->data[animData->frameCount] = XMLoadFloat3(&scales[i]);
+					}
+					else
+					{
+						assert(false);
+					}
+
+					animData->times[animData->frameCount] = times[i];
+					animData->frameCount++;
+
+					maxTime = std::max(maxTime, times[i]);
+				}
 			}
+
+			transformAnimation.duration = maxTime;
 		}
 
-		transformAnimation.duration = maxTime;
+		LOG_TIMER(timer, "Animations", debugLog);
 	}
-
-	LOG_TIMER(timer, "Animations", debugLog);
+	
 	RESET_TIMER(timer);
 
 	std::vector<MeshFile> meshFiles{};
@@ -310,16 +316,7 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 			assert(uvAccessor.type == TINYGLTF_TYPE_VEC2);
 			const float* uvData = ReadBuffer<float>(model, uvAccessor);
 
-			Accessor& jointAccessor = model.accessors[primitive.attributes[GLTF_JOINTS]];
-			assert(jointAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE);
-			assert(jointAccessor.type == TINYGLTF_TYPE_VEC4);
-			const uint8_t* jointData = ReadBuffer<uint8_t>(model, jointAccessor);
-
-			Accessor& weightAccessor = model.accessors[primitive.attributes[GLTF_WEIGHTS]];
-			assert(weightAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
-			assert(weightAccessor.type == TINYGLTF_TYPE_VEC4);
-			const float* weightData = ReadBuffer<float>(model, weightAccessor);
-
+			
 			vertices = NewArray(arena, Vertex, indexAccessor.count);
 			vertexCount = indexAccessor.count;
 
@@ -329,9 +326,7 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 				assert(idx < positionAccessor.count);
 				assert(idx < normalAccessor.count);
 				assert(idx < uvAccessor.count);
-				assert(idx < jointAccessor.count);
-				assert(idx < weightAccessor.count);
-				Vertex& vert = vertices[i];
+				Vertex& vert = vertices[i] = {};
 
 				vert.position.x = positionData[idx * 3 + 0];
 				vert.position.y = positionData[idx * 3 + 1];
@@ -343,34 +338,61 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 
 				vert.uv.x = uvData[idx * 2 + 0];
 				vert.uv.y = uvData[idx * 2 + 1];
-
-				vert.boneIndices.x = jointData[idx * 4 + 0];
-				vert.boneIndices.y = jointData[idx * 4 + 1];
-				vert.boneIndices.z = jointData[idx * 4 + 2];
-				vert.boneIndices.w = jointData[idx * 4 + 3];
-
-				float w0 = weightData[idx * 4 + 0];
-				float w1 = weightData[idx * 4 + 1];
-				float w2 = weightData[idx * 4 + 2];
-				float w3 = weightData[idx * 4 + 3];
-				assert(abs(1. - (w0 + w1 + w2 + w3)) < 0.01);
-
-				vert.boneWeights.x = w0;
-				vert.boneWeights.y = w1;
-				vert.boneWeights.z = w2;
-				vert.boneWeights.w = w3;
 			}
 
-			std::string imageName{};
+			if (hierachy != nullptr)
+			{
+				Accessor& jointAccessor = model.accessors[primitive.attributes[GLTF_JOINTS]];
+				assert(jointAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE);
+				assert(jointAccessor.type == TINYGLTF_TYPE_VEC4);
+				const uint8_t* jointData = ReadBuffer<uint8_t>(model, jointAccessor);
+
+				Accessor& weightAccessor = model.accessors[primitive.attributes[GLTF_WEIGHTS]];
+				assert(weightAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+				assert(weightAccessor.type == TINYGLTF_TYPE_VEC4);
+				const float* weightData = ReadBuffer<float>(model, weightAccessor);
+
+				for (int i = 0; i < vertexCount; i++)
+				{
+					uint16_t idx = indexData[i];
+					assert(idx < jointAccessor.count);
+					assert(idx < weightAccessor.count);
+					Vertex& vert = vertices[i];
+
+					vert.boneIndices.x = jointData[idx * 4 + 0];
+					vert.boneIndices.y = jointData[idx * 4 + 1];
+					vert.boneIndices.z = jointData[idx * 4 + 2];
+					vert.boneIndices.w = jointData[idx * 4 + 3];
+
+					float w0 = weightData[idx * 4 + 0];
+					float w1 = weightData[idx * 4 + 1];
+					float w2 = weightData[idx * 4 + 2];
+					float w3 = weightData[idx * 4 + 3];
+					assert(abs(1. - (w0 + w1 + w2 + w3)) < 0.01);
+
+					vert.boneWeights.x = w0;
+					vert.boneWeights.y = w1;
+					vert.boneWeights.z = w2;
+					vert.boneWeights.w = w3;
+				}
+			}
+
+			std::string materialName{};
+			size_t textureCount = 1; // TODO
+
 			if (model.materials.size() > 0)
 			{
 				assert(model.materials.size() > primitive.material);
-				imageName = model.materials[primitive.material].name;
-				imageName.append(DIFFUSE_SUFFIX);
-				imageName.append(".dds");
+				materialName = model.materials[primitive.material].name;
+				materialName.append(DIFFUSE_SUFFIX);
+
+				if (model.materials[primitive.material].extras.Has("texturecount"))
+				{
+					textureCount = model.materials[primitive.material].extras.Get("texturecount").GetNumberAsInt();
+				}
 			}
 
-			meshFiles.emplace_back(MeshFile{ vertices, vertexCount, imageName });
+			meshFiles.emplace_back(MeshFile{ vertices, vertexCount, materialName, textureCount });
 		}
 	}
 
