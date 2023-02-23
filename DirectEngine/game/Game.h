@@ -147,6 +147,9 @@ public:
 	float fog = 0.;
 
 	int newChildId = 0;
+	int newEntityMaterialIndex = 0;
+	float newEntityWidth = 1.f;
+	float newEntityHeight = 1.f;
 
 	AudioBuffer* soundFiles[8];
 

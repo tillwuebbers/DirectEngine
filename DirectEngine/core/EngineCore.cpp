@@ -760,6 +760,7 @@ size_t EngineCore::CreateMaterial(const size_t maxVertices, const size_t vertexS
     {
         data.textures[i] = textures[i];
     }
+    data.name = std::string(shaderName.begin(), shaderName.end());
 
     OUTPUT_TIMERW(timer, L"Init");
     RESET_TIMER(timer);

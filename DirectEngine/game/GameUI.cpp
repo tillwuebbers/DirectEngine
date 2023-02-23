@@ -399,7 +399,12 @@ void Game::DrawUI(EngineCore& engine)
 					ImGui::Separator();
 
 					ImGui::DragFloat3("Position", &entity->position.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
-					ImGui::DragFloat4("Rotation", &entity->rotation.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
+
+					XMVECTOR rot = QuaternionToEuler(entity->rotation);
+					if (ImGui::DragFloat3("Rotation", &rot.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat))
+					{
+						entity->rotation = XMQuaternionRotationRollPitchYaw(XMVectorGetX(rot), XMVectorGetY(rot), XMVectorGetZ(rot));
+					}
 					ImGui::DragFloat3("Scale", &entity->scale.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
 
 					ImGui::Separator();
@@ -455,6 +460,23 @@ void Game::DrawUI(EngineCore& engine)
 				}
 				ImGui::PopID();
 			}
+
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 20.f);
+
+			
+
+			if (ImGui::Button("Add Cube"))
+			{
+				CreateMeshEntity(engine, newEntityMaterialIndex, engine.cubeVertexView);
+			}
+
+			ImGui::SameLine();
+
+			ImGui::Combo("##entitymaterial", &newEntityMaterialIndex, [](void* data, int idx, const char** out_text)
+				{
+					*out_text = ((EngineCore*)data)->m_materials[idx].name.c_str();
+					return true;
+				}, & engine, engine.m_materialCount);
 		}
 		ImGui::End();
 	}

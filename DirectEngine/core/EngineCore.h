@@ -142,6 +142,7 @@ struct MaterialData
     Texture* textures[MAX_TEXTURES_PER_MATERIAL] = {};
     size_t textureCount = 0;
     PipelineConfig* pipeline = nullptr;
+    std::string name = "Material";
 };
 
 class DebugLineData
