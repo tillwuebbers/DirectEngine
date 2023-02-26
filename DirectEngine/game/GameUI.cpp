@@ -346,9 +346,9 @@ void Game::DrawUI(EngineCore& engine)
 				int offset = entity - (Entity*)entityArena.base;
 				
 				std::string entityTitle = std::format("{} [{}] ", entity->name, offset);
-				if (entity->isActive) entityTitle.append(ICON_CHECK_FILL);
+				if (entity->IsActive()) entityTitle.append(ICON_CHECK_FILL);
 				ImGui::PushID(entity);
-				if ((showInactiveEntities || entity->isActive) && ImGui::CollapsingHeader(entityTitle.c_str()))
+				if ((showInactiveEntities || entity->IsActive()) && ImGui::CollapsingHeader(entityTitle.c_str()))
 				{
 					ImGui::Text(std::format("Children ({})", entity->childCount).c_str());
 					ImGui::SameLine(0, 20);
@@ -377,7 +377,11 @@ void Game::DrawUI(EngineCore& engine)
 
 					ImGui::Separator();
 
-					ImGui::Checkbox("Active", &entity->isActive);
+					bool activeState = entity->IsActive();
+					if (ImGui::Checkbox("Active", &activeState))
+					{
+						entity->SetActive(activeState);
+					}
 					if (entity->isRendered)
 					{
 						ImGui::Checkbox("Visible", &entity->GetData().visible);
@@ -425,12 +429,16 @@ void Game::DrawUI(EngineCore& engine)
 
 					ImGui::Separator();
 
-					ImGui::CheckboxFlags("ClickTest", &entity->collisionLayers, CollisionLayers::ClickTest);
-					ImGui::CheckboxFlags("Floor", &entity->collisionLayers, CollisionLayers::Floor);
-					ImGui::CheckboxFlags("Dead", &entity->collisionLayers, CollisionLayers::Dead);
+					if (entity->collisionData != nullptr)
+					{
+						ImGui::CheckboxFlags("ClickTest", &entity->collisionData->collisionLayers, CollisionLayers::ClickTest);
+						ImGui::SameLine();
+						ImGui::CheckboxFlags("Floor", &entity->collisionData->collisionLayers, CollisionLayers::Floor);
+						ImGui::SameLine();
+						ImGui::CheckboxFlags("Dead", &entity->collisionData->collisionLayers, CollisionLayers::Dead);
 
-					ImGui::DragFloat3("Bounding Center", &entity->aabbLocalPosition.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
-					ImGui::DragFloat3("Bounding Extent", &entity->aabbLocalSize.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
+						ImGui::DragFloat3("Collision Size", &entity->collisionData->aabbLocalSize.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
+					}
 
 					if (entity->isSkinnedRoot && entity->transformHierachy->nodeCount > 0)
 					{

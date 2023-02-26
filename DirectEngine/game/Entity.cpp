@@ -183,10 +183,16 @@ XMVECTOR Entity::WorldToLocal(XMVECTOR worldPosition)
 	return XMVector4Transform(worldPosition, XMMatrixInverse(&det, GetBuffer().worldTransform));
 }
 
-void Entity::Disable()
+void Entity::SetActive(bool newState)
 {
-	isActive = false;
-	GetData().visible = false;
+	isActive = newState;
+	if (isRendered) GetData().visible = newState;
+	if (collisionData != nullptr) collisionData->isActive = newState;
+}
+
+bool Entity::IsActive()
+{
+	return isActive;
 }
 
 void CalculateDirectionVectors(XMVECTOR& outForward, XMVECTOR& outRight, XMVECTOR& outUp, XMVECTOR inRotation)

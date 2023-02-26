@@ -832,6 +832,20 @@ size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_
     return entity->entityIndex;
 }
 
+CollisionData* EngineCore::CreateCollider(const XMVECTOR localCenter, const XMVECTOR localExtents, void* entity, void* bone)
+{
+    assert(m_collisionDataCount < MAX_COLLIDERS);
+    CollisionData& collider = m_collisionData[m_collisionDataCount] = {};
+    m_collisionDataCount++;
+
+    collider.aabbLocalPosition = localCenter;
+    collider.aabbLocalSize = localExtents;
+    collider.entity = entity;
+    collider.bone = bone;
+
+    return &collider;
+}
+
 void EngineCore::UploadVertices()
 {
     for (int i = 0; i < m_materialCount; i++)

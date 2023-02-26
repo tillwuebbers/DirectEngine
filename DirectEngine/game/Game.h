@@ -21,14 +21,6 @@ using namespace DirectX;
 #define PLAYER_HAND_OFFSET XMVECTOR{ 0.05f, -.2f, .1f }
 #define LASER_LENGTH 100.f
 
-enum CollisionLayers : unsigned int
-{
-	None = 0,
-	ClickTest = 1,
-	Floor = 2,
-	Dead = 4,
-};
-
 struct WindowUpdate
 {
 	bool updateCursor;
@@ -40,12 +32,6 @@ struct DirectionalLight
 {
 	XMVECTOR position{ 0.f, 0.f, 0.f };
 	XMVECTOR rotation{ 0.f, 0.f, 0.f, 1.f };
-};
-
-struct CollisionResult
-{
-	Entity* entity;
-	float distance;
 };
 
 struct ShadowSpaceBounds
@@ -156,8 +142,6 @@ public:
 	void StartGame(EngineCore& engine) override;
 	void UpdateGame(EngineCore& engine) override;
 	void DrawUI(EngineCore& engine);
-
-	CollisionResult CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, uint64_t matchingLayers);
 
 	Entity* CreateEmptyEntity(EngineCore& engine);
 	Entity* CreateMeshEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView);

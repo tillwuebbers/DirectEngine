@@ -2,6 +2,7 @@
 
 #include "../core/EngineCore.h"
 #include "../core/Audio.h"
+#include "../core/Collision.h"
 
 #include <DirectXMath.h>
 using namespace DirectX;
@@ -17,7 +18,6 @@ public:
 	MAT_RMAJ worldMatrix;
 
 	std::string name = "Entity";
-	bool isActive = true;
 
 	EngineCore* engine;
 
@@ -31,11 +31,8 @@ public:
 	size_t dataIndex;
 
 	bool isSkinnedRoot = false;
-	TransformHierachy* transformHierachy;
-
-	XMVECTOR aabbLocalPosition = { 0., 0., 0. };
-	XMVECTOR aabbLocalSize = { 1., 1., 1. };
-	unsigned int collisionLayers = 0;
+	TransformHierachy* transformHierachy = nullptr;
+	CollisionData* collisionData = nullptr;
 
 	bool isEnemy = false;
 	bool isProjectile = false;
@@ -54,7 +51,11 @@ public:
 	void UpdateAnimation(EngineCore& engine);
 	XMVECTOR LocalToWorld(XMVECTOR localPosition);
 	XMVECTOR WorldToLocal(XMVECTOR worldPosition);
-	void Disable();
+	void SetActive(bool newState);
+	bool IsActive();
+
+private:
+	bool isActive = true;
 };
 
 void CalculateDirectionVectors(XMVECTOR& outForward, XMVECTOR& outRight, XMVECTOR& outUp, XMVECTOR inRotation);

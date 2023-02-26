@@ -4,7 +4,6 @@
 
 #include <array>
 #include <format>
-#include <limits>
 
 #include "../core/vkcodes.h"
 #include "remixicon.h"
@@ -58,8 +57,6 @@ void Game::StartGame(EngineCore& engine)
 	LOG_TIMER(timer, "Camera Entity", debugLog);
 	RESET_TIMER(timer);
 
-	Entity* levelEntity = CreateEntityFromGltf(engine, "models/testlevel.glb", groundShader, debugLog);
-
 	Entity* kaijuMeshEntity = CreateEntityFromGltf(engine, "models/kaiju.glb", defaultShader, debugLog);
 
 	LOG_TIMER(timer, "Kaiju Entity", debugLog);
@@ -76,8 +73,7 @@ void Game::StartGame(EngineCore& engine)
 	{
 		// TODO: auto calculate bounds on mesh creation
 		Entity* entity = kaijuMeshEntity->children[i];
-		entity->aabbLocalPosition = { 0.f, 1.5f, -0.5f };
-		entity->aabbLocalSize = { 5.f, 3.f, 3.f };
+		entity->collisionData = engine.CreateCollider({ 0.f, 1.5f, -0.5f }, { 5.f, 3.f, 3.f }, entity);
 	}
 
 	LOG_TIMER(timer, "Kaiju Children", debugLog);
@@ -91,29 +87,29 @@ void Game::StartGame(EngineCore& engine)
 	{
 		Entity* enemy = enemies[i] = CreateMeshEntity(engine, memeMaterialIndex, cubeMeshView);
 		enemy->name = "Enemy";
-		enemy->Disable();
+		enemy->SetActive(false);
 		enemy->isEnemy = true;
-		enemy->collisionLayers |= Dead;
+		enemy->collisionData->collisionLayers |= Dead;
 	}
 
 	for (int i = 0; i < MAX_PROJECTILE_COUNT; i++)
 	{
 		Entity* projectile = projectiles[i] = CreateMeshEntity(engine, laserMaterialIndex, cubeMeshView);
 		projectile->name = "Projectile";
-		projectile->Disable();
+		projectile->SetActive(false);
 		projectile->isProjectile = true;
 		projectile->scale = { .1f, .1f, .1f };
 	}
 
 	laser = CreateMeshEntity(engine, laserMaterialIndex, cubeMeshView);
 	laser->name = "Laser";
-	laser->Disable();
+	laser->SetActive(false);
 	playerEntity->AddChild(laser);
 
 	Entity* groundEntity = CreateQuadEntity(engine, groundMaterialIndex, 100.f, 100.f);
 	groundEntity->name = "Ground";
 	groundEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
-	groundEntity->collisionLayers |= Floor;
+	groundEntity->collisionData->collisionLayers |= Floor;
 	groundEntity->position = XMVectorSetY(groundEntity->position, -.01f);
 
 	// Defaults
@@ -158,7 +154,7 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 	if (input.KeyDown(VK_LBUTTON))
 	{
-		CollisionResult collision = CollideWithWorld(engine.mainCamera->position, camForward, ClickTest);
+		CollisionResult collision = CollideWithWorld(engine.m_collisionData, engine.m_collisionDataCount, engine.mainCamera->position, camForward, ClickTest);
 	}
 	if (input.KeyComboJustPressed(VK_KEY_D, VK_CONTROL))
 	{
@@ -257,13 +253,13 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 
 		// Ground collision
-		const float collisionEpsilon = 0.1;
-		CollisionResult floorCollision = CollideWithWorld(playerEntity->position + XMVECTOR{ 0., collisionEpsilon, 0. }, V3_DOWN, Floor);
+		const float collisionEpsilon = std::max(0.1, XMVectorGetX(XMVector3Length(playerVelocity)) * engine.m_updateDeltaTime);
+		CollisionResult floorCollision = CollideWithWorld(engine.m_collisionData, engine.m_collisionDataCount, playerEntity->position + XMVectorScale(V3_UP, collisionEpsilon), V3_DOWN, Floor);
 		bool onGround = floorCollision.distance <= collisionEpsilon;
 		if (onGround)
 		{
 			// Move player out of ground
-			playerEntity->position = playerEntity->position + XMVectorScale(V3_DOWN, floorCollision.distance);
+			playerEntity->position = playerEntity->position + XMVectorScale(V3_UP, collisionEpsilon - floorCollision.distance);
 
 			// Stop falling speed
 			playerVelocity = XMVectorSetY(playerVelocity, 0.);
@@ -306,10 +302,9 @@ void Game::UpdateGame(EngineCore& engine)
 		for (int i = 0; i < MAX_ENENMY_COUNT; i++)
 		{
 			Entity* enemy = enemies[i];
-			if (!enemy->isActive)
+			if (!enemy->IsActive())
 			{
-				enemy->isActive = true;
-				enemy->GetData().visible = true;
+				enemy->SetActive(true);
 				enemy->position = {};
 
 				enemySpawned = true;
@@ -327,7 +322,7 @@ void Game::UpdateGame(EngineCore& engine)
 	for (int i = 0; i < MAX_ENENMY_COUNT; i++)
 	{
 		Entity* enemy = enemies[i];
-		if (!enemy->isActive) continue;
+		if (!enemy->IsActive()) continue;
 
 		XMVECTOR toPlayer = XMVector3Normalize(engine.mainCamera->position - enemy->position);
 		enemy->velocity += XMVectorScale(toPlayer, engine.m_updateDeltaTime * enemyAcceleration);
@@ -340,47 +335,52 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 
 	// Kinda hacky enemy collision detection
-	CollisionResult enemyCollision = CollideWithWorld(engine.mainCamera->position, V3_DOWN, Dead);
-	if (enemyCollision.distance <= 0.f && enemyCollision.entity != nullptr)
+	CollisionResult enemyCollision = CollideWithWorld(engine.m_collisionData, engine.m_collisionDataCount, engine.mainCamera->position, V3_DOWN, Dead);
+	if (enemyCollision.distance <= 0.f && enemyCollision.collider->entity != nullptr)
 	{
-		Warn("DED");
+		Entity* enemy = reinterpret_cast<Entity*>(enemyCollision.collider->entity);
 		PlaySound(engine, &playerAudioSource, AudioFile::PlayerDamage);
-		enemyCollision.entity->Disable();
+		enemy->SetActive(false);
 	}
 
 	// Update Projectiles
 	for (int i = 0; i < MAX_PROJECTILE_COUNT; i++)
 	{
 		Entity* projectile = projectiles[i];
-		if (!projectile->isActive) continue;
+		if (!projectile->IsActive()) continue;
 
 		if (engine.TimeSinceStart() > projectile->spawnTime + projectileLifetime)
 		{
-			projectile->Disable();
+			projectile->SetActive(false);
 			continue;
 		}
 
 		projectile->position += projectile->velocity * engine.m_updateDeltaTime;
 
-		CollisionResult projectileFloorCollision = CollideWithWorld(projectile->position, V3_DOWN, Floor);
-		if (projectileFloorCollision.distance <= 0.f)
+		CollisionResult projectileCollision = CollideWithWorld(engine.m_collisionData, engine.m_collisionDataCount, projectile->position, V3_DOWN, CollisionLayers::Floor | CollisionLayers::Dead);
+		if (projectileCollision.distance <= 0.f)
 		{
-			projectile->velocity.m128_f32[1] *= -1.f;
-			projectile->position = projectile->position + V3_DOWN * projectileFloorCollision.distance;
-		}
-
-		CollisionResult projectileEnemyCollision = CollideWithWorld(projectile->position, V3_DOWN, Dead);
-		if (projectileEnemyCollision.distance <= 0.f)
-		{
-			projectile->Disable();
-			projectileEnemyCollision.entity->Disable();
-			PlaySound(engine, &projectileEnemyCollision.entity->audioSource, AudioFile::EnemyDeath);
+			if ((projectileCollision.collider->collisionLayers & Floor) != 0)
+			{
+				projectile->velocity.m128_f32[1] *= -1.f;
+				projectile->position = projectile->position + V3_DOWN * projectileCollision.distance;
+			}
+			if ((projectileCollision.collider->collisionLayers & Dead) != 0)
+			{
+				projectile->SetActive(false);
+				if (projectileCollision.collider->entity != nullptr)
+				{
+					Entity* entity = reinterpret_cast<Entity*>(projectileCollision.collider->entity);
+					entity->SetActive(false);
+					PlaySound(engine, &entity->audioSource, AudioFile::EnemyDeath);
+				}
+			}
 		}
 	}
 
 	if (engine.TimeSinceStart() > laser->spawnTime + laserLifetime)
 	{
-		laser->Disable();
+		laser->SetActive(false);
 	}
 
 	// Shoot!
@@ -407,9 +407,8 @@ void Game::UpdateGame(EngineCore& engine)
 	// Laser
 	if (input.KeyDown(VK_LBUTTON) && engine.TimeSinceStart() > lastLaserSpawn + laserSpawnRate)
 	{
-		laser->isActive = true;
+		laser->SetActive(true);
 		laser->spawnTime = engine.TimeSinceStart();
-		laser->GetData().visible = true;
 
 		laser->position = {};
 		laser->rotation = XMQuaternionIdentity();
@@ -418,15 +417,15 @@ void Game::UpdateGame(EngineCore& engine)
 		lastLaserSpawn = engine.TimeSinceStart();
 		PlaySound(engine, &playerAudioSource, AudioFile::Shoot);
 
-		bool keepHitting = true;
-		while (keepHitting)
+		CollisionResult collisions[32];
+		size_t collisionCount = CollideWithWorldList(engine.m_collisionData, engine.m_collisionDataCount, collisions, 32, engine.mainCamera->position, camForward, Dead);
+		for (size_t i = 0; i < collisionCount; i++)
 		{
-			CollisionResult collision = CollideWithWorld(engine.mainCamera->position, camForward, Dead);
-			keepHitting = collision.distance <= LASER_LENGTH;
-			if (keepHitting)
+			if (collisions[i].distance < LASER_LENGTH && collisions[i].collider->entity != nullptr)
 			{
-				collision.entity->Disable();
-				PlaySound(engine, &collision.entity->audioSource, AudioFile::EnemyDeath);
+				Entity* entity = reinterpret_cast<Entity*>(collisions[i].collider->entity);
+				entity->SetActive(false);
+				PlaySound(engine, &entity->audioSource, AudioFile::EnemyDeath);
 			}
 		}
 	}
@@ -441,12 +440,6 @@ void Game::UpdateGame(EngineCore& engine)
 	for (Entity& entity : entityArena)
 	{
 		entity.UpdateAnimation(engine);
-
-		if (entity.isRendered) {
-			entity.GetBuffer().aabbLocalPosition = entity.aabbLocalPosition;
-			entity.GetBuffer().aabbLocalSize = entity.aabbLocalSize;
-		}
-
 		entity.UpdateAudio(engine, &playerAudioListener);
 	}
 
@@ -456,6 +449,12 @@ void Game::UpdateGame(EngineCore& engine)
 		if (entity.parent == nullptr)
 		{
 			entity.UpdateWorldMatrix();
+			if (entity.isRendered && entity.collisionData != nullptr)
+			{
+				entity.collisionData->worldMatrix = entity.worldMatrix;
+				entity.GetBuffer().aabbLocalPosition = entity.collisionData->aabbLocalPosition;
+				entity.GetBuffer().aabbLocalSize = entity.collisionData->aabbLocalSize;
+			}
 		}
 	}
 
@@ -468,7 +467,7 @@ void Game::UpdateGame(EngineCore& engine)
 
 	CalculateDirectionVectors(camForward, camRight, camUp, engine.mainCamera->rotation);
 
-	for (int i = 0; i < engine.m_cameraCount; i++)
+	for (uint32_t i = 0; i < engine.m_cameraCount; i++)
 	{
 		CameraConstantBuffer& cambuf = engine.m_cameras[i].constantBuffer.data;
 		cambuf.postProcessing = { contrast, brightness, saturation, fog };
@@ -597,6 +596,7 @@ Entity* Game::CreateMeshEntity(EngineCore& engine, size_t materialIndex, D3D12_V
 	entity->isRendered = true;
 	entity->materialIndex = materialIndex;
 	entity->dataIndex = engine.CreateEntity(materialIndex, meshView);
+	entity->collisionData = engine.CreateCollider({}, { 1.f, 1.f, 1.f }, entity);
 	return entity;
 }
 
@@ -606,8 +606,7 @@ Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float w
 	auto meshView = engine.CreateMesh(materialIndex, file.vertices, file.vertexCount);
 	Entity* entity = CreateMeshEntity(engine, materialIndex, meshView);
 	entity->position = { -width / 2.f, 0.f, -width / 2.f };
-	entity->aabbLocalPosition = { width / 2.f, -.05f, width / 2.f };
-	entity->aabbLocalSize = { width, .1f, width };
+	entity->collisionData = engine.CreateCollider({ width / 2.f, -.05f, width / 2.f }, { width, .1f, width }, entity);
 	return entity;
 }
 
@@ -674,43 +673,6 @@ void Game::UpdateCursorState()
 	{
 		flags |= ImGuiConfigFlags_NoMouse;
 	}
-}
-
-CollisionResult Game::CollideWithWorld(const XMVECTOR rayOrigin, const XMVECTOR rayDirection, uint64_t matchingLayers)
-{
-	CollisionResult result{ nullptr, std::numeric_limits<float>::max() };
-
-	for (Entity& entity : entityArena)
-	{
-		if (entity.isActive && (entity.collisionLayers & matchingLayers) != 0)
-		{
-			XMVECTOR entityCenterWorld = entity.position + entity.LocalToWorld(entity.aabbLocalPosition);
-			XMVECTOR entitySizeWorld = entity.LocalToWorld(entity.aabbLocalSize);
-
-			XMVECTOR boxMin = entityCenterWorld - entitySizeWorld / 2.f;
-			XMVECTOR boxMax = entityCenterWorld + entitySizeWorld / 2.f;
-
-			XMVECTOR t0 = XMVectorDivide(XMVectorSubtract(boxMin, rayOrigin), rayDirection);
-			XMVECTOR t1 = XMVectorDivide(XMVectorSubtract(boxMax, rayOrigin), rayDirection);
-			XMVECTOR tmin = XMVectorMin(t0, t1);
-			XMVECTOR tmax = XMVectorMax(t0, t1);
-
-			XMFLOAT3 tMinValues;
-			XMFLOAT3 tMaxValues;
-			XMStoreFloat3(&tMinValues, tmin);
-			XMStoreFloat3(&tMaxValues, tmax);
-
-			float minDistance = std::max(std::max(tMinValues.x, tMinValues.y), tMinValues.z);
-			float maxDistance = std::min(std::min(tMaxValues.x, tMaxValues.y), tMaxValues.z);
-			if (minDistance <= maxDistance && minDistance < result.distance)
-			{
-				result.distance = minDistance;
-				result.entity = &entity;
-			}
-		}
-	}
-
-	return result;
 }
 
 void Game::PlaySound(EngineCore& engine, AudioSource* audioSource, AudioFile file)
