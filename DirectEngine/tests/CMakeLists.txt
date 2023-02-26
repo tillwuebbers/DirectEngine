@@ -1,7 +1,6 @@
 cmake_minimum_required (VERSION 3.12)
 
 project ("DirectEngineTest")
-enable_testing()
 
 include(FetchContent)
 FetchContent_Declare(
@@ -39,6 +38,7 @@ target_compile_options("DirectEngineTest" PRIVATE /W3 /w34456 /w34189 /w44305 /w
 
 include(GoogleTest)
 gtest_discover_tests("DirectEngineTest")
+
 
 set_property(TARGET "DirectEngineTest" PROPERTY CXX_STANDARD 20)
 target_compile_definitions("DirectEngineTest" PRIVATE "UNICODE;_UNICODE")
