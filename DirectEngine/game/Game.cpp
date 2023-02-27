@@ -31,7 +31,7 @@ void Game::StartGame(EngineCore& engine)
 	size_t memeMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { memeTexture }, defaultShader);
 	size_t groundMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, groundShader);
 	size_t laserMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, laserShader);
-	size_t textureQuadMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTexture->texture }, textureQuad);
+	size_t renderTextureMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTexture->texture }, textureQuad);
 
 	LOG_TIMER(timer, "Test Materials", debugLog);
 	RESET_TIMER(timer);
@@ -46,8 +46,21 @@ void Game::StartGame(EngineCore& engine)
 	RESET_TIMER(timer);
 
 	// Entities
-	renderTextureTestEntity = CreateMeshEntity(engine, textureQuadMaterialIndex, cubeMeshView);
-	renderTextureTestEntity->position = { 3.f, 1.f, 0.f };
+	Entity* renderTextureDisplay = CreateQuadEntity(engine, renderTextureMaterialIndex, 2.f, 2.f);
+	renderTextureDisplay->position = { -1.f, 1.f, 0.f };
+	renderTextureDisplay->rotation = XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f);
+	renderTextureDisplay->name = "RenderTextureDisplay";
+
+	Entity* renderTextureCameraIndicator = CreateMeshEntity(engine, laserMaterialIndex, cubeMeshView);
+	renderTextureCameraIndicator->scale = { 0.1f, 0.1f, 0.1f };
+	renderTextureCameraIndicator->name = "RenderCamIndicator";
+
+	renderCamParent = CreateEmptyEntity(engine);
+	renderCamParent->position = { 3.f, 2.f, 3.f };
+	renderCamParent->rotation = XMQuaternionRotationRollPitchYaw(0.f, XM_PI, 0.f);
+	renderCamParent->name = "RenderCamParent";
+	renderCamParent->AddChild(renderTextureDisplay);
+	renderCamParent->AddChild(renderTextureCameraIndicator);
 
 	playerEntity = CreateEmptyEntity(engine);
 	playerEntity->name = "Player";
@@ -465,7 +478,8 @@ void Game::UpdateGame(EngineCore& engine)
 	XMMatrixDecompose(&camScale, &camRotation, &camTranslation, cameraEntity->worldMatrix);
 	engine.mainCamera->position = camTranslation;
 	engine.mainCamera->rotation = camRotation;
-	engine.renderTextureCamera->position = { 3.f, 3.f, 3.f };
+	engine.renderTextureCamera->position = renderCamParent->position;
+	engine.renderTextureCamera->rotation = renderCamParent->rotation;
 
 	CalculateDirectionVectors(camForward, camRight, camUp, engine.mainCamera->rotation);
 
@@ -484,7 +498,6 @@ void Game::UpdateGame(EngineCore& engine)
 
 	lightDebugEntity->position = light.position;
 	lightDebugEntity->rotation = light.rotation;
-	renderTextureTestEntity->rotation = light.rotation;
 
 	if (showLightPosition)
 	{

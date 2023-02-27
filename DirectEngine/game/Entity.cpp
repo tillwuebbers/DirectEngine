@@ -3,6 +3,7 @@
 void Entity::AddChild(Entity* child)
 {
 	assert(child != nullptr);
+	assert(child != this);
 	assert(childCount < MAX_ENTITY_CHILDREN);
 	
 	children[childCount] = child;

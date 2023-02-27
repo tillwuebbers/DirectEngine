@@ -83,7 +83,7 @@ public:
 	Texture* diffuseTexture{};
 	Texture* memeTexture{};
 
-	Entity* renderTextureTestEntity;
+	Entity* renderCamParent;
 	Entity* playerEntity;
 	Entity* cameraEntity;
 	Entity* enemies[MAX_ENENMY_COUNT];
