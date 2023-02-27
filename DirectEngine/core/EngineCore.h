@@ -229,21 +229,29 @@ public:
     ID3D12CommandAllocator* m_uploadCommandAllocators[FrameCount] = {};
     ID3D12CommandAllocator* m_renderCommandAllocators[FrameCount] = {};
     ID3D12Resource* m_renderTargets[FrameCount] = {};
+    ID3D12Resource* m_msaaRenderTargets[FrameCount] = {};
     ID3D12Resource* m_depthStencilBuffer = nullptr;
+    ID3D12Resource* m_msaaDepthStencilBuffer = nullptr;
     ID3D12GraphicsCommandList* m_uploadCommandList = nullptr;
     ID3D12GraphicsCommandList* m_renderCommandList = nullptr;
     bool m_scheduleUpload = false;
+    bool m_renderTextureEnabled = true;
+    bool m_msaaEnabled = true;
+    UINT m_msaaSampleCount = 4;
     PipelineConfig* m_shadowConfig;
     PipelineConfig* m_wireframeConfig;
     PipelineConfig* m_debugLineConfig;
     
     D3D12_CPU_DESCRIPTOR_HANDLE m_swapchainRtvHandles[FrameCount];
+    D3D12_CPU_DESCRIPTOR_HANDLE m_swapchainDsvHandle;
+    D3D12_CPU_DESCRIPTOR_HANDLE m_msaaRtvHandles[FrameCount];
+    D3D12_CPU_DESCRIPTOR_HANDLE m_msaaDsvHandle;
     UINT m_rtvDescriptorSize;
     UINT m_dsvDescriptorSize;
 
     UINT m_constantBufferCount = 0;
-    UINT m_depthStencilViewCount = 2; // main dsv, shadow dsv
-    UINT m_renderTargetViewCount = FrameCount;
+    UINT m_depthStencilViewCount = 4; // main dsv, shadow dsv, rendertexture dsv, msaa dsv
+    UINT m_renderTargetViewCount = FrameCount * 2; // main rtv, msaa rtv
 
     // App resources
     ConstantBuffer<SceneConstantBuffer> m_sceneConstantBuffer = {};
@@ -320,12 +328,11 @@ public:
     void LoadSizeDependentResources();
     void LoadAssets();
     CameraData* CreateCamera();
-    DescriptorHandle CreateDepthStencilView(UINT width, UINT height, ComStack& comStack, ID3D12Resource** bufferTarget, int fixedOffset = -1);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE CreateDepthStencilView(UINT width, UINT height, ComStack& comStack, ID3D12Resource** bufferTarget, int fixedOffset = -1, UINT sampleCount = 1);
     void CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount);
     void CreatePipelineState(PipelineConfig* config);
     RenderTexture* CreateRenderTexture(UINT width, UINT height);
     Texture* CreateTexture(const wchar_t* filePath);
-    void InitGPUTexture(Texture& outTexture, DXGI_FORMAT format, UINT width, UINT height, const wchar_t* name);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
     size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride, const std::vector<Texture*>& textures, const std::wstring& shaderName);
     CollisionData* CreateCollider(const XMVECTOR localCenter = { 0.f, 0.f, 0.f }, const XMVECTOR localExtents = { 1.f, 1.f, 1.f }, void* entity = nullptr, void* bone = nullptr);
@@ -367,28 +374,26 @@ public:
         return { cpuHeapEntry, gpuHeapEntry };
     }
 
-    DescriptorHandle GetNewRTVHandle()
+    CD3DX12_CPU_DESCRIPTOR_HANDLE GetNewRTVHandle()
     {
         assert(m_renderTargetViewCount < m_rtvHeap->GetDesc().NumDescriptors);
 
         UINT incrementSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 		CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHeapEntry(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_renderTargetViewCount, incrementSize);
-		CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHeapEntry(m_rtvHeap->GetGPUDescriptorHandleForHeapStart(), m_renderTargetViewCount, incrementSize);
 
 		m_renderTargetViewCount++;
-		return { cpuHeapEntry, gpuHeapEntry };
+		return cpuHeapEntry;
     }
 
-    DescriptorHandle GetNewDSVHandle()
+    CD3DX12_CPU_DESCRIPTOR_HANDLE GetNewDSVHandle()
     {
         assert(m_depthStencilViewCount < m_depthStencilHeap->GetDesc().NumDescriptors);
 
         UINT incrementSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
         CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHeapEntry(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart(), m_depthStencilViewCount, incrementSize);
-        CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHeapEntry(m_depthStencilHeap->GetGPUDescriptorHandleForHeapStart(), m_depthStencilViewCount, incrementSize);
 
         m_depthStencilViewCount++;
-        return { cpuHeapEntry, gpuHeapEntry };
+        return cpuHeapEntry;
     }
 
     template<typename T>

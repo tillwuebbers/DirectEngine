@@ -155,29 +155,6 @@ void Game::DrawUI(EngineCore& engine)
 
 			ImGui::NewLine();
 
-			if (ImGui::Checkbox("Borderless", &engine.m_wantBorderless))
-			{
-				if (engine.m_windowMode == WindowMode::Fullscreen)
-				{
-					engine.m_wantedWindowMode = WindowMode::Borderless;
-				}
-				else if (engine.m_windowMode == WindowMode::Borderless)
-				{
-					engine.m_wantedWindowMode = WindowMode::Fullscreen;
-				}
-			}
-			ImGui::SameLine();
-			if (ImGui::Button("Toggle Fullscreen"))
-			{
-				engine.ToggleWindowMode();
-			}
-			if (ImGui::Checkbox("VSync", &engine.m_useVsync))
-			{
-
-			}
-
-			ImGui::NewLine();
-
 			if (ImGui::Button("ImGui Demo"))
 			{
 				showDemoWindow = !showDemoWindow;
@@ -289,6 +266,15 @@ void Game::DrawUI(EngineCore& engine)
 			ImGui::SliderFloat("Fog", &fog, 0., 3., "%.2f");
 			ImGui::ColorEdit3("Clear Color", &baseClearColor.m128_f32[0]);
 			ImGui::ColorEdit3("Fog Color", &fogColor.m128_f32[0]);
+			ImGui::Checkbox("VSync", &engine.m_useVsync);
+			ImGui::Checkbox("MSAA", &engine.m_msaaEnabled);
+			ImGui::Checkbox("Render Texture", &engine.m_renderTextureEnabled);
+
+			WindowMode currentWindowMode = engine.m_windowMode;
+			if (ImGui::Combo("Window Mode", (int*)&currentWindowMode, "Fullscreen\0Borderless\0Windowed\0\0"))
+			{
+				engine.m_wantedWindowMode = currentWindowMode;
+			}
 		}
 		ImGui::End();
 	}

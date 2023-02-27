@@ -213,7 +213,7 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
     {
         // Describe and create a render target view (RTV) descriptor heap.
         D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
-        rtvHeapDesc.NumDescriptors = FrameCount * 3; // TODO
+        rtvHeapDesc.NumDescriptors = FrameCount * 2 + 1;
         rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
         rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         ThrowIfFailed(m_device->CreateDescriptorHeap(&rtvHeapDesc, NewComObject(comPointers, &m_rtvHeap)));
@@ -234,7 +234,7 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
 
         // Depth/Stencil descriptor heap
         D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
-        dsvHeapDesc.NumDescriptors = 3; // Main, shadow, render texture
+        dsvHeapDesc.NumDescriptors = 4; // Main, shadow, render texture, msaa
         dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
         dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         ThrowIfFailed(m_device->CreateDescriptorHeap(&dsvHeapDesc, NewComObject(comPointers, &m_depthStencilHeap)));
@@ -270,20 +270,53 @@ void EngineCore::LoadSizeDependentResources()
 
             m_swapchainRtvHandles[n] = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), n, m_rtvDescriptorSize);
             m_device->CreateRenderTargetView(m_renderTargets[n], &rtvDesc, m_swapchainRtvHandles[n]);
+
+
+            if (m_msaaEnabled)
+            {
+                D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS levels = { DISPLAY_FORMAT, m_msaaSampleCount };
+                ThrowIfFailed(m_device->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &levels, sizeof(levels)));
+                assert(levels.NumQualityLevels > 0);
+
+                CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_DEFAULT);
+                CD3DX12_RESOURCE_DESC resourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(
+                    DISPLAY_FORMAT,
+                    m_width,
+                    m_height,
+                    1,
+                    1,
+                    m_msaaSampleCount,
+                    0,
+                    D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
+
+                m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc, D3D12_RESOURCE_STATE_RENDER_TARGET, nullptr, NewComObject(comPointersSizeDependent, &m_msaaRenderTargets[n]));
+                m_msaaRenderTargets[n]->SetName(std::format(L"MSAA Render Target {}", n).c_str());
+
+                D3D12_RENDER_TARGET_VIEW_DESC msaaRtvDesc = {};
+                msaaRtvDesc.Format = DISPLAY_FORMAT;
+                msaaRtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2DMS;
+
+                m_msaaRtvHandles[n] = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), n + FrameCount, m_rtvDescriptorSize);
+                m_device->CreateRenderTargetView(m_msaaRenderTargets[n], &msaaRtvDesc, m_msaaRtvHandles[n]);
+            }
         }
     }
 
     // depth/stencil view
-    CreateDepthStencilView(m_width, m_height, comPointersSizeDependent, &m_depthStencilBuffer, 0);
+    m_swapchainDsvHandle = CreateDepthStencilView(m_width, m_height, comPointersSizeDependent, &m_depthStencilBuffer, 0);
+    if (m_msaaEnabled)
+    {
+		m_msaaDsvHandle = CreateDepthStencilView(m_width, m_height, comPointersSizeDependent, &m_msaaDepthStencilBuffer, 3, m_msaaSampleCount);
+	}
 }
 
-DescriptorHandle EngineCore::CreateDepthStencilView(UINT width, UINT height, ComStack& comStack, ID3D12Resource** bufferTarget, int fixedOffset)
+CD3DX12_CPU_DESCRIPTOR_HANDLE EngineCore::CreateDepthStencilView(UINT width, UINT height, ComStack& comStack, ID3D12Resource** bufferTarget, int fixedOffset, UINT sampleCount)
 {
     assert(bufferTarget != nullptr);
 
     D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
     depthStencilDesc.Format = DEPTH_BUFFER_FORMAT;
-    depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+    depthStencilDesc.ViewDimension = sampleCount > 1 ? D3D12_DSV_DIMENSION_TEXTURE2DMS : D3D12_DSV_DIMENSION_TEXTURE2D;
     depthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
 
     D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
@@ -292,25 +325,22 @@ DescriptorHandle EngineCore::CreateDepthStencilView(UINT width, UINT height, Com
     depthOptimizedClearValue.DepthStencil.Stencil = 0;
 
     CD3DX12_HEAP_PROPERTIES heapType(D3D12_HEAP_TYPE_DEFAULT);
-    CD3DX12_RESOURCE_DESC depthTexture = CD3DX12_RESOURCE_DESC::Tex2D(DEPTH_BUFFER_FORMAT_TYPELESS, width, height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
+    CD3DX12_RESOURCE_DESC depthTexture = CD3DX12_RESOURCE_DESC::Tex2D(DEPTH_BUFFER_FORMAT_TYPELESS, width, height, 1, sampleCount > 1 ? 1 : 0, sampleCount, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 
     ThrowIfFailed(m_device->CreateCommittedResource(&heapType, D3D12_HEAP_FLAG_NONE, &depthTexture, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, NewComObject(comStack, bufferTarget)));
     (*bufferTarget)->SetName(L"Depth/Stencil Buffer");
 
-    DescriptorHandle dsvHandle;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle;
     if (fixedOffset >= 0)
     {
-        dsvHandle = {
-            CD3DX12_CPU_DESCRIPTOR_HANDLE(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart(), fixedOffset, m_dsvDescriptorSize),
-            CD3DX12_GPU_DESCRIPTOR_HANDLE(m_depthStencilHeap->GetGPUDescriptorHandleForHeapStart(), fixedOffset, m_dsvDescriptorSize)
-        };
+        dsvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart(), fixedOffset, m_dsvDescriptorSize);
     }
     else
     {
         dsvHandle = GetNewDSVHandle();
     }
 
-    m_device->CreateDepthStencilView(*bufferTarget, &depthStencilDesc, dsvHandle.cpuHandle);
+    m_device->CreateDepthStencilView(*bufferTarget, &depthStencilDesc, dsvHandle);
     return dsvHandle;
 }
 
@@ -536,7 +566,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
     psoDesc.PrimitiveTopologyType = config->topologyType;
     psoDesc.NumRenderTargets = 1;
     psoDesc.RTVFormats[0] = DISPLAY_FORMAT;
-    psoDesc.SampleDesc.Count = 1;
+    psoDesc.SampleDesc.Count = config->sampleCount;
     psoDesc.DSVFormat = DEPTH_BUFFER_FORMAT;
 
     config->creationError = m_device->CreateGraphicsPipelineState(&psoDesc, NewComObjectReplace(comPointers, &config->pipelineState));
@@ -554,12 +584,14 @@ void EngineCore::LoadAssets()
 
     m_wireframeConfig = NewObject(engineArena, PipelineConfig, L"aabb", 0);
     m_wireframeConfig->wireframe = true;
+    m_wireframeConfig->sampleCount = m_msaaEnabled ? m_msaaSampleCount : 1;
     CreatePipeline(m_wireframeConfig, 0, 0);
     
     m_debugLineConfig = NewObject(engineArena, PipelineConfig, L"debugline", 0);
     m_debugLineConfig->wireframe = true;
     m_debugLineConfig->ignoreDepth = true;
     m_debugLineConfig->topologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+    m_debugLineConfig->sampleCount = m_msaaEnabled ? m_msaaSampleCount : 1;
     CreatePipeline(m_debugLineConfig, 0, 0);
 
     // Debug Line setup
@@ -642,25 +674,64 @@ CameraData* EngineCore::CreateCamera()
 
 RenderTexture* EngineCore::CreateRenderTexture(UINT width, UINT height)
 {
-    RenderTexture* result = NewObject(engineArena, RenderTexture);
-    InitGPUTexture(result->texture, DISPLAY_FORMAT, width, height, L"Render Texture");
-    
-    result->width = width;
-    result->height = height;
-    result->format = DISPLAY_FORMAT;
-    result->viewport = CD3DX12_VIEWPORT{ 0.f, 0.f, static_cast<float>(width), static_cast<float>(height) };
-    result->scissorRect = CD3DX12_RECT{ 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
+    // Texture buffer
+    RenderTexture* renderTexture = NewObject(engineArena, RenderTexture);
+    renderTexture->width = width;
+    renderTexture->height = height;
+    renderTexture->format = DISPLAY_FORMAT;
+    renderTexture->viewport = CD3DX12_VIEWPORT{ 0.f, 0.f, static_cast<float>(width), static_cast<float>(height) };
+    renderTexture->scissorRect = CD3DX12_RECT{ 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
 
-    result->rtvHandle = GetNewRTVHandle();
+    D3D12_RESOURCE_DESC textureDesc = CD3DX12_RESOURCE_DESC::Tex2D(DISPLAY_FORMAT, width, height);
+    textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
-    D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-    rtvDesc.Format = DISPLAY_FORMAT;
-    rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-    m_device->CreateRenderTargetView(result->texture.buffer, &rtvDesc, result->rtvHandle.cpuHandle);
+    CD3DX12_CLEAR_VALUE clearColor(DISPLAY_FORMAT, m_renderTargetClearColor);
 
-    result->dsvHandle = CreateDepthStencilView(width, height, comPointers, &result->dsvBuffer);
+    CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_DEFAULT);
+    m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clearColor, NewComObject(comPointers, &renderTexture->texture.buffer));
+    renderTexture->texture.buffer->SetName(L"Render Texture");
 
-    return result;
+    // SRV
+    renderTexture->texture.handle = GetNewDescriptorHandle();
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Format = DISPLAY_FORMAT;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MipLevels = 1;
+    m_device->CreateShaderResourceView(renderTexture->texture.buffer, &srvDesc, renderTexture->texture.handle.cpuHandle);
+
+    // DSV
+    renderTexture->dsvHandle = CreateDepthStencilView(width, height, comPointers, &renderTexture->dsvBuffer, 2, m_msaaEnabled ? m_msaaSampleCount : 1);
+    renderTexture->rtvHandle = GetNewRTVHandle();
+
+    if (m_msaaEnabled)
+    {
+        // MSAA Buffer
+        D3D12_RESOURCE_DESC textureDescMsaa = CD3DX12_RESOURCE_DESC::Tex2D(DISPLAY_FORMAT, width, height);
+        textureDescMsaa.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+        textureDescMsaa.SampleDesc.Count = m_msaaSampleCount;
+        textureDescMsaa.MipLevels = 1;
+
+        CD3DX12_HEAP_PROPERTIES heapPropertiesMsaa(D3D12_HEAP_TYPE_DEFAULT);
+        m_device->CreateCommittedResource(&heapPropertiesMsaa, D3D12_HEAP_FLAG_NONE, &textureDescMsaa, D3D12_RESOURCE_STATE_RESOLVE_SOURCE, &clearColor, NewComObject(comPointers, &renderTexture->msaaBuffer));
+        renderTexture->msaaBuffer->SetName(L"Render Texture MSAA");
+
+        // RTV
+        D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+        rtvDesc.Format = DISPLAY_FORMAT;
+        rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2DMS;
+        m_device->CreateRenderTargetView(renderTexture->msaaBuffer, &rtvDesc, renderTexture->rtvHandle);
+    }
+    else
+    {
+        // RTV
+        D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+        rtvDesc.Format = DISPLAY_FORMAT;
+        rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+        m_device->CreateRenderTargetView(renderTexture->texture.buffer, &rtvDesc, renderTexture->rtvHandle);
+    }
+
+    return renderTexture;
 }
 
 Texture* EngineCore::CreateTexture(const wchar_t* filePath)
@@ -677,28 +748,6 @@ Texture* EngineCore::CreateTexture(const wchar_t* filePath)
     UploadTexture(header, subresources, texture);
 
     return &texture;
-}
-
-void EngineCore::InitGPUTexture(Texture& outTexture, DXGI_FORMAT format, UINT width, UINT height, const wchar_t* name)
-{
-    D3D12_RESOURCE_DESC textureDesc = CD3DX12_RESOURCE_DESC::Tex2D(format, width, height);
-    textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
-
-    // clear color
-    CD3DX12_CLEAR_VALUE clearColor(format, m_renderTargetClearColor);
-
-    CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_DEFAULT);
-    m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clearColor, NewComObject(comPointers, &outTexture.buffer));
-    outTexture.buffer->SetName(name);
-
-    outTexture.handle = GetNewDescriptorHandle();
-
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.Format = format;
-    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-    srvDesc.Texture2D.MipLevels = 1; // TODO?
-    m_device->CreateShaderResourceView(outTexture.buffer, &srvDesc, outTexture.handle.cpuHandle);
 }
 
 void EngineCore::UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture)
@@ -766,6 +815,7 @@ size_t EngineCore::CreateMaterial(const size_t maxVertices, const size_t vertexS
     RESET_TIMER(timer);
 
     data.pipeline = NewObject(engineArena, PipelineConfig, shaderName, textures.size());
+    if (m_msaaEnabled) data.pipeline->sampleCount = m_msaaSampleCount;
     CreatePipeline(data.pipeline, 0, 0);
 
     OUTPUT_TIMERW(timer, L"Pipeline");
@@ -780,7 +830,7 @@ size_t EngineCore::CreateMaterial(const size_t maxVertices, const size_t vertexS
     // Create real vertex buffer on gpu memory
     CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
     CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(maxByteCount);
-    ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, NewComObject(comPointers, &data.vertexBuffer)));
+    ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_COMMON, nullptr, NewComObject(comPointers, &data.vertexBuffer)));
     data.vertexBuffer->SetName(L"Vertex Buffer");
 
     OUTPUT_TIMERW(timer, L"Buffers");
@@ -962,7 +1012,7 @@ void EngineCore::PopulateCommandList()
     }
 
     mainCamera->aspectRatio = m_aspectRatio;
-    for (int camIndex = 0; camIndex < m_cameraCount; camIndex++)
+    for (uint32_t camIndex = 0; camIndex < m_cameraCount; camIndex++)
 	{
 		CameraData& cameraData = m_cameras[camIndex];
         cameraData.constantBuffer.data.worldCameraPos = cameraData.position;
@@ -971,8 +1021,9 @@ void EngineCore::PopulateCommandList()
 	}
 
     // Setup Handles
-    D3D12_CPU_DESCRIPTOR_HANDLE rtvHandleWindow = m_swapchainRtvHandles[m_frameIndex];
-    D3D12_CPU_DESCRIPTOR_HANDLE dsvHandleWindow = m_depthStencilHeap->GetCPUDescriptorHandleForHeapStart();
+    D3D12_CPU_DESCRIPTOR_HANDLE mainRtvHandle = m_msaaEnabled ? m_msaaRtvHandles[m_frameIndex] : m_swapchainRtvHandles[m_frameIndex];
+    D3D12_CPU_DESCRIPTOR_HANDLE mainDsvHandle = m_msaaEnabled ? m_msaaDsvHandle : m_swapchainDsvHandle;
+    ID3D12Resource* renderTargetMsaa = m_msaaRenderTargets[m_frameIndex];
     ID3D12Resource* renderTargetWindow = m_renderTargets[m_frameIndex];
     EndProfile("Render Setup");
 
@@ -988,22 +1039,42 @@ void EngineCore::PopulateCommandList()
     EndProfile("Render Shadows");
 
     // Render Textures
-    BeginProfile("RenderTextures", ImColor::HSV(.6, .2, 1.));
-    ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
+    if (m_renderTextureEnabled)
+    {
+        BeginProfile("RenderTextures", ImColor::HSV(.6, .2, 1.));
+        ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
 
-    m_renderCommandList->RSSetViewports(1, &m_renderTexture->viewport);
-    m_renderCommandList->RSSetScissorRects(1, &m_renderTexture->scissorRect);
+        m_renderCommandList->RSSetViewports(1, &m_renderTexture->viewport);
+        m_renderCommandList->RSSetScissorRects(1, &m_renderTexture->scissorRect);
 
-    Transition(m_renderCommandList, m_renderTexture->texture.buffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+        if (m_msaaEnabled)
+        {
+            Transition(m_renderCommandList, m_renderTexture->msaaBuffer, D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+        }
+        else
+        {
+            Transition(m_renderCommandList, m_renderTexture->texture.buffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+        }
 
-    m_renderCommandList->ClearRenderTargetView(m_renderTexture->rtvHandle.cpuHandle, m_renderTargetClearColor, 0, nullptr);
-    m_renderCommandList->ClearDepthStencilView(m_renderTexture->dsvHandle.cpuHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-    RenderScene(m_renderCommandList, m_renderTexture->rtvHandle.cpuHandle, m_renderTexture->dsvHandle.cpuHandle, renderTextureCamera);
+        m_renderCommandList->ClearRenderTargetView(m_renderTexture->rtvHandle, m_renderTargetClearColor, 0, nullptr);
+        m_renderCommandList->ClearDepthStencilView(m_renderTexture->dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+        RenderScene(m_renderCommandList, m_renderTexture->rtvHandle, m_renderTexture->dsvHandle, renderTextureCamera);
 
-    Transition(m_renderCommandList, m_renderTexture->texture.buffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        if (m_msaaEnabled)
+        {
+            Transition(m_renderCommandList, m_renderTexture->msaaBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE);
+            Transition(m_renderCommandList, m_renderTexture->texture.buffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RESOLVE_DEST);
+			m_renderCommandList->ResolveSubresource(m_renderTexture->texture.buffer, 0, m_renderTexture->msaaBuffer, 0, DISPLAY_FORMAT);
+			Transition(m_renderCommandList, m_renderTexture->texture.buffer, D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        }
+        else
+        {
+            Transition(m_renderCommandList, m_renderTexture->texture.buffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		}
 
-    ExecCommandList(m_renderCommandList);
-    EndProfile("RenderTextures");
+        ExecCommandList(m_renderCommandList);
+        EndProfile("RenderTextures");
+    }
 
     // 'Main' render
     BeginProfile("Render Main", ImColor::HSV(.7, .3, 1.));
@@ -1011,17 +1082,27 @@ void EngineCore::PopulateCommandList()
     ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
     Transition(m_renderCommandList, renderTargetWindow, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-    m_renderCommandList->ClearRenderTargetView(rtvHandleWindow, m_game->GetClearColor(), 0, nullptr);
-    m_renderCommandList->ClearDepthStencilView(dsvHandleWindow, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+    m_renderCommandList->ClearRenderTargetView(mainRtvHandle, m_game->GetClearColor(), 0, nullptr);
+    m_renderCommandList->ClearDepthStencilView(mainDsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
     m_renderCommandList->RSSetViewports(1, &m_viewport);
     m_renderCommandList->RSSetScissorRects(1, &m_scissorRect);
 
-    RenderScene(m_renderCommandList, rtvHandleWindow, dsvHandleWindow, mainCamera);
-    RenderWireframe(m_renderCommandList, rtvHandleWindow, dsvHandleWindow, mainCamera);
-    RenderDebugLines(m_renderCommandList, rtvHandleWindow, dsvHandleWindow, mainCamera);
-    DrawImgui(m_renderCommandList, &rtvHandleWindow);
+    RenderScene(m_renderCommandList, mainRtvHandle, mainDsvHandle, mainCamera);
+    RenderWireframe(m_renderCommandList, mainRtvHandle, mainDsvHandle, mainCamera);
+    RenderDebugLines(m_renderCommandList, mainRtvHandle, mainDsvHandle, mainCamera);
     
+    if (m_msaaEnabled)
+    {
+        Transition(m_renderCommandList, renderTargetMsaa, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE);
+        Transition(m_renderCommandList, renderTargetWindow, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_DEST);
+        m_renderCommandList->ResolveSubresource(renderTargetWindow, 0, renderTargetMsaa, 0, DISPLAY_FORMAT);
+        Transition(m_renderCommandList, renderTargetMsaa, D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+        Transition(m_renderCommandList, renderTargetWindow, D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    }
+
+    DrawImgui(m_renderCommandList, &m_swapchainRtvHandles[m_frameIndex]);
+
     Transition(m_renderCommandList, renderTargetWindow, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
     ExecCommandList(m_renderCommandList);
     EndProfile("Render Main");

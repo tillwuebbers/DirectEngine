@@ -211,7 +211,7 @@ void EngineCore::ApplyWindowMode()
         // Get the settings of the display on which the app's window is currently displayed
         ComPtr<IDXGIOutput> pOutput;
         ThrowIfFailed(m_swapChain->GetContainingOutput(&pOutput));
-        DXGI_MODE_DESC modes[1024];
+        DXGI_MODE_DESC* modes = NewArray(frameArena, DXGI_MODE_DESC, 1024);
         UINT numModes;
         ThrowIfFailed(pOutput->GetDisplayModeList(DISPLAY_FORMAT, 0, &numModes, modes));
 

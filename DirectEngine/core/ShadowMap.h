@@ -30,7 +30,8 @@ struct RenderTexture
 	CD3DX12_RECT scissorRect;
 
 	Texture texture{};
+	ID3D12Resource* msaaBuffer;
 	ID3D12Resource* dsvBuffer;
-	DescriptorHandle rtvHandle{};
-	DescriptorHandle dsvHandle{};
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle{};
+	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle{};
 };
