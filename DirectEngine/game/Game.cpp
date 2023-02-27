@@ -42,10 +42,34 @@ void Game::StartGame(EngineCore& engine)
 	auto cubeMeshView = engine.CreateMesh(memeMaterialIndex, cubeMeshFile.vertices, cubeMeshFile.vertexCount);
 	engine.cubeVertexView = cubeMeshView;
 
-	LOG_TIMER(timer, "Test Cube Mesh", debugLog);
+	MeshFile arrowMeshFile = LoadGltfFromFile("models/arrow.glb", debugLog, modelArena).meshes[0];
+	arrowMesh = engine.CreateMesh(laserMaterialIndex, arrowMeshFile.vertices, arrowMeshFile.vertexCount);
+
+	LOG_TIMER(timer, "Default Meshes", debugLog);
 	RESET_TIMER(timer);
 
 	// Entities
+	arrowX = CreateMeshEntity(engine, laserMaterialIndex, arrowMesh);
+	arrowX->GetBuffer().color = { 1.f, 0.f, 0.f, 1.f };
+	arrowX->rotation = XMQuaternionRotationRollPitchYaw(0.f, 0.f, -XM_PIDIV2);
+	arrowX->name = "ArrowX";
+
+	arrowY = CreateMeshEntity(engine, laserMaterialIndex, arrowMesh);
+	arrowY->GetBuffer().color = { 0.f, 1.f, 0.f, 1.f };
+	arrowY->name = "ArrowY";
+	
+	arrowZ = CreateMeshEntity(engine, laserMaterialIndex, arrowMesh);
+	arrowZ->GetBuffer().color = { 0.f, 0.f, 1.f, 1.f };
+	arrowZ->rotation = XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f);
+	arrowZ->name = "ArrowZ";
+
+	gizmoRoot = CreateEmptyEntity(engine);
+	gizmoRoot->AddChild(arrowX);
+	gizmoRoot->AddChild(arrowY);
+	gizmoRoot->AddChild(arrowZ);
+	gizmoRoot->SetActive(false);
+	gizmoRoot->name = "Gizmo";
+	
 	Entity* renderTextureDisplay = CreateQuadEntity(engine, renderTextureMaterialIndex, 2.f, 2.f);
 	renderTextureDisplay->position = { -1.f, 1.f, 0.f };
 	renderTextureDisplay->rotation = XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f);

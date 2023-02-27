@@ -317,14 +317,18 @@ void Game::DrawUI(EngineCore& engine)
 			if (ImGui::Begin("Entity List", &showEntityList))
 			{
 				ImGui::Checkbox("Show Inactive Entities", &showInactiveEntities);
+				ImGui::SameLine(0, 10);
+				ImGui::Checkbox("Show Gizmo", &showGizmo);
+
+				gizmoRoot->SetActive(false);
 
 				for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 				{
 					int offset = entity - (Entity*)entityArena.base;
 
-					std::string entityTitle = std::format("{} [{}] ", entity->name, offset);
-					if (entity->IsActive()) entityTitle.append(ICON_CHECK_FILL);
 					ImGui::PushID(entity);
+					const char* icon = entity->IsActive() ? ICON_CHECK_FILL : "";
+					std::string entityTitle = std::format("{} [{}] {}###{}", entity->name, offset, icon, reinterpret_cast<void*>(&entity));
 					if ((showInactiveEntities || entity->IsActive()) && ImGui::CollapsingHeader(entityTitle.c_str()))
 					{
 						ImGui::Text("NAME");
@@ -451,6 +455,9 @@ void Game::DrawUI(EngineCore& engine)
 								ImGui::TreePop();
 							}
 						}
+
+						gizmoRoot->position = XMVector3Transform({}, entity->worldMatrix);
+						gizmoRoot->SetActive(showGizmo && showEscMenu);
 					}
 					ImGui::PopID();
 				}

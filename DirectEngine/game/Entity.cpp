@@ -172,28 +172,29 @@ void Entity::UpdateAnimation(EngineCore& engine)
 	}
 }
 
-XMVECTOR Entity::LocalToWorld(XMVECTOR localPosition)
+void Entity::SetActive(bool newState, bool affectSelf)
 {
-	EntityConstantBuffer buffer = GetBuffer();
-	return XMVector4Transform(localPosition, buffer.worldTransform);
-}
+	if (affectSelf)
+	{
+		isSelfActive = newState;
+	}
+	else
+	{
+		isParentActive = newState;
+	}
 
-XMVECTOR Entity::WorldToLocal(XMVECTOR worldPosition)
-{
-	XMVECTOR det;
-	return XMVector4Transform(worldPosition, XMMatrixInverse(&det, GetBuffer().worldTransform));
-}
-
-void Entity::SetActive(bool newState)
-{
-	isActive = newState;
 	if (isRendered) GetData().visible = newState;
 	if (collisionData != nullptr) collisionData->isActive = newState;
+
+	for (int i = 0; i < childCount; i++)
+	{
+		children[i]->SetActive(newState, false);
+	}
 }
 
 bool Entity::IsActive()
 {
-	return isActive;
+	return isParentActive && isSelfActive;
 }
 
 void CalculateDirectionVectors(XMVECTOR& outForward, XMVECTOR& outRight, XMVECTOR& outUp, XMVECTOR inRotation)

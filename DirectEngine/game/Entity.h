@@ -77,13 +77,12 @@ public:
 	void UpdateWorldMatrix();
 	void UpdateAudio(EngineCore& engine, const X3DAUDIO_LISTENER* audioListener);
 	void UpdateAnimation(EngineCore& engine);
-	XMVECTOR LocalToWorld(XMVECTOR localPosition);
-	XMVECTOR WorldToLocal(XMVECTOR worldPosition);
-	void SetActive(bool newState);
+	void SetActive(bool newState, bool affectSelf = true);
 	bool IsActive();
 
 private:
-	bool isActive = true;
+	bool isParentActive = true;
+	bool isSelfActive = true;
 };
 
 void CalculateDirectionVectors(XMVECTOR& outForward, XMVECTOR& outRight, XMVECTOR& outUp, XMVECTOR inRotation);

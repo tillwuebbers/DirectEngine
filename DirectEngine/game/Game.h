@@ -59,7 +59,7 @@ public:
 	bool showEscMenu = false;
 	bool showDebugUI = ISDEBUG;
 	bool showDebugImage = false;
-	bool showPostProcessWindow = true;
+	bool showPostProcessWindow = ISDEBUG;
 	bool showMovementWindow = false;
 	bool showAudioWindow = false;
 	bool showEntityList = ISDEBUG;
@@ -69,7 +69,7 @@ public:
 	bool showInactiveEntities = false;
 	bool showLightSpaceDebug = false;
 	bool showLightPosition = false;
-	bool keepDebugMenuVisibleInGame = true;
+	bool keepDebugMenuVisibleInGame = ISDEBUG;
 
 	WindowUpdate windowUpdateData{};
 	std::mutex windowUdpateDataMutex;
@@ -82,6 +82,13 @@ public:
 	EngineInput input{ globalArena };
 	Texture* diffuseTexture{};
 	Texture* memeTexture{};
+
+	D3D12_VERTEX_BUFFER_VIEW arrowMesh;
+	Entity* arrowX;
+	Entity* arrowY;
+	Entity* arrowZ;
+	Entity* gizmoRoot;
+	bool showGizmo = true;
 
 	Entity* renderCamParent;
 	Entity* playerEntity;
