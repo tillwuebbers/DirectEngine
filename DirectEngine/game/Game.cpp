@@ -660,7 +660,7 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, const s
 		RESET_TIMER(timer);
 
 		Entity* child = CreateMeshEntity(engine, materialIndex, meshView);
-		child->name = meshFile.textureName;
+		child->name = meshFile.textureName.c_str();
 		if (gltfResult.transformHierachy != nullptr) child->isSkinnedMesh = true;
 		mainEntity->AddChild(child);
 

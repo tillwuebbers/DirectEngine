@@ -327,17 +327,14 @@ void Game::DrawUI(EngineCore& engine)
 					ImGui::PushID(entity);
 					if ((showInactiveEntities || entity->IsActive()) && ImGui::CollapsingHeader(entityTitle.c_str()))
 					{
-						ImGui::Text(std::format("CHILDREN ({})", entity->childCount).c_str());
-						ImGui::SameLine(0, 20);
-						if (ImGui::Button("Add"))
-						{
-							entity->AddChild((Entity*)entityArena.base + newChildId);
-						}
-						ImGui::SameLine();
-						ImGui::PushItemWidth(100);
-						ImGui::InputInt("", &newChildId);
-						ImGui::PopItemWidth();
+						ImGui::Text("NAME");
+						ImGui::InputText("##entityname", entity->name.str, FixedStr::SIZE);
 
+						ImGui::Separator();
+
+
+						ImGui::Text(std::format("CHILDREN ({})", entity->childCount).c_str());
+						
 						for (int i = 0; i < entity->childCount; i++)
 						{
 							if (ImGui::SmallButton(std::format("{}###{}", ICON_CLOSE_FILL, i).c_str()))
@@ -350,6 +347,15 @@ void Game::DrawUI(EngineCore& engine)
 							ImGui::SameLine();
 							ImGui::Text(std::format("{} [{}]", entity->children[i]->name, (entity->children[i] - (Entity*)entityArena.base)).c_str());
 						}
+
+						if (ImGui::Button("Add"))
+						{
+							entity->AddChild((Entity*)entityArena.base + newChildId);
+						}
+						ImGui::SameLine();
+						ImGui::PushItemWidth(100);
+						ImGui::InputInt("", &newChildId);
+						ImGui::PopItemWidth();
 
 
 						ImGui::Separator();

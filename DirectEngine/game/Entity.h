@@ -7,6 +7,34 @@
 #include <DirectXMath.h>
 using namespace DirectX;
 
+struct FixedStr
+{
+	constexpr static size_t SIZE = 128;
+	char str[SIZE]{};
+
+	FixedStr& operator=(const char* other)
+	{
+		strcpy_s((char*)str, SIZE, other);
+		return *this;
+	}
+
+	FixedStr(const char* other)
+	{
+		strcpy_s((char*)str, SIZE, other);
+	}
+};
+
+template <>
+struct std::formatter<FixedStr> {
+	constexpr auto parse(std::format_parse_context& ctx) {
+		return ctx.begin();
+	}
+
+	auto format(const FixedStr& obj, std::format_context& ctx) {
+		return std::format_to(ctx.out(), "{}", obj.str);
+	}
+};
+
 class Entity
 {
 public:
@@ -17,7 +45,7 @@ public:
 	MAT_RMAJ localMatrix;
 	MAT_RMAJ worldMatrix;
 
-	std::string name = "Entity";
+	FixedStr name = "Entity";
 
 	EngineCore* engine;
 
