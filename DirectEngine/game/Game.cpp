@@ -12,6 +12,8 @@ void Game::StartGame(EngineCore& engine)
 {
 	INIT_TIMER(timer);
 
+	LoadUIStyle();
+
 	// Shaders
 	std::wstring defaultShader = L"entity";
 	std::wstring groundShader = L"ground";

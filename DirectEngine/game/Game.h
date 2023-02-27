@@ -59,7 +59,7 @@ public:
 	bool showEscMenu = false;
 	bool showDebugUI = ISDEBUG;
 	bool showDebugImage = false;
-	bool showPostProcessWindow = false;
+	bool showPostProcessWindow = true;
 	bool showMovementWindow = false;
 	bool showAudioWindow = false;
 	bool showEntityList = ISDEBUG;
@@ -69,6 +69,7 @@ public:
 	bool showInactiveEntities = false;
 	bool showLightSpaceDebug = false;
 	bool showLightPosition = false;
+	bool keepDebugMenuVisibleInGame = true;
 
 	WindowUpdate windowUpdateData{};
 	std::mutex windowUdpateDataMutex;
@@ -158,3 +159,5 @@ public:
 	void Warn(const std::string& message) override;
 	void Error(const std::string& message) override;
 };
+
+void LoadUIStyle();
