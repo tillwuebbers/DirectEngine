@@ -22,6 +22,16 @@ struct FixedStr
 	{
 		strcpy_s((char*)str, SIZE, other);
 	}
+
+	bool operator==(const FixedStr& other) const
+	{
+		return strcmp(str, other.str) == 0;
+	}
+
+	bool operator==(const char* other) const
+	{
+		return strcmp(str, other) == 0;
+	}
 };
 
 template <>

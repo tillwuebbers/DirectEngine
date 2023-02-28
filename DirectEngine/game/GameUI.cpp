@@ -320,7 +320,7 @@ void Game::DrawUI(EngineCore& engine)
 				ImGui::SameLine(0, 10);
 				ImGui::Checkbox("Show Gizmo", &showGizmo);
 
-				gizmoRoot->SetActive(false);
+				gizmo->root->SetActive(false);
 
 				for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
 				{
@@ -425,6 +425,7 @@ void Game::DrawUI(EngineCore& engine)
 							ImGui::CheckboxFlags("Dead", &entity->collisionData->collisionLayers, CollisionLayers::Dead);
 
 							ImGui::DragFloat3("Collision Size", &entity->collisionData->aabbLocalSize.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
+							ImGui::DragFloat3("Collision Offset", &entity->collisionData->aabbLocalPosition.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
 						}
 
 						if (entity->isSkinnedRoot && entity->transformHierachy->nodeCount > 0)
@@ -456,8 +457,8 @@ void Game::DrawUI(EngineCore& engine)
 							}
 						}
 
-						gizmoRoot->position = XMVector3Transform({}, entity->worldMatrix);
-						gizmoRoot->SetActive(showGizmo && showEscMenu);
+						gizmo->root->position = XMVector3Transform({}, entity->worldMatrix);
+						gizmo->root->SetActive(showGizmo);
 					}
 					ImGui::PopID();
 				}
