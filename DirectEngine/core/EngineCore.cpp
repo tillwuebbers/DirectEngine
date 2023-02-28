@@ -449,80 +449,92 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
     CreatePipelineState(config);
 }
 
-void EngineCore::CreatePipelineState(PipelineConfig* config)
+void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders)
 {
     INIT_TIMER(timer);
 
     ComPtr<ID3DBlob> vertexShader;
     ComPtr<ID3DBlob> pixelShader;
 
-#if ENABLE_SHADER_HOTLOAD
-    // Enable better shader debugging with the graphics debugging tools.
-    UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-    std::wstring path = std::wstring(L"../../../../DirectEngine/shaders/");
-    path.append(config->shaderDescription.shaderFileName);
-    path.append(L".hlsl");
-    const wchar_t* shaderPath = path.c_str();
-    Sleep(100);
-
-	time_t startTime = time(nullptr);
-    bool canOpen = false;
-    while (!canOpen)
+#if ISDEBUG
+    if (hotloadShaders)
     {
-        std::ifstream fileStream(shaderPath, std::ios::in);
+        wchar_t exePath[MAX_PATH];
+        GetModuleFileName(nullptr, exePath, MAX_PATH);
+        std::wstring shaderDir = std::wstring(exePath);
+        shaderDir = shaderDir.substr(0, shaderDir.find_last_of(L"\\"));
+        shaderDir.append(L"/../../../../DirectEngine/shaders/");
+        SetCurrentDirectory(shaderDir.c_str());
 
-        canOpen = fileStream.good();
-        fileStream.close();
+        // Enable better shader debugging with the graphics debugging tools.
+        UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+        std::wstring path = std::wstring(L"compile/");
+        path.append(config->shaderName);
+        path.append(L".hlsl");
+        const wchar_t* shaderPath = path.c_str();
+        Sleep(100);
 
-        if (!canOpen)
+	    time_t startTime = time(nullptr);
+        bool canOpen = false;
+        while (!canOpen)
         {
-			time_t elapsedSeconds = time(nullptr) - startTime;
-			if (elapsedSeconds > 5)
-			{
-                throw std::format(L"Could not open shader file {}", shaderPath).c_str();
-			}
-            Sleep(100);
+            std::ifstream fileStream(shaderPath, std::ios::in);
+
+            canOpen = fileStream.good();
+            fileStream.close();
+
+            if (!canOpen)
+            {
+			    time_t elapsedSeconds = time(nullptr) - startTime;
+			    if (elapsedSeconds > 5)
+			    {
+                    throw std::format(L"Could not open shader file {}", shaderPath).c_str();
+			    }
+                Sleep(100);
+            }
         }
+
+        ComPtr<ID3DBlob> vsErrors;
+        ComPtr<ID3D10Blob> psErrors;
+
+        m_shaderError.clear();
+        config->creationError = D3DCompileFromFile(shaderPath, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_VS, SHADER_VERSION_VS, compileFlags, 0, &vertexShader, &vsErrors);
+
+        if (vsErrors)
+        {
+            m_shaderError = std::format("Vertex Shader Errors:\n{}\n", (LPCSTR)vsErrors->GetBufferPointer());
+            OutputDebugString(std::format(L"{}\n", shaderPath).c_str());
+            OutputDebugStringA(m_shaderError.c_str());
+        }
+        if (FAILED(config->creationError)) return;
+
+        config->creationError = D3DCompileFromFile(shaderPath, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_PS, SHADER_VERSION_PS, compileFlags, 0, &pixelShader, &psErrors);
+        if (psErrors)
+        {
+            m_shaderError = std::format("Pixel Shader Errors:\n{}\n", (LPCSTR)psErrors->GetBufferPointer());
+            OutputDebugString(std::format(L"{}\n", shaderPath).c_str());
+            OutputDebugStringA(m_shaderError.c_str());
+        }
+        if (FAILED(config->creationError)) return;
     }
-
-    ComPtr<ID3DBlob> vsErrors;
-    ComPtr<ID3D10Blob> psErrors;
-
-    m_shaderError.clear();
-    config->creationError = D3DCompileFromFile(shaderPath, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, config->shaderDescription.vsEntryName, "vs_5_0", compileFlags, 0, &vertexShader, &vsErrors);
-
-    if (vsErrors)
-    {
-        m_shaderError = std::format("Vertex Shader Errors:\n{}\n", (LPCSTR)vsErrors->GetBufferPointer());
-        OutputDebugString(std::format(L"{}\n", shaderPath).c_str());
-        OutputDebugStringA(m_shaderError.c_str());
-    }
-    if (FAILED(config->creationError)) return;
-
-    config->creationError = D3DCompileFromFile(shaderPath, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, config->shaderDescription.psEntryName, "ps_5_0", compileFlags, 0, &pixelShader, &psErrors);
-    if (psErrors)
-    {
-        m_shaderError = std::format("Pixel Shader Errors:\n{}\n", (LPCSTR)psErrors->GetBufferPointer());
-        OutputDebugString(std::format(L"{}\n", shaderPath).c_str());
-        OutputDebugStringA(m_shaderError.c_str());
-    }
-    if (FAILED(config->creationError)) return;
-#else
-    std::wstring path = std::wstring(L"shaders_bin/");
-    path.append(config->shaderName);
-
-    std::wstring vsPath = path;
-    vsPath.append(L".vert.cso");
-
-    std::wstring psPath = path;
-    psPath.append(L".frag.cso");
-
-    config->creationError = D3DReadFileToBlob(vsPath.c_str(), &vertexShader);
-    if (FAILED(config->creationError)) return;
-
-    config->creationError = D3DReadFileToBlob(psPath.c_str(), &pixelShader);
-    if (FAILED(config->creationError)) return;
+    else
 #endif
+    {
+        std::wstring path = std::wstring(L"shaders_bin/");
+        path.append(config->shaderName);
+
+        std::wstring vsPath = path;
+        vsPath.append(L".vert.cso");
+
+        std::wstring psPath = path;
+        psPath.append(L".frag.cso");
+
+        config->creationError = D3DReadFileToBlob(vsPath.c_str(), &vertexShader);
+        if (FAILED(config->creationError)) return;
+
+        config->creationError = D3DReadFileToBlob(psPath.c_str(), &pixelShader);
+        if (FAILED(config->creationError)) return;
+    }
 
     OUTPUT_TIMERW(timer, L"Load Shaders");
     RESET_TIMER(timer);
@@ -1322,7 +1334,7 @@ void EngineCore::OnShaderReload()
     for (int i = 0; i < m_materialCount; i++)
     {
         MaterialData& material = m_materials[i];
-        CreatePipelineState(material.pipeline);
+        CreatePipelineState(material.pipeline, true);
 
         if (FAILED(material.pipeline->creationError))
         {
@@ -1334,7 +1346,7 @@ void EngineCore::OnShaderReload()
         }
     }
 
-    CreatePipelineState(m_shadowConfig);
+    CreatePipelineState(m_shadowConfig, true);
     if (FAILED(m_shadowConfig->creationError))
     {
         _com_error err(m_shadowConfig->creationError);
@@ -1344,7 +1356,7 @@ void EngineCore::OnShaderReload()
         return;
     }
 
-    CreatePipelineState(m_wireframeConfig);
+    CreatePipelineState(m_wireframeConfig, true);
     if (FAILED(m_wireframeConfig->creationError))
     {
         _com_error err(m_wireframeConfig->creationError);
@@ -1354,7 +1366,7 @@ void EngineCore::OnShaderReload()
         return;
     }
 
-    CreatePipelineState(m_debugLineConfig);
+    CreatePipelineState(m_debugLineConfig, true);
     if (FAILED(m_debugLineConfig->creationError))
     {
         _com_error err(m_debugLineConfig->creationError);

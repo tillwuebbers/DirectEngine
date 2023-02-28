@@ -40,7 +40,17 @@ struct ShadowSpaceBounds
 	XMFLOAT3 max;
 };
 
-MAT_RMAJ CalculateShadowCamProjection(const MAT_RMAJ& camViewMatrix, const MAT_RMAJ& camProjectionMatrix, const MAT_RMAJ& lightViewMatrix);
+struct Gizmo
+{
+	Entity* root;
+	Entity* translateArrows[3];
+	Entity* rotateArrows[3];
+	Entity* scaleArrows[3];
+
+	D3D12_VERTEX_BUFFER_VIEW translateArrowMesh;
+	D3D12_VERTEX_BUFFER_VIEW rotateArrowMesh;
+	D3D12_VERTEX_BUFFER_VIEW scaleArrowMesh;
+};
 
 class Game : public IGame
 {
@@ -83,20 +93,16 @@ public:
 	Texture* diffuseTexture{};
 	Texture* memeTexture{};
 
-	D3D12_VERTEX_BUFFER_VIEW arrowMesh;
-	Entity* arrowX;
-	Entity* arrowY;
-	Entity* arrowZ;
-	Entity* gizmoRoot;
+	Gizmo* gizmo = nullptr;
 	bool showGizmo = true;
 
-	Entity* renderCamParent;
-	Entity* playerEntity;
-	Entity* cameraEntity;
+	Entity* renderCamParent = nullptr;
+	Entity* playerEntity = nullptr;
+	Entity* cameraEntity = nullptr;
 	Entity* enemies[MAX_ENENMY_COUNT];
 	Entity* projectiles[MAX_PROJECTILE_COUNT];
-	Entity* laser;
-	Entity* lightDebugEntity;
+	Entity* laser = nullptr;
+	Entity* lightDebugEntity = nullptr;
 
 	AudioSource playerAudioSource{};
 	X3DAUDIO_EMITTER playerAudioEmitter{};
@@ -166,5 +172,9 @@ public:
 	void Warn(const std::string& message) override;
 	void Error(const std::string& message) override;
 };
+
+Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex);
+
+MAT_RMAJ CalculateShadowCamProjection(const MAT_RMAJ& camViewMatrix, const MAT_RMAJ& camProjectionMatrix, const MAT_RMAJ& lightViewMatrix);
 
 void LoadUIStyle();

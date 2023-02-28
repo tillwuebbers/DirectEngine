@@ -36,6 +36,11 @@
 #define NDC_MIN_Z 0.
 #define NDC_MAX_Z 1.
 
+#define SHADER_ENTRY_VS "VSMain"
+#define SHADER_ENTRY_PS "PSMain"
+#define SHADER_VERSION_VS "vs_5_1"
+#define SHADER_VERSION_PS "ps_5_1"
+
 #define DIFFUSE_SUFFIX "_D"
 
 #ifdef _DEBUG

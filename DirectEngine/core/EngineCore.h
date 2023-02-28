@@ -330,7 +330,7 @@ public:
     CameraData* CreateCamera();
     CD3DX12_CPU_DESCRIPTOR_HANDLE CreateDepthStencilView(UINT width, UINT height, ComStack& comStack, ID3D12Resource** bufferTarget, int fixedOffset = -1, UINT sampleCount = 1);
     void CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount);
-    void CreatePipelineState(PipelineConfig* config);
+    void CreatePipelineState(PipelineConfig* config, bool hotloadShaders = false);
     RenderTexture* CreateRenderTexture(UINT width, UINT height);
     Texture* CreateTexture(const wchar_t* filePath);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);

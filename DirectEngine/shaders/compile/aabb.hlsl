@@ -9,15 +9,9 @@ PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 norm
 {
 	PSInput result;
 
-	float4x4 aabbTransform = worldTransform;
-	aabbTransform[0][0] *= aabbLocalSize.x;
-	aabbTransform[1][1] *= aabbLocalSize.y;
-	aabbTransform[2][2] *= aabbLocalSize.z;
-
-	float4 worldPos = mul(position, aabbTransform);
-	float4 worldOffset = mul(float4(aabbLocalPosition, 0.), worldTransform);
-
-	result.position = mul(worldPos + worldOffset, mul(cameraView, cameraProjection));
+	float3 aabbPosition = position.xyz * aabbLocalSize + aabbLocalPosition;
+	float4 worldPos = mul(float4(aabbPosition, position.w), worldTransform);
+	result.position = mul(worldPos, mul(cameraView, cameraProjection));
 
 	return result;
 }
