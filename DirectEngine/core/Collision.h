@@ -5,10 +5,10 @@ using namespace DirectX;
 
 enum CollisionLayers : unsigned int
 {
-	None      = 0,
-	ClickTest = 1 << 1,
-	Floor     = 1 << 2,
-	Dead      = 1 << 3,
+	None       = 0,
+	GizmoClick = 1 << 1,
+	Floor      = 1 << 2,
+	Dead       = 1 << 3,
 };
 
 inline CollisionLayers operator|(CollisionLayers a, CollisionLayers b)
@@ -31,6 +31,12 @@ struct CollisionData
 	unsigned int collisionLayers = 0;
 	void* entity = nullptr;
 	void* bone = nullptr;
+
+	template <typename T>
+	T* GetEntity()
+	{
+		return static_cast<T*>(entity);
+	}
 };
 
 struct CollisionResult

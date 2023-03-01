@@ -25,6 +25,12 @@ Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex)
 		XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f),
 	};
 
+	XMVECTOR transformAxis[3] = {
+		{ 1.f, 0.f, 0.f },
+		{ 0.f, 1.f, 0.f },
+		{ 0.f, 0.f, 1.f },
+	};
+
 	const char* xyzNames[3] = {
 		"X",
 		"Y",
@@ -37,29 +43,41 @@ Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex)
 
 	for (int i = 0; i < 3; i++)
 	{
-		gizmo->translateArrows[i] = game.CreateMeshEntity(engine, materialIndex, gizmo->translateArrowMesh);
-		gizmo->translateArrows[i]->GetBuffer().color = xyzColors[i];
-		gizmo->translateArrows[i]->collisionData->aabbLocalSize = { 0.1f, 1.f, 0.1f };
-		gizmo->translateArrows[i]->collisionData->aabbLocalPosition = { 0.f, .5f, 0.f };
-		gizmo->translateArrows[i]->rotation = xyzRotations[i];
-		gizmo->translateArrows[i]->name = std::format("TranslateArrow{}", xyzNames[i]).c_str();
-		gizmo->root->AddChild(gizmo->translateArrows[i]);
+		Entity* translateArrow = gizmo->translateArrows[i];
+		translateArrow = game.CreateMeshEntity(engine, materialIndex, gizmo->translateArrowMesh);
+		translateArrow->GetBuffer().color = xyzColors[i];
+		translateArrow->collisionData->aabbLocalSize = { 0.1f, 1.f, 0.1f };
+		translateArrow->collisionData->aabbLocalPosition = { 0.f, .5f, 0.f };
+		translateArrow->collisionData->collisionLayers = CollisionLayers::GizmoClick;
+		translateArrow->rotation = xyzRotations[i];
+		translateArrow->name = std::format("TranslateArrow{}", xyzNames[i]).c_str();
+		translateArrow->isGizmoTranslationArrow = true;
+		translateArrow->gizmoTranslationAxis = transformAxis[i];
+		gizmo->root->AddChild(translateArrow);
 
-		gizmo->rotateArrows[i] = game.CreateMeshEntity(engine, materialIndex, gizmo->rotateArrowMesh);
-		gizmo->rotateArrows[i]->GetBuffer().color = xyzColors[i];
-		gizmo->rotateArrows[i]->collisionData->aabbLocalSize = { 2.f, .05f, 2.f };
-		gizmo->rotateArrows[i]->collisionData->aabbLocalPosition = { 0.f, 0.f, 0.f };
-		gizmo->rotateArrows[i]->rotation = xyzRotations[i];
-		gizmo->rotateArrows[i]->name = std::format("RotateArrow{}", xyzNames[i]).c_str();
-		gizmo->root->AddChild(gizmo->rotateArrows[i]);
+		Entity* rotateArrow = gizmo->rotateArrows[i];
+		rotateArrow = game.CreateMeshEntity(engine, materialIndex, gizmo->rotateArrowMesh);
+		rotateArrow->GetBuffer().color = xyzColors[i];
+		rotateArrow->collisionData->aabbLocalSize = { 2.f, .05f, 2.f };
+		rotateArrow->collisionData->aabbLocalPosition = { 0.f, 0.f, 0.f };
+		rotateArrow->collisionData->collisionLayers = CollisionLayers::GizmoClick;
+		rotateArrow->rotation = xyzRotations[i];
+		rotateArrow->name = std::format("RotateArrow{}", xyzNames[i]).c_str();
+		rotateArrow->isGizmoRotationRing = true;
+		rotateArrow->gizmoRotationAxis = transformAxis[i];
+		gizmo->root->AddChild(rotateArrow);
 
-		gizmo->scaleArrows[i] = game.CreateMeshEntity(engine, materialIndex, gizmo->scaleArrowMesh);
-		gizmo->scaleArrows[i]->GetBuffer().color = xyzColors[i];
-		gizmo->scaleArrows[i]->collisionData->aabbLocalSize = { .08f, .5f, .08f };
-		gizmo->scaleArrows[i]->collisionData->aabbLocalPosition = { .0f, .25f, .0f };
-		gizmo->scaleArrows[i]->rotation = xyzRotations[i];
-		gizmo->scaleArrows[i]->name = std::format("ScaleArrow{}", xyzNames[i]).c_str();
-		gizmo->root->AddChild(gizmo->scaleArrows[i]);
+		Entity* scaleArrow = gizmo->scaleArrows[i];
+		scaleArrow = game.CreateMeshEntity(engine, materialIndex, gizmo->scaleArrowMesh);
+		scaleArrow->GetBuffer().color = xyzColors[i];
+		scaleArrow->collisionData->aabbLocalSize = { .08f, .5f, .08f };
+		scaleArrow->collisionData->aabbLocalPosition = { .0f, .25f, .0f };
+		scaleArrow->collisionData->collisionLayers = CollisionLayers::GizmoClick;
+		scaleArrow->rotation = xyzRotations[i];
+		scaleArrow->name = std::format("ScaleArrow{}", xyzNames[i]).c_str();
+		scaleArrow->isGizmoScaleCube = true;
+		scaleArrow->gizmoScaleAxis = transformAxis[i];
+		gizmo->root->AddChild(scaleArrow);
 	}
 
 	return gizmo;

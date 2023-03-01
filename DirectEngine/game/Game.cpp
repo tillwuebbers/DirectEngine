@@ -169,10 +169,6 @@ void Game::UpdateGame(EngineCore& engine)
 		showEscMenu = !showEscMenu;
 		UpdateCursorState();
 	}
-	if (input.KeyDown(VK_LBUTTON))
-	{
-		CollisionResult collision = CollideWithWorld(engine.m_collisionData, engine.m_collisionDataCount, engine.mainCamera->position, camForward, ClickTest);
-	}
 	if (input.KeyComboJustPressed(VK_KEY_D, VK_CONTROL))
 	{
 		showDebugUI = !showDebugUI;
@@ -422,7 +418,7 @@ void Game::UpdateGame(EngineCore& engine)
 	}*/
 
 	// Laser
-	if (input.KeyDown(VK_LBUTTON) && engine.TimeSinceStart() > lastLaserSpawn + laserSpawnRate)
+	if (!editMode && input.KeyDown(VK_LBUTTON) && engine.TimeSinceStart() > lastLaserSpawn + laserSpawnRate)
 	{
 		laser->SetActive(true);
 		laser->spawnTime = engine.TimeSinceStart();
@@ -445,6 +441,64 @@ void Game::UpdateGame(EngineCore& engine)
 				PlaySound(engine, &entity->audioSource, AudioFile::EnemyDeath);
 			}
 		}
+	}
+
+	// Gizmo
+	if (editMode && showGizmo && editElement != nullptr && input.KeyJustPressed(VK_LBUTTON))
+	{
+		CollisionResult gizmoHit = RaycastScreenPosition(engine, *engine.mainCamera, input.mouseX, input.mouseY, CollisionLayers::GizmoClick);
+		if (gizmoHit.collider != nullptr)
+		{
+			Entity* gizmoEntity = gizmoHit.collider->GetEntity<Entity>();
+			assert(gizmoEntity != nullptr);
+			if (gizmoEntity != nullptr)
+			{
+				gizmoDragCursorStart = { input.mouseX, input.mouseY };
+				selectedGizmoElement = gizmoEntity;
+				selectedGizmoTarget = editElement;
+
+				if (gizmoEntity->isGizmoTranslationArrow)
+				{
+					gizmoDragEntityStart = selectedGizmoTarget->position;
+				}
+				else if (gizmoEntity->isGizmoRotationRing)
+				{
+					gizmoDragEntityStart = selectedGizmoTarget->rotation;
+				}
+				else if (gizmoEntity->isGizmoScaleCube)
+				{
+					gizmoDragEntityStart = selectedGizmoTarget->scale;
+				}
+			}
+		}
+	}
+	else if (selectedGizmoElement != nullptr && selectedGizmoTarget != nullptr)
+	{
+		XMVECTOR dragOffset = XMVECTOR{ input.mouseX, input.mouseY } - gizmoDragCursorStart;
+		if (selectedGizmoElement->isGizmoTranslationArrow)
+		{
+			selectedGizmoTarget->position = gizmoDragEntityStart + selectedGizmoElement->gizmoTranslationAxis * (XMVectorGetX(dragOffset) * .01f);
+		}
+		if (selectedGizmoElement->isGizmoRotationRing)
+		{
+			selectedGizmoTarget->rotation = XMQuaternionMultiply(gizmoDragEntityStart, XMQuaternionRotationAxis(selectedGizmoElement->gizmoRotationAxis, XMVectorGetX(dragOffset) * .01f));
+		}
+		if (selectedGizmoElement->isGizmoScaleCube)
+		{
+			selectedGizmoTarget->scale = gizmoDragEntityStart + selectedGizmoElement->gizmoScaleAxis * (XMVectorGetX(dragOffset) * .01f);
+		}
+
+		if (!editMode)
+		{
+			selectedGizmoElement = nullptr;
+			selectedGizmoTarget = nullptr;
+		}
+	}
+	
+	if (input.KeyJustReleased(VK_LBUTTON))
+	{
+		selectedGizmoElement = nullptr;
+		selectedGizmoTarget = nullptr;
 	}
 
 	// Player Audio
@@ -517,8 +571,8 @@ void Game::UpdateGame(EngineCore& engine)
 	XMVECTOR lightRight, lightUp;
 	CalculateDirectionVectors(engine.m_lightConstantBuffer.data.sunDirection, lightRight, lightUp, light.rotation);
 
-	MAT_RMAJ camView = XMMatrixTranspose(engine.m_cameras[0].constantBuffer.data.cameraView);
-	MAT_RMAJ camProj = XMMatrixTranspose(engine.m_cameras[0].constantBuffer.data.cameraProjection);
+	MAT_RMAJ camView = XMMatrixTranspose(engine.mainCamera->constantBuffer.data.cameraView);
+	MAT_RMAJ camProj = XMMatrixTranspose(engine.mainCamera->constantBuffer.data.cameraProjection);
 	MAT_RMAJ shadowSpaceMatrix = CalculateShadowCamProjection(camView, camProj, lightView);
 	
 	engine.m_lightConstantBuffer.data.lightProjection = XMMatrixTranspose(shadowSpaceMatrix);
@@ -703,6 +757,18 @@ void Game::UpdateCursorState()
 void Game::PlaySound(EngineCore& engine, AudioSource* audioSource, AudioFile file)
 {
 	audioSource->PlaySound(engine.m_audio, soundFiles[(size_t)file]);
+}
+
+CollisionResult Game::RaycastScreenPosition(EngineCore& engine, CameraData& cameraData, float x, float y, CollisionLayers layers)
+{
+	XMMATRIX cameraView       = XMMatrixTranspose(cameraData.constantBuffer.data.cameraView);
+	XMMATRIX cameraProjection = XMMatrixTranspose(cameraData.constantBuffer.data.cameraProjection);
+
+	XMVECTOR rayOriginScreen = { x, y, 0.f, 0.f };
+	XMVECTOR rayOriginWorld = XMVector3Unproject(rayOriginScreen, 0.f, 0.f, engine.m_width, engine.m_height, 0.f, 1.f, cameraProjection, cameraView, XMMatrixIdentity());
+	XMVECTOR rayDirection = XMVector3Normalize(rayOriginWorld - cameraData.position);
+
+	return CollideWithWorld(engine.m_collisionData, engine.m_collisionDataCount, rayOriginWorld, rayDirection, layers);
 }
 
 void Game::Log(const std::string& message)

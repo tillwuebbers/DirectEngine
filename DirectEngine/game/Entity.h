@@ -77,6 +77,15 @@ public:
 	float spawnTime = -1000.f;
 	XMVECTOR velocity = {};
 
+	bool isGizmoTranslationArrow = false;
+	XMVECTOR gizmoTranslationAxis{};
+
+	bool isGizmoRotationRing = false;
+	XMVECTOR gizmoRotationAxis{};
+
+	bool isGizmoScaleCube = false;
+	XMVECTOR gizmoScaleAxis{};
+
 	AudioSource audioSource;
 
 	void AddChild(Entity* child);

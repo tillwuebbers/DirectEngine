@@ -7,8 +7,6 @@
 #define SLIDER_SPEED 0.005f
 #define SLIDER_MIN (-1000.f)
 #define SLIDER_MAX 1000.f
-#define SPLIT_V3(v) v.m128_f32[0], v.m128_f32[1], v.m128_f32[2]
-#define SPLIT_V4(v) v.m128_f32[0], v.m128_f32[1], v.m128_f32[2], v.m128_f32[3]
 
 void DisplayMatrix(XMMATRIX& mat)
 {
@@ -62,7 +60,7 @@ void Game::DrawUI(EngineCore& engine)
 	if (showDemoWindow) ImGui::ShowDemoWindow(&showDemoWindow);
 
 	// Escape Menu
-	if (showEscMenu)
+	if (showEscMenu && !editMode)
 	{
 		const int buttonWidth = 250;
 		const int buttonHeight = 30;
@@ -97,423 +95,432 @@ void Game::DrawUI(EngineCore& engine)
 	// Debug UI
 	if (showEscMenu || keepDebugMenuVisibleInGame)
 	{
-		if (showDebugUI)
+		DrawDebugUI(engine);
+	}
+}
+
+void Game::DrawDebugUI(EngineCore& engine)
+{
+	if (showDebugUI)
+	{
+		std::string title = std::format("{} Debug", ICON_BUG_FILL);
+
+		ImGui::SetNextWindowPos(ImVec2{ 0, 0 });
+		if (ImGui::Begin(title.c_str(), &showDebugUI, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize))
 		{
-			std::string title = std::format("{} Debug", ICON_BUG_FILL);
+			ImGui::Checkbox("Keep Visible", &keepDebugMenuVisibleInGame);
+			ImGui::SameLine();
+			ImGui::Checkbox("Edit Mode", &editMode);
 
-			ImGui::SetNextWindowPos(ImVec2{ 0, 0 });
-			if (ImGui::Begin(title.c_str(), &showDebugUI, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize))
+			ImGui::Text("Camera Position: %.1f %.1f %.1f", SPLIT_V3(engine.mainCamera->position));
+			ImGui::Text("Camera Rotation: %.1f %.1f", playerPitch / XM_2PI * 360.f, playerYaw / XM_2PI * 360.f);
+
+			ImGui::NewLine();
+
+			ImDrawList* drawList = ImGui::GetWindowDrawList();
+
+			const float maxDisplayedFrameTime = (1.f / 144.f) * 2.f;
+			const float lineWidth = 4.f;
+			ImVec2 pos = ImGui::GetCursorPos();
+			ImVec2 max = ImVec2(ImGui::GetWindowContentRegionMax().x, pos.y + 80);
+			int rectWidth = static_cast<int>(ImGui::GetWindowContentRegionWidth());
+			float rectHeight = max.y - pos.y;
+
+			drawList->AddRectFilled(pos, max, ImColor::HSV(0, 0, 0), 3);
+			drawList->AddLine(ImVec2(pos.x, pos.y + rectHeight / 2.f), ImVec2(max.x, pos.y + rectHeight / 2.f), ImColor::HSV(0, 0, .5f));
+
+			int drawIndex = static_cast<int>((rectWidth - 1) / lineWidth);
+			while (drawIndex >= 0)
 			{
-				ImGui::Checkbox("Keep Visible", &keepDebugMenuVisibleInGame);
+				int frameIndex = lastDebugFrameIndex - drawIndex;
+				while (frameIndex < 0) frameIndex += _countof(lastFrames);
 
-				ImGui::Text("Camera Position: %.1f %.1f %.1f", SPLIT_V3(engine.mainCamera->position));
-				ImGui::Text("Camera Rotation: %.1f %.1f", playerPitch / XM_2PI * 360.f, playerYaw / XM_2PI * 360.f);
+				float linePercentHeight = lastFrames[frameIndex].duration / maxDisplayedFrameTime;
+				float p1Y = pos.y + rectHeight * (1.f - linePercentHeight);
+				drawList->AddLine(ImVec2(pos.x + drawIndex * lineWidth, p1Y), ImVec2(pos.x + drawIndex * lineWidth, max.y), ImColor(0.f, 1.f, 0.f), lineWidth);
 
-				ImGui::NewLine();
+				drawIndex--;
+			}
 
-				ImDrawList* drawList = ImGui::GetWindowDrawList();
+			if (ImGui::Button(pauseProfiler ? ICON_PLAY_FILL : ICON_PAUSE_FILL))
+			{
+				pauseProfiler = !pauseProfiler;
+			}
 
-				const float maxDisplayedFrameTime = (1.f / 144.f) * 2.f;
-				const float lineWidth = 4.f;
-				ImVec2 pos = ImGui::GetCursorPos();
-				ImVec2 max = ImVec2(ImGui::GetWindowContentRegionMax().x, pos.y + 80);
-				int rectWidth = static_cast<int>(ImGui::GetWindowContentRegionWidth());
-				float rectHeight = max.y - pos.y;
+			ImGui::SetCursorPos(max);
 
-				drawList->AddRectFilled(pos, max, ImColor::HSV(0, 0, 0), 3);
-				drawList->AddLine(ImVec2(pos.x, pos.y + rectHeight / 2.f), ImVec2(max.x, pos.y + rectHeight / 2.f), ImColor::HSV(0, 0, .5f));
+			ImGui::NewLine();
 
-				int drawIndex = static_cast<int>((rectWidth - 1) / lineWidth);
-				while (drawIndex >= 0)
+			if (ImGui::Button("ImGui Demo"))
+			{
+				showDemoWindow = !showDemoWindow;
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Debug Image"))
+			{
+				showDebugImage = !showDebugImage;
+			}
+
+			if (ImGui::Button("Log"))
+			{
+				showLog = !showLog;
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Profiler"))
+			{
+				showProfiler = !showProfiler;
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Movement"))
+			{
+				showMovementWindow = !showMovementWindow;
+			}
+
+			if (ImGui::Button("Graphics"))
+			{
+				showPostProcessWindow = !showPostProcessWindow;
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Audio"))
+			{
+				showAudioWindow = !showAudioWindow;
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Entities"))
+			{
+				showEntityList = !showEntityList;
+			}
+
+			if (ImGui::Button("Lighting"))
+			{
+				showLightWindow = !showLightWindow;
+			}
+		}
+		ImGui::End();
+	}
+
+	// Log
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2{ 100, 30 });
+	if (showLog)
+	{
+		if (ImGui::Begin("Log", &showLog))
+		{
+			if (ImGui::Button(stopLog ? ICON_PLAY_FILL : ICON_STOP_FILL))
+			{
+				if (!stopLog)
 				{
-					int frameIndex = lastDebugFrameIndex - drawIndex;
-					while (frameIndex < 0) frameIndex += _countof(lastFrames);
-
-					float linePercentHeight = lastFrames[frameIndex].duration / maxDisplayedFrameTime;
-					float p1Y = pos.y + rectHeight * (1.f - linePercentHeight);
-					drawList->AddLine(ImVec2(pos.x + drawIndex * lineWidth, p1Y), ImVec2(pos.x + drawIndex * lineWidth, max.y), ImColor(0.f, 1.f, 0.f), lineWidth);
-
-					drawIndex--;
+					Warn("Log paused...");
 				}
-
-				if (ImGui::Button(pauseProfiler ? ICON_PLAY_FILL : ICON_PAUSE_FILL))
+				stopLog = !stopLog;
+				if (!stopLog)
 				{
-					pauseProfiler = !pauseProfiler;
-				}
-
-				ImGui::SetCursorPos(max);
-
-				ImGui::NewLine();
-
-				if (ImGui::Button("ImGui Demo"))
-				{
-					showDemoWindow = !showDemoWindow;
-				}
-				ImGui::SameLine();
-				if (ImGui::Button("Debug Image"))
-				{
-					showDebugImage = !showDebugImage;
-				}
-
-				if (ImGui::Button("Log"))
-				{
-					showLog = !showLog;
-				}
-				ImGui::SameLine();
-				if (ImGui::Button("Profiler"))
-				{
-					showProfiler = !showProfiler;
-				}
-				ImGui::SameLine();
-				if (ImGui::Button("Movement"))
-				{
-					showMovementWindow = !showMovementWindow;
-				}
-
-				if (ImGui::Button("Graphics"))
-				{
-					showPostProcessWindow = !showPostProcessWindow;
-				}
-				ImGui::SameLine();
-				if (ImGui::Button("Audio"))
-				{
-					showAudioWindow = !showAudioWindow;
-				}
-				ImGui::SameLine();
-				if (ImGui::Button("Entities"))
-				{
-					showEntityList = !showEntityList;
-				}
-
-				if (ImGui::Button("Lighting"))
-				{
-					showLightWindow = !showLightWindow;
+					Warn("Log resumed...");
 				}
 			}
-			ImGui::End();
+			ImGui::SameLine();
+			ImGui::Checkbox("Scroll to bottom", &scrollLog);
+
+			ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ 0, 0 });
+			debugLog.DrawLogText();
+			if (scrollLog)
+			{
+				ImGui::SetScrollHereY();
+			}
+			ImGui::PopStyleVar();
+			ImGui::EndChild();
 		}
 
-		// Log
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2{ 100, 30 });
-		if (showLog)
+		ImGui::End();
+	}
+	ImGui::PopStyleVar();
+
+	// Debug Image
+	if (showDebugImage)
+	{
+		if (ImGui::Begin("Debug Image", &showDebugImage))
 		{
-			if (ImGui::Begin("Log", &showLog))
+			ImVec2 availableSize = ImGui::GetContentRegionAvail();
+			float minSize = std::min(availableSize.x, availableSize.y);
+			DrawDebugImage({ minSize, minSize });
+		}
+		ImGui::End();
+	}
+
+	// Post Processing
+	if (showPostProcessWindow)
+	{
+		if (ImGui::Begin("Graphics", &showPostProcessWindow))
+		{
+			ImGui::SliderFloat("Contrast", &contrast, 0., 3., "%.2f");
+			ImGui::SliderFloat("Brightness", &brightness, -1., 1., "%.2f");
+			ImGui::SliderFloat("Saturation", &saturation, 0., 3., "%.2f");
+			ImGui::SliderFloat("Fog", &fog, 0., 3., "%.2f");
+			ImGui::ColorEdit3("Clear Color", &baseClearColor.m128_f32[0]);
+			ImGui::ColorEdit3("Fog Color", &fogColor.m128_f32[0]);
+			ImGui::Separator();
+
+			WindowMode currentWindowMode = engine.m_windowMode;
+			if (ImGui::Combo("Window Mode", (int*)&currentWindowMode, "Fullscreen\0Borderless\0Windowed\0\0"))
 			{
-				if (ImGui::Button(stopLog ? ICON_PLAY_FILL : ICON_STOP_FILL))
+				engine.m_wantedWindowMode = currentWindowMode;
+			}
+			ImGui::Checkbox("VSync", &engine.m_useVsync);
+			ImGui::Checkbox("MSAA", &engine.m_msaaEnabled);
+			ImGui::Checkbox("Render Texture", &engine.m_renderTextureEnabled);
+
+			ImGui::Separator();
+			ImGui::Checkbox("Show Bounds", &engine.renderAABB);
+			//ImGui::Checkbox("Show Wireframe", &engine.renderWireframe);
+		}
+		ImGui::End();
+	}
+
+	// Audio
+	if (showAudioWindow)
+	{
+		if (ImGui::Begin("Audio", &showAudioWindow))
+		{
+			float volume = 0.f;
+			engine.m_audioMasteringVoice->GetVolume(&volume);
+			if (ImGui::SliderFloat("Global volume", &volume, 0., 1., "%.2f"))
+			{
+				engine.m_audioMasteringVoice->SetVolume(volume);
+			}
+		}
+		ImGui::End();
+	}
+
+	// Movement
+	if (showMovementWindow)
+	{
+		if (ImGui::Begin("Movement", &showMovementWindow))
+		{
+			ImGui::Checkbox("Noclip", &noclip);
+			ImGui::SameLine();
+			ImGui::Checkbox("Autojump", &autojump);
+			ImGui::SameLine();
+
+			ImVec2 cursorPos = ImGui::GetCursorScreenPos();
+			float playerDisplaySpeed = XMVectorGetX(XMVector3Length(XMVectorSetY(playerVelocity, 0.)));
+			ImGui::GetWindowDrawList()->AddLine({ cursorPos.x, cursorPos.y + 10.f }, { cursorPos.x + (playerDisplaySpeed * 30.f / playerMaxSpeed), cursorPos.y + 10.f }, ImColor(.1f, .2f, .9f), 10.f);
+			ImGui::SetCursorPosX(cursorPos.x + 35.f);
+			ImGui::Text("Vel: %.1f", playerDisplaySpeed);
+
+			ImGui::SliderFloat("Acceleration", &playerAcceleration, 1., 200., "%.0f");
+			ImGui::SliderFloat("Friction", &playerFriction, 1., 200., "%.0f");
+			ImGui::SliderFloat("Gravity", &playerGravity, 1., 100., "%.0f");
+			ImGui::SliderFloat("Max Speed", &playerMaxSpeed, 1., 100., "%.0f");
+			ImGui::SliderFloat("Jump Strength", &playerJumpStrength, 1., 1000., "%.0f");
+			ImGui::SliderFloat("Jump Buffer Duration", &jumpBufferDuration, 0.01, 1., "%.2f");
+		}
+		ImGui::End();
+	}
+
+	// Entity list
+	if (showEntityList)
+	{
+		if (ImGui::Begin("Entity List", &showEntityList))
+		{
+			ImGui::Checkbox("Show Inactive Entities", &showInactiveEntities);
+			ImGui::SameLine(0, 10);
+			ImGui::Checkbox("Show Gizmo", &showGizmo);
+
+			gizmo->root->SetActive(false);
+			editElement = nullptr;
+
+			for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
+			{
+				int offset = entity - (Entity*)entityArena.base;
+
+				ImGui::PushID(entity);
+				const char* icon = entity->IsActive() ? ICON_CHECK_FILL : "";
+				std::string entityTitle = std::format("{} [{}] {}###{}", entity->name, offset, icon, reinterpret_cast<void*>(&entity));
+				if ((showInactiveEntities || entity->IsActive()) && ImGui::CollapsingHeader(entityTitle.c_str()))
 				{
-					if (!stopLog)
+					ImGui::Text("NAME");
+					ImGui::InputText("##entityname", entity->name.str, FixedStr::SIZE);
+
+					ImGui::Separator();
+
+
+					ImGui::Text(std::format("CHILDREN ({})", entity->childCount).c_str());
+
+					for (int i = 0; i < entity->childCount; i++)
 					{
-						Warn("Log paused...");
-					}
-					stopLog = !stopLog;
-					if (!stopLog)
-					{
-						Warn("Log resumed...");
-					}
-				}
-				ImGui::SameLine();
-				ImGui::Checkbox("Scroll to bottom", &scrollLog);
-
-				ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
-				ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ 0, 0 });
-				debugLog.DrawLogText();
-				if (scrollLog)
-				{
-					ImGui::SetScrollHereY();
-				}
-				ImGui::PopStyleVar();
-				ImGui::EndChild();
-			}
-
-			ImGui::End();
-		}
-		ImGui::PopStyleVar();
-
-		// Debug Image
-		if (showDebugImage)
-		{
-			if (ImGui::Begin("Debug Image", &showDebugImage))
-			{
-				ImVec2 availableSize = ImGui::GetContentRegionAvail();
-				float minSize = std::min(availableSize.x, availableSize.y);
-				DrawDebugImage({ minSize, minSize });
-			}
-			ImGui::End();
-		}
-
-		// Post Processing
-		if (showPostProcessWindow)
-		{
-			if (ImGui::Begin("Graphics", &showPostProcessWindow))
-			{
-				ImGui::SliderFloat("Contrast", &contrast, 0., 3., "%.2f");
-				ImGui::SliderFloat("Brightness", &brightness, -1., 1., "%.2f");
-				ImGui::SliderFloat("Saturation", &saturation, 0., 3., "%.2f");
-				ImGui::SliderFloat("Fog", &fog, 0., 3., "%.2f");
-				ImGui::ColorEdit3("Clear Color", &baseClearColor.m128_f32[0]);
-				ImGui::ColorEdit3("Fog Color", &fogColor.m128_f32[0]);
-				ImGui::Separator();
-
-				WindowMode currentWindowMode = engine.m_windowMode;
-				if (ImGui::Combo("Window Mode", (int*)&currentWindowMode, "Fullscreen\0Borderless\0Windowed\0\0"))
-				{
-					engine.m_wantedWindowMode = currentWindowMode;
-				}
-				ImGui::Checkbox("VSync", &engine.m_useVsync);
-				ImGui::Checkbox("MSAA", &engine.m_msaaEnabled);
-				ImGui::Checkbox("Render Texture", &engine.m_renderTextureEnabled);
-
-				ImGui::Separator();
-				ImGui::Checkbox("Show Bounds", &engine.renderAABB);
-				//ImGui::Checkbox("Show Wireframe", &engine.renderWireframe);
-			}
-			ImGui::End();
-		}
-
-		// Audio
-		if (showAudioWindow)
-		{
-			if (ImGui::Begin("Audio", &showAudioWindow))
-			{
-				float volume = 0.f;
-				engine.m_audioMasteringVoice->GetVolume(&volume);
-				if (ImGui::SliderFloat("Global volume", &volume, 0., 1., "%.2f"))
-				{
-					engine.m_audioMasteringVoice->SetVolume(volume);
-				}
-			}
-			ImGui::End();
-		}
-
-		// Movement
-		if (showMovementWindow)
-		{
-			if (ImGui::Begin("Movement", &showMovementWindow))
-			{
-				ImGui::Checkbox("Noclip", &noclip);
-				ImGui::SameLine();
-				ImGui::Checkbox("Autojump", &autojump);
-				ImGui::SameLine();
-
-				ImVec2 cursorPos = ImGui::GetCursorScreenPos();
-				float playerDisplaySpeed = XMVectorGetX(XMVector3Length(XMVectorSetY(playerVelocity, 0.)));
-				ImGui::GetWindowDrawList()->AddLine({ cursorPos.x, cursorPos.y + 10.f }, { cursorPos.x + (playerDisplaySpeed * 30.f / playerMaxSpeed), cursorPos.y + 10.f }, ImColor(.1f, .2f, .9f), 10.f);
-				ImGui::SetCursorPosX(cursorPos.x + 35.f);
-				ImGui::Text("Vel: %.1f", playerDisplaySpeed);
-
-				ImGui::SliderFloat("Acceleration", &playerAcceleration, 1., 200., "%.0f");
-				ImGui::SliderFloat("Friction", &playerFriction, 1., 200., "%.0f");
-				ImGui::SliderFloat("Gravity", &playerGravity, 1., 100., "%.0f");
-				ImGui::SliderFloat("Max Speed", &playerMaxSpeed, 1., 100., "%.0f");
-				ImGui::SliderFloat("Jump Strength", &playerJumpStrength, 1., 1000., "%.0f");
-				ImGui::SliderFloat("Jump Buffer Duration", &jumpBufferDuration, 0.01, 1., "%.2f");
-			}
-			ImGui::End();
-		}
-
-		// Entity list
-		if (showEntityList)
-		{
-			if (ImGui::Begin("Entity List", &showEntityList))
-			{
-				ImGui::Checkbox("Show Inactive Entities", &showInactiveEntities);
-				ImGui::SameLine(0, 10);
-				ImGui::Checkbox("Show Gizmo", &showGizmo);
-
-				gizmo->root->SetActive(false);
-
-				for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
-				{
-					int offset = entity - (Entity*)entityArena.base;
-
-					ImGui::PushID(entity);
-					const char* icon = entity->IsActive() ? ICON_CHECK_FILL : "";
-					std::string entityTitle = std::format("{} [{}] {}###{}", entity->name, offset, icon, reinterpret_cast<void*>(&entity));
-					if ((showInactiveEntities || entity->IsActive()) && ImGui::CollapsingHeader(entityTitle.c_str()))
-					{
-						ImGui::Text("NAME");
-						ImGui::InputText("##entityname", entity->name.str, FixedStr::SIZE);
-
-						ImGui::Separator();
-
-
-						ImGui::Text(std::format("CHILDREN ({})", entity->childCount).c_str());
-						
-						for (int i = 0; i < entity->childCount; i++)
+						if (ImGui::SmallButton(std::format("{}###{}", ICON_CLOSE_FILL, i).c_str()))
 						{
-							if (ImGui::SmallButton(std::format("{}###{}", ICON_CLOSE_FILL, i).c_str()))
-							{
-								entity->RemoveChild(entity->children[i]);
-								i--;
-								continue;
-							}
-
-							ImGui::SameLine();
-							ImGui::Text(std::format("{} [{}]", entity->children[i]->name, (entity->children[i] - (Entity*)entityArena.base)).c_str());
+							entity->RemoveChild(entity->children[i]);
+							i--;
+							continue;
 						}
 
-						if (ImGui::Button("Add"))
-						{
-							entity->AddChild((Entity*)entityArena.base + newChildId);
-						}
 						ImGui::SameLine();
-						ImGui::PushItemWidth(100);
-						ImGui::InputInt("", &newChildId);
-						ImGui::PopItemWidth();
-
-
-						ImGui::Separator();
-
-						std::vector<std::string> attributes{};
-						if (entity->isEnemy) attributes.push_back("enemy");
-						if (entity->isProjectile) attributes.push_back("projectile");
-						std::string attributesString = std::accumulate(attributes.begin(), attributes.end(), std::string(), [](std::string a, std::string b) { return a + (a.empty() ? "" : ", ") + b; });
-						ImGui::Text("ATTRIBUTES  %s", attributesString.c_str());
-
-						bool activeState = entity->IsActive();
-						if (ImGui::Checkbox("Active", &activeState))
-						{
-							entity->SetActive(activeState);
-						}
-						if (entity->isRendered)
-						{
-							ImGui::Checkbox("Visible", &entity->GetData().visible);
-						}
-						else
-						{
-							bool never = false;
-							ImGui::BeginDisabled();
-							ImGui::Checkbox("Visible", &never);
-							ImGui::EndDisabled();
-						}
-
-						ImGui::Separator();
-
-						ImGui::Text("TRANSFORM");
-						ImGui::DragFloat3("Position", &entity->position.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
-
-						XMVECTOR rot = QuaternionToEuler(entity->rotation);
-						if (ImGui::DragFloat3("Rotation", &rot.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat))
-						{
-							entity->rotation = XMQuaternionRotationRollPitchYaw(XMVectorGetX(rot), XMVectorGetY(rot), XMVectorGetZ(rot));
-						}
-						ImGui::DragFloat3("Scale", &entity->scale.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
-
-						ImGui::BeginTabBar("Transform");
-						if (ImGui::BeginTabItem("Local"))
-						{
-							DisplayMatrix(entity->localMatrix);
-							ImGui::EndTabItem();
-						}
-						if (ImGui::BeginTabItem("Global"))
-						{
-							DisplayMatrix(entity->worldMatrix);
-							ImGui::EndTabItem();
-						}
-						ImGui::EndTabBar();
-
-
-						if (entity->collisionData != nullptr)
-						{
-							ImGui::Separator();
-							ImGui::Text("COLLISION");
-
-							ImGui::CheckboxFlags("ClickTest", &entity->collisionData->collisionLayers, CollisionLayers::ClickTest);
-							ImGui::SameLine();
-							ImGui::CheckboxFlags("Floor", &entity->collisionData->collisionLayers, CollisionLayers::Floor);
-							ImGui::SameLine();
-							ImGui::CheckboxFlags("Dead", &entity->collisionData->collisionLayers, CollisionLayers::Dead);
-
-							ImGui::DragFloat3("Collision Size", &entity->collisionData->aabbLocalSize.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
-							ImGui::DragFloat3("Collision Offset", &entity->collisionData->aabbLocalPosition.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
-						}
-
-						if (entity->isSkinnedRoot && entity->transformHierachy->nodeCount > 0)
-						{
-							TransformHierachy* hierachy = entity->transformHierachy;
-
-							ImGui::Separator();
-							ImGui::Text("ANIMATIONS");
-
-							for (int animIdx = 0; animIdx < hierachy->animationCount; animIdx++)
-							{
-								TransformAnimation& animation = hierachy->animations[animIdx];
-
-								if (ImGui::SmallButton(std::format("{}###{}", animation.active ? ICON_PAUSE_FILL : ICON_PLAY_FILL, animation.name.c_str()).c_str()))
-								{
-									animation.active = !animation.active;
-								}
-								ImGui::SameLine();
-								ImGui::Text(animation.name.c_str());
-							}
-
-							ImGui::Separator();
-
-							std::string nodeTitle = std::format("BONES: {}", entity->transformHierachy->nodeCount);
-							if (ImGui::TreeNodeEx(nodeTitle.c_str()))
-							{
-								DisplayTransformNode(entity->transformHierachy->root);
-								ImGui::TreePop();
-							}
-						}
-
-						gizmo->root->position = XMVector3Transform({}, entity->worldMatrix);
-						gizmo->root->SetActive(showGizmo);
+						ImGui::Text(std::format("{} [{}]", entity->children[i]->name, (entity->children[i] - (Entity*)entityArena.base)).c_str());
 					}
-					ImGui::PopID();
-				}
 
-				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 20.f);
-
-
-
-				if (ImGui::Button("Add Cube"))
-				{
-					CreateMeshEntity(engine, newEntityMaterialIndex, engine.cubeVertexView);
-				}
-
-				ImGui::SameLine();
-
-				ImGui::Combo("##entitymaterial", &newEntityMaterialIndex, [](void* data, int idx, const char** out_text)
+					if (ImGui::Button("Add"))
 					{
-						*out_text = ((EngineCore*)data)->m_materials[idx].name.c_str();
-						return true;
-					}, &engine, engine.m_materialCount);
-			}
-			ImGui::End();
-		}
+						entity->AddChild((Entity*)entityArena.base + newChildId);
+					}
+					ImGui::SameLine();
+					ImGui::PushItemWidth(100);
+					ImGui::InputInt("", &newChildId);
+					ImGui::PopItemWidth();
 
-		// Lighting
-		if (showLightWindow)
-		{
-			if (ImGui::Begin("Lighting", &showLightWindow))
-			{
-				ImGui::Checkbox("Show Light Space", &showLightSpaceDebug);
-				if (ImGui::Checkbox("Show Light Position", &showLightPosition))
-				{
-					lightDebugEntity->GetData().visible = showLightPosition;
+
+					ImGui::Separator();
+
+					std::vector<std::string> attributes{};
+					if (entity->isEnemy) attributes.push_back("enemy");
+					if (entity->isProjectile) attributes.push_back("projectile");
+					std::string attributesString = std::accumulate(attributes.begin(), attributes.end(), std::string(), [](std::string a, std::string b) { return a + (a.empty() ? "" : ", ") + b; });
+					ImGui::Text("ATTRIBUTES  %s", attributesString.c_str());
+
+					bool activeState = entity->IsActive();
+					if (ImGui::Checkbox("Active", &activeState))
+					{
+						entity->SetActive(activeState);
+					}
+					if (entity->isRendered)
+					{
+						ImGui::Checkbox("Visible", &entity->GetData().visible);
+					}
+					else
+					{
+						bool never = false;
+						ImGui::BeginDisabled();
+						ImGui::Checkbox("Visible", &never);
+						ImGui::EndDisabled();
+					}
+
+					ImGui::Separator();
+
+					ImGui::Text("TRANSFORM");
+					ImGui::DragFloat3("Position", &entity->position.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
+
+					XMVECTOR rot = QuaternionToEuler(entity->rotation);
+					if (ImGui::DragFloat3("Rotation", &rot.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat))
+					{
+						entity->rotation = XMQuaternionRotationRollPitchYaw(XMVectorGetX(rot), XMVectorGetY(rot), XMVectorGetZ(rot));
+					}
+					ImGui::DragFloat3("Scale", &entity->scale.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
+
+					ImGui::BeginTabBar("Transform");
+					if (ImGui::BeginTabItem("Local"))
+					{
+						DisplayMatrix(entity->localMatrix);
+						ImGui::EndTabItem();
+					}
+					if (ImGui::BeginTabItem("Global"))
+					{
+						DisplayMatrix(entity->worldMatrix);
+						ImGui::EndTabItem();
+					}
+					ImGui::EndTabBar();
+
+
+					if (entity->collisionData != nullptr)
+					{
+						ImGui::Separator();
+						ImGui::Text("COLLISION");
+
+						ImGui::CheckboxFlags("GizmoClick", &entity->collisionData->collisionLayers, CollisionLayers::GizmoClick);
+						ImGui::SameLine();
+						ImGui::CheckboxFlags("Floor", &entity->collisionData->collisionLayers, CollisionLayers::Floor);
+						ImGui::SameLine();
+						ImGui::CheckboxFlags("Dead", &entity->collisionData->collisionLayers, CollisionLayers::Dead);
+
+						ImGui::DragFloat3("Collision Size", &entity->collisionData->aabbLocalSize.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
+						ImGui::DragFloat3("Collision Offset", &entity->collisionData->aabbLocalPosition.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
+					}
+
+					if (entity->isSkinnedRoot && entity->transformHierachy->nodeCount > 0)
+					{
+						TransformHierachy* hierachy = entity->transformHierachy;
+
+						ImGui::Separator();
+						ImGui::Text("ANIMATIONS");
+
+						for (int animIdx = 0; animIdx < hierachy->animationCount; animIdx++)
+						{
+							TransformAnimation& animation = hierachy->animations[animIdx];
+
+							if (ImGui::SmallButton(std::format("{}###{}", animation.active ? ICON_PAUSE_FILL : ICON_PLAY_FILL, animation.name.c_str()).c_str()))
+							{
+								animation.active = !animation.active;
+							}
+							ImGui::SameLine();
+							ImGui::Text(animation.name.c_str());
+						}
+
+						ImGui::Separator();
+
+						std::string nodeTitle = std::format("BONES: {}", entity->transformHierachy->nodeCount);
+						if (ImGui::TreeNodeEx(nodeTitle.c_str()))
+						{
+							DisplayTransformNode(entity->transformHierachy->root);
+							ImGui::TreePop();
+						}
+					}
+
+					gizmo->root->position = XMVector3Transform({}, entity->worldMatrix);
+					gizmo->root->SetActive(showGizmo);
+					editElement = entity;
 				}
-
-				// light position
-				ImGui::Text("Light Position: (%.1f %.1f %.1f)", light.position.m128_f32[0], light.position.m128_f32[1], light.position.m128_f32[2]);
-				ImGui::Text("Light Rotation: (%.1f %.1f %.1f %.1f)", light.rotation.m128_f32[0], light.rotation.m128_f32[1], light.rotation.m128_f32[2], light.rotation.m128_f32[3]);
+				ImGui::PopID();
 			}
-			ImGui::End();
-		}
 
-		engine.EndProfile("Game UI");
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 20.f);
 
-		// Profiler
-		if (!pauseProfiler)
-		{
-			profilerWindow.cpuGraph.LoadFrameData(engine.m_profilerTaskData.data(), engine.m_profilerTaskData.size());
-			engine.m_profilerTaskData.clear();
-			engine.m_profilerTasks.clear();
+
+
+			if (ImGui::Button("Add Cube"))
+			{
+				CreateMeshEntity(engine, newEntityMaterialIndex, engine.cubeVertexView);
+			}
+
+			ImGui::SameLine();
+
+			ImGui::Combo("##entitymaterial", &newEntityMaterialIndex, [](void* data, int idx, const char** out_text)
+				{
+					*out_text = ((EngineCore*)data)->m_materials[idx].name.c_str();
+					return true;
+				}, &engine, engine.m_materialCount);
 		}
-		if (showProfiler)
+		ImGui::End();
+	}
+
+	// Lighting
+	if (showLightWindow)
+	{
+		if (ImGui::Begin("Lighting", &showLightWindow))
 		{
-			profilerWindow.Render(&showProfiler);
+			ImGui::Checkbox("Show Light Space", &showLightSpaceDebug);
+			if (ImGui::Checkbox("Show Light Position", &showLightPosition))
+			{
+				lightDebugEntity->GetData().visible = showLightPosition;
+			}
+
+			// light position
+			ImGui::Text("Light Position: (%.1f %.1f %.1f)", light.position.m128_f32[0], light.position.m128_f32[1], light.position.m128_f32[2]);
+			ImGui::Text("Light Rotation: (%.1f %.1f %.1f %.1f)", light.rotation.m128_f32[0], light.rotation.m128_f32[1], light.rotation.m128_f32[2], light.rotation.m128_f32[3]);
 		}
+		ImGui::End();
+	}
+
+	engine.EndProfile("Game UI");
+
+	// Profiler
+	if (!pauseProfiler)
+	{
+		profilerWindow.cpuGraph.LoadFrameData(engine.m_profilerTaskData.data(), engine.m_profilerTaskData.size());
+		engine.m_profilerTaskData.clear();
+		engine.m_profilerTasks.clear();
+	}
+	if (showProfiler)
+	{
+		profilerWindow.Render(&showProfiler);
 	}
 }
 

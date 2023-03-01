@@ -95,6 +95,12 @@ public:
 
 	Gizmo* gizmo = nullptr;
 	bool showGizmo = true;
+	bool editMode = false;
+	Entity* editElement = nullptr;
+	Entity* selectedGizmoElement = nullptr;
+	Entity* selectedGizmoTarget = nullptr;
+	XMVECTOR gizmoDragCursorStart{};
+	XMVECTOR gizmoDragEntityStart{};
 
 	Entity* renderCamParent = nullptr;
 	Entity* playerEntity = nullptr;
@@ -156,6 +162,7 @@ public:
 	void StartGame(EngineCore& engine) override;
 	void UpdateGame(EngineCore& engine) override;
 	void DrawUI(EngineCore& engine);
+	void DrawDebugUI(EngineCore& engine);
 
 	Entity* CreateEmptyEntity(EngineCore& engine);
 	Entity* CreateMeshEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView);
@@ -164,6 +171,7 @@ public:
 	void UpdateCursorState();
 
 	void PlaySound(EngineCore& engine, AudioSource* audioSource, AudioFile file);
+	CollisionResult RaycastScreenPosition(EngineCore& engine, CameraData& cameraData, float x, float y, CollisionLayers layers);
 
 	float* GetClearColor() override;
 	EngineInput& GetInput() override;
@@ -172,6 +180,7 @@ public:
 	void Warn(const std::string& message) override;
 	void Error(const std::string& message) override;
 };
+
 
 Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex);
 
