@@ -3,6 +3,8 @@
 #include <DirectXMath.h>
 using namespace DirectX;
 
+#include "Memory.h"
+
 enum CollisionLayers : unsigned int
 {
 	None       = 0,
@@ -45,6 +47,6 @@ struct CollisionResult
 	float distance;
 };
 
-CollisionResult CollideWithWorld(CollisionData* data, size_t colliderCount, XMVECTOR rayOrigin, XMVECTOR rayDirection, CollisionLayers matchingLayers);
+CollisionResult CollideWithWorld(FixedList<CollisionData>& colliders, XMVECTOR rayOrigin, XMVECTOR rayDirection, CollisionLayers matchingLayers);
 
-size_t CollideWithWorldList(CollisionData* data, size_t colliderCount, CollisionResult* resultArray, size_t maxResults, XMVECTOR rayOrigin, XMVECTOR rayDirection, CollisionLayers matchingLayers);
+void CollideWithWorldList(FixedList<CollisionData>& colliders, XMVECTOR rayOrigin, XMVECTOR rayDirection, CollisionLayers matchingLayers, FixedList<CollisionResult>& result);

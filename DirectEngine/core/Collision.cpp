@@ -50,17 +50,15 @@ bool CollisionCheck(CollisionData& collider, XMVECTOR rayOrigin, XMVECTOR rayDir
 	return false;
 }
 
-CollisionResult CollideWithWorld(CollisionData* data, size_t colliderCount, XMVECTOR rayOrigin, XMVECTOR rayDirection, CollisionLayers matchingLayers)
+CollisionResult CollideWithWorld(FixedList<CollisionData>& colliders, XMVECTOR rayOrigin, XMVECTOR rayDirection, CollisionLayers matchingLayers)
 {
-	assert(data != nullptr);
 	assert(XMVectorGetX(XMVector3Length(rayDirection)) > 0.99f);
 	assert(XMVectorGetX(XMVector3Length(rayDirection)) < 1.01f);
 
 	CollisionResult result{ nullptr, std::numeric_limits<float>::max() };
 
-	for (int i = 0; i < colliderCount; i++)
+	for (CollisionData& collider : colliders)
 	{
-		CollisionData& collider = data[i];
 		if (collider.isActive && (collider.collisionLayers & matchingLayers) != 0)
 		{
 			CollisionCheck(collider, rayOrigin, rayDirection, result, true);
@@ -70,29 +68,24 @@ CollisionResult CollideWithWorld(CollisionData* data, size_t colliderCount, XMVE
 	return result;
 }
 
-size_t CollideWithWorldList(CollisionData* data, size_t colliderCount, CollisionResult* resultArray, size_t maxResults, XMVECTOR rayOrigin, XMVECTOR rayDirection, CollisionLayers matchingLayers)
+void CollideWithWorldList(FixedList<CollisionData>& colliders, XMVECTOR rayOrigin, XMVECTOR rayDirection, CollisionLayers matchingLayers, FixedList<CollisionResult>& result)
 {
-	if (maxResults <= 0) return 0;
+	if (result.capacity <= 0) return;
 
-	assert(data != nullptr);
-	assert(resultArray != nullptr);
 	assert(XMVectorGetX(XMVector3Length(rayDirection)) > 0.99f);
 	assert(XMVectorGetX(XMVector3Length(rayDirection)) < 1.01f);
 
-	int resultIndex = 0;
+	result.Clear();
 
-	for (int i = 0; i < colliderCount; i++)
+	for (CollisionData& collider : colliders)
 	{
-		CollisionData& collider = data[i];
 		if (collider.isActive && (collider.collisionLayers & matchingLayers) != 0)
 		{
-			if (CollisionCheck(collider, rayOrigin, rayDirection, resultArray[resultIndex], false))
+			if (CollisionCheck(collider, rayOrigin, rayDirection, result[result.size], false))
 			{
-				resultIndex++;
-				if (resultIndex >= maxResults) return resultIndex;
+				result.size++;
+				if (result.size >= result.capacity) return;
 			}
 		}
 	}
-
-	return resultIndex;
 }

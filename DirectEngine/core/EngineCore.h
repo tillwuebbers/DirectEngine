@@ -149,7 +149,9 @@ struct MaterialData
 class DebugLineData
 {
 public:
-    ArenaList<Vertex> lineVertices;
+    DebugLineData(MemoryArena& arena) : lineVertices(arena, MAX_DEBUG_LINE_VERTICES) {}
+
+    FixedList<Vertex> lineVertices;
     ID3D12Resource* vertexBuffer = nullptr;
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
 
@@ -165,8 +167,8 @@ public:
 		XMStoreFloat4(&startCol4, startColor);
 		XMStoreFloat4(&endCol4, endColor);
 
-        *lineVertices.new_element() = { startPos3, startCol4 };
-		*lineVertices.new_element() = { endPos3, endCol4 };
+        lineVertices.NewElement() = { startPos3, startCol4 };
+		lineVertices.NewElement() = { endPos3, endCol4 };
     }
 };
 
@@ -265,8 +267,7 @@ public:
 	size_t m_textureCount = 0;
     CameraData m_cameras[MAX_CAMERAS] = {};
     uint32_t m_cameraCount = 0;
-    CollisionData m_collisionData[MAX_COLLIDERS] = {};
-    size_t m_collisionDataCount = 0;
+    FixedList<CollisionData> m_collisionData{ engineArena, MAX_COLLIDERS };
 
     CameraData* mainCamera = nullptr;
     CameraData* renderTextureCamera = nullptr;
@@ -301,7 +302,7 @@ public:
     std::vector<legit::ProfilerTask> m_profilerTaskData{};
     std::unordered_map<std::string, size_t> m_profilerTasks{};
     bool m_inUpdate = false;
-    DebugLineData m_debugLineData;
+    DebugLineData m_debugLineData{ engineArena };
 
     // TODO: don't init this in game
     D3D12_VERTEX_BUFFER_VIEW cubeVertexView;

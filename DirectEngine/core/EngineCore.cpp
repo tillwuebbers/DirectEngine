@@ -606,9 +606,6 @@ void EngineCore::LoadAssets()
     m_debugLineConfig->sampleCount = m_msaaEnabled ? m_msaaSampleCount : 1;
     CreatePipeline(m_debugLineConfig, 0, 0);
 
-    // Debug Line setup
-    m_debugLineData.lineVertices.Allocate(engineArena, MAX_DEBUG_LINE_VERTICES);
-
     CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(MAX_DEBUG_LINE_VERTICES * sizeof(Vertex));
     ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, NewComObject(comPointers, &m_debugLineData.vertexBuffer)));
@@ -896,10 +893,10 @@ size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_
 
 CollisionData* EngineCore::CreateCollider(const XMVECTOR localCenter, const XMVECTOR localExtents, void* entity, void* bone)
 {
-    assert(m_collisionDataCount < MAX_COLLIDERS);
-    CollisionData& collider = m_collisionData[m_collisionDataCount] = {};
-    m_collisionDataCount++;
+    assert(m_collisionData.size < MAX_COLLIDERS);
+    if (m_collisionData.size >= MAX_COLLIDERS) return nullptr;
 
+    CollisionData& collider = m_collisionData.NewElement();
     collider.aabbLocalPosition = localCenter;
     collider.aabbLocalSize = localExtents;
     collider.entity = entity;

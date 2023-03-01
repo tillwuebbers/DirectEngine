@@ -464,7 +464,8 @@ void Game::DrawDebugUI(EngineCore& engine)
 						}
 					}
 
-					gizmo->root->position = XMVector3Transform({}, entity->worldMatrix);
+					XMVECTOR scale;
+					XMMatrixDecompose(&scale, &gizmo->root->rotation, &gizmo->root->position, entity->worldMatrix);
 					gizmo->root->SetActive(showGizmo);
 					editElement = entity;
 				}

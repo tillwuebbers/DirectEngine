@@ -161,7 +161,7 @@ void Game::UpdateGame(EngineCore& engine)
 	CalculateDirectionVectors(camForward, camRight, camUp, engine.mainCamera->rotation);
 
 	// Reset per frame values
-	engine.m_debugLineData.lineVertices.clear();
+	engine.m_debugLineData.lineVertices.Clear();
 
 	// Debug Controls
 	if (input.KeyJustPressed(VK_ESCAPE))
@@ -267,7 +267,7 @@ void Game::UpdateGame(EngineCore& engine)
 
 		// Ground collision
 		const float collisionEpsilon = std::max(0.1, XMVectorGetX(XMVector3Length(playerVelocity)) * engine.m_updateDeltaTime);
-		CollisionResult floorCollision = CollideWithWorld(engine.m_collisionData, engine.m_collisionDataCount, playerEntity->position + XMVectorScale(V3_UP, collisionEpsilon), V3_DOWN, Floor);
+		CollisionResult floorCollision = CollideWithWorld(engine.m_collisionData, playerEntity->position + XMVectorScale(V3_UP, collisionEpsilon), V3_DOWN, Floor);
 		bool onGround = floorCollision.distance <= collisionEpsilon;
 		if (onGround)
 		{
@@ -348,7 +348,7 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 
 	// Kinda hacky enemy collision detection
-	CollisionResult enemyCollision = CollideWithWorld(engine.m_collisionData, engine.m_collisionDataCount, engine.mainCamera->position, V3_DOWN, Dead);
+	CollisionResult enemyCollision = CollideWithWorld(engine.m_collisionData, engine.mainCamera->position, V3_DOWN, Dead);
 	if (enemyCollision.distance <= 0.f && enemyCollision.collider->entity != nullptr)
 	{
 		Entity* enemy = reinterpret_cast<Entity*>(enemyCollision.collider->entity);
@@ -370,7 +370,7 @@ void Game::UpdateGame(EngineCore& engine)
 
 		projectile->position += projectile->velocity * engine.m_updateDeltaTime;
 
-		CollisionResult projectileCollision = CollideWithWorld(engine.m_collisionData, engine.m_collisionDataCount, projectile->position, V3_DOWN, CollisionLayers::Floor | CollisionLayers::Dead);
+		CollisionResult projectileCollision = CollideWithWorld(engine.m_collisionData, projectile->position, V3_DOWN, CollisionLayers::Floor | CollisionLayers::Dead);
 		if (projectileCollision.distance <= 0.f)
 		{
 			if ((projectileCollision.collider->collisionLayers & Floor) != 0)
@@ -430,13 +430,12 @@ void Game::UpdateGame(EngineCore& engine)
 		lastLaserSpawn = engine.TimeSinceStart();
 		PlaySound(engine, &playerAudioSource, AudioFile::Shoot);
 
-		CollisionResult collisions[32];
-		size_t collisionCount = CollideWithWorldList(engine.m_collisionData, engine.m_collisionDataCount, collisions, 32, engine.mainCamera->position, camForward, Dead);
-		for (size_t i = 0; i < collisionCount; i++)
+		CollideWithWorldList(engine.m_collisionData, engine.mainCamera->position, camForward, Dead, raycastResult);
+		for (CollisionResult& result : raycastResult)
 		{
-			if (collisions[i].distance < LASER_LENGTH && collisions[i].collider->entity != nullptr)
+			if (result.distance < LASER_LENGTH && result.collider->entity != nullptr)
 			{
-				Entity* entity = reinterpret_cast<Entity*>(collisions[i].collider->entity);
+				Entity* entity = reinterpret_cast<Entity*>(result.collider->entity);
 				entity->SetActive(false);
 				PlaySound(engine, &entity->audioSource, AudioFile::EnemyDeath);
 			}
@@ -446,46 +445,62 @@ void Game::UpdateGame(EngineCore& engine)
 	// Gizmo
 	if (editMode && showGizmo && editElement != nullptr && input.KeyJustPressed(VK_LBUTTON))
 	{
-		CollisionResult gizmoHit = RaycastScreenPosition(engine, *engine.mainCamera, input.mouseX, input.mouseY, CollisionLayers::GizmoClick);
-		if (gizmoHit.collider != nullptr)
+		RaycastScreenPositionAll(engine, *engine.mainCamera, { input.mouseX, input.mouseY }, CollisionLayers::GizmoClick, raycastResult);
+		Entity* selectedGizmo = nullptr;
+		for (CollisionResult& gizmoHit : raycastResult)
 		{
-			Entity* gizmoEntity = gizmoHit.collider->GetEntity<Entity>();
-			assert(gizmoEntity != nullptr);
-			if (gizmoEntity != nullptr)
+			if (gizmoHit.collider->entity != nullptr)
 			{
-				gizmoDragCursorStart = { input.mouseX, input.mouseY };
-				selectedGizmoElement = gizmoEntity;
-				selectedGizmoTarget = editElement;
+				Entity* hitGizmo = gizmoHit.collider->GetEntity<Entity>();
+				if (selectedGizmo == nullptr
+					|| (selectedGizmo->isGizmoRotationRing && (hitGizmo->isGizmoTranslationArrow || hitGizmo->isGizmoScaleCube))
+					|| (selectedGizmo->isGizmoTranslationArrow && hitGizmo->isGizmoScaleCube))
+				{
+					selectedGizmo = hitGizmo;
+				}
+			}
+		}
 
-				if (gizmoEntity->isGizmoTranslationArrow)
-				{
-					gizmoDragEntityStart = selectedGizmoTarget->position;
-				}
-				else if (gizmoEntity->isGizmoRotationRing)
-				{
-					gizmoDragEntityStart = selectedGizmoTarget->rotation;
-				}
-				else if (gizmoEntity->isGizmoScaleCube)
-				{
-					gizmoDragEntityStart = selectedGizmoTarget->scale;
-				}
+		if (selectedGizmo != nullptr)
+		{
+			gizmoDragCursorStart = { input.mouseX, input.mouseY };
+			selectedGizmoElement = selectedGizmo;
+			selectedGizmoTarget = editElement;
+
+			if (selectedGizmo->isGizmoTranslationArrow)
+			{
+				gizmoDragEntityStart = selectedGizmoTarget->position;
+			}
+			else if (selectedGizmo->isGizmoRotationRing)
+			{
+				gizmoDragEntityStart = selectedGizmoTarget->rotation;
+			}
+			else if (selectedGizmo->isGizmoScaleCube)
+			{
+				gizmoDragEntityStart = selectedGizmoTarget->scale;
 			}
 		}
 	}
 	else if (selectedGizmoElement != nullptr && selectedGizmoTarget != nullptr)
 	{
-		XMVECTOR dragOffset = XMVECTOR{ input.mouseX, input.mouseY } - gizmoDragCursorStart;
+		XMVECTOR dragOffsetScreen = XMVECTOR{ input.mouseX, input.mouseY } - gizmoDragCursorStart;
+		XMVECTOR cursorStart = ScreenToWorldPosition(engine, *engine.mainCamera, gizmoDragCursorStart);
+		XMVECTOR cursorEnd = ScreenToWorldPosition(engine, *engine.mainCamera, gizmoDragCursorStart + dragOffsetScreen);
+		XMVECTOR cursorMovement = (cursorEnd - cursorStart) * 10.f;
+
 		if (selectedGizmoElement->isGizmoTranslationArrow)
 		{
-			selectedGizmoTarget->position = gizmoDragEntityStart + selectedGizmoElement->gizmoTranslationAxis * (XMVectorGetX(dragOffset) * .01f);
+			XMVECTOR projectedMovement = XMVector3Dot(cursorMovement, selectedGizmoElement->gizmoTranslationAxis) * selectedGizmoElement->gizmoTranslationAxis;
+			selectedGizmoTarget->position = gizmoDragEntityStart + projectedMovement;
 		}
 		if (selectedGizmoElement->isGizmoRotationRing)
 		{
-			selectedGizmoTarget->rotation = XMQuaternionMultiply(gizmoDragEntityStart, XMQuaternionRotationAxis(selectedGizmoElement->gizmoRotationAxis, XMVectorGetX(dragOffset) * .01f));
+			selectedGizmoTarget->rotation = XMQuaternionMultiply(gizmoDragEntityStart, XMQuaternionRotationAxis(selectedGizmoElement->gizmoRotationAxis, XMVectorGetX(dragOffsetScreen) * .01f));
 		}
 		if (selectedGizmoElement->isGizmoScaleCube)
 		{
-			selectedGizmoTarget->scale = gizmoDragEntityStart + selectedGizmoElement->gizmoScaleAxis * (XMVectorGetX(dragOffset) * .01f);
+			XMVECTOR projectedMovement = XMVector3Dot(cursorMovement, selectedGizmoElement->gizmoScaleAxis) * selectedGizmoElement->gizmoScaleAxis;
+			selectedGizmoTarget->scale = gizmoDragEntityStart + projectedMovement;
 		}
 
 		if (!editMode)
@@ -622,8 +637,8 @@ void Game::UpdateGame(EngineCore& engine)
 			XMFLOAT3 edgeEnd3;
 			XMStoreFloat3(&edgeStart3, edgeStart);
 			XMStoreFloat3(&edgeEnd3, edgeEnd);
-			*engine.m_debugLineData.lineVertices.new_element() = { edgeStart3, cubeColor };
-			*engine.m_debugLineData.lineVertices.new_element() = { edgeEnd3, cubeColor };
+			engine.m_debugLineData.lineVertices.NewElement() = { edgeStart3, cubeColor };
+			engine.m_debugLineData.lineVertices.NewElement() = { edgeEnd3, cubeColor };
 		}
 	}
 
@@ -759,16 +774,27 @@ void Game::PlaySound(EngineCore& engine, AudioSource* audioSource, AudioFile fil
 	audioSource->PlaySound(engine.m_audio, soundFiles[(size_t)file]);
 }
 
-CollisionResult Game::RaycastScreenPosition(EngineCore& engine, CameraData& cameraData, float x, float y, CollisionLayers layers)
+XMVECTOR Game::ScreenToWorldPosition(EngineCore& engine, CameraData& cameraData, XMVECTOR screenPos)
 {
-	XMMATRIX cameraView       = XMMatrixTranspose(cameraData.constantBuffer.data.cameraView);
+	XMMATRIX cameraView = XMMatrixTranspose(cameraData.constantBuffer.data.cameraView);
 	XMMATRIX cameraProjection = XMMatrixTranspose(cameraData.constantBuffer.data.cameraProjection);
+	return XMVector3Unproject(screenPos, 0.f, 0.f, engine.m_width, engine.m_height, 0.f, 1.f, cameraProjection, cameraView, XMMatrixIdentity());
+}
 
-	XMVECTOR rayOriginScreen = { x, y, 0.f, 0.f };
-	XMVECTOR rayOriginWorld = XMVector3Unproject(rayOriginScreen, 0.f, 0.f, engine.m_width, engine.m_height, 0.f, 1.f, cameraProjection, cameraView, XMMatrixIdentity());
+CollisionResult Game::RaycastScreenPosition(EngineCore& engine, CameraData& cameraData, XMVECTOR screenPos, CollisionLayers layers)
+{
+	XMVECTOR rayOriginWorld = ScreenToWorldPosition(engine, cameraData, screenPos);
 	XMVECTOR rayDirection = XMVector3Normalize(rayOriginWorld - cameraData.position);
 
-	return CollideWithWorld(engine.m_collisionData, engine.m_collisionDataCount, rayOriginWorld, rayDirection, layers);
+	return CollideWithWorld(engine.m_collisionData, rayOriginWorld, rayDirection, layers);
+}
+
+void Game::RaycastScreenPositionAll(EngineCore& engine, CameraData& cameraData, XMVECTOR screenPos, CollisionLayers layers, FixedList<CollisionResult>& result)
+{
+	XMVECTOR rayOriginWorld = ScreenToWorldPosition(engine, cameraData, screenPos);
+	XMVECTOR rayDirection = XMVector3Normalize(rayOriginWorld - cameraData.position);
+
+	CollideWithWorldList(engine.m_collisionData, rayOriginWorld, rayDirection, layers, result);
 }
 
 void Game::Log(const std::string& message)

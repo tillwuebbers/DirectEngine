@@ -69,10 +69,10 @@ public:
 #define NewArrayAligned(arena, type, count, alignment, ...) new((arena).AllocateAligned(sizeof(type) * (count), (alignment))) type[count](__VA_ARGS__)
 
 template <typename T>
-class ArenaList
+class FixedList
 {
 public:
-    void Allocate(MemoryArena& arena, size_t capacity)
+    FixedList(MemoryArena& arena, size_t capacity)
     {
 		assert(this->base == nullptr);
 		this->base = NewArray(arena, T, capacity);
@@ -83,17 +83,24 @@ public:
     T& operator[](size_t index)
     {
         assert(index >= 0);
-		assert(index < size);
+		assert(index < capacity);
         return base[index];
     }
+
+    const T& operator[](size_t index) const
+    {
+		assert(index >= 0);
+        assert(index < capacity);
+		return base[index];
+    }
     
-    T* new_element()
+    T& NewElement()
     {
 		assert(size < capacity);
-		return &base[size++];
+		return base[size++];
     }
 
-    void clear()
+    void Clear()
     {
 		size = 0;
     }

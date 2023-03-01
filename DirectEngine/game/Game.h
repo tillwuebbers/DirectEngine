@@ -87,6 +87,7 @@ public:
 	MemoryArena globalArena{};
 	TypedMemoryArena<Entity> entityArena{};
 	MemoryArena modelArena{};
+	FixedList<CollisionResult> raycastResult{ globalArena, 32 };
 
 	DirectionalLight light{};
 	EngineInput input{ globalArena };
@@ -171,7 +172,9 @@ public:
 	void UpdateCursorState();
 
 	void PlaySound(EngineCore& engine, AudioSource* audioSource, AudioFile file);
-	CollisionResult RaycastScreenPosition(EngineCore& engine, CameraData& cameraData, float x, float y, CollisionLayers layers);
+	XMVECTOR ScreenToWorldPosition(EngineCore& engine, CameraData& cameraData, XMVECTOR screenPos);
+	CollisionResult RaycastScreenPosition(EngineCore& engine, CameraData& cameraData, XMVECTOR screenPos, CollisionLayers layers);
+	void RaycastScreenPositionAll(EngineCore& engine, CameraData& cameraData, XMVECTOR screenPos, CollisionLayers layers, FixedList<CollisionResult>& result);
 
 	float* GetClearColor() override;
 	EngineInput& GetInput() override;

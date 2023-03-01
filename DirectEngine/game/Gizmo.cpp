@@ -70,7 +70,7 @@ Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex)
 		Entity* scaleArrow = gizmo->scaleArrows[i];
 		scaleArrow = game.CreateMeshEntity(engine, materialIndex, gizmo->scaleArrowMesh);
 		scaleArrow->GetBuffer().color = xyzColors[i];
-		scaleArrow->collisionData->aabbLocalSize = { .08f, .5f, .08f };
+		scaleArrow->collisionData->aabbLocalSize = { .15f, .5f, .15f };
 		scaleArrow->collisionData->aabbLocalPosition = { .0f, .25f, .0f };
 		scaleArrow->collisionData->collisionLayers = CollisionLayers::GizmoClick;
 		scaleArrow->rotation = xyzRotations[i];
