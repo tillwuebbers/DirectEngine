@@ -267,10 +267,10 @@ int CALLBACK wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 	MSG msg = {};
 	{
-		HMODULE gameModule = LoadLibrary(L"game\\game.dll");
+		HMODULE gameModule = LoadLibrary(L"game\\Game.dll");
 		if (gameModule == nullptr)
 		{
-			MessageBox(0, L"Failed to load game.dll", L"Error", MB_OK);
+			MessageBox(0, L"Failed to load Game.dll", L"Error", MB_OK);
 			return 1;
 		}
 

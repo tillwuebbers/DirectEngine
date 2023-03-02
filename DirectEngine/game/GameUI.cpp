@@ -318,6 +318,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 	}
 
 	// Entity list
+	gizmo->root->SetActive(false);
 	if (showEntityList)
 	{
 		if (ImGui::Begin("Entity List", &showEntityList))
@@ -326,7 +327,6 @@ void Game::DrawDebugUI(EngineCore& engine)
 			ImGui::SameLine(0, 10);
 			ImGui::Checkbox("Show Gizmo", &showGizmo);
 
-			gizmo->root->SetActive(false);
 			editElement = nullptr;
 
 			for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)

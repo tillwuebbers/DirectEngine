@@ -7,8 +7,19 @@ set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
 set(DX_HEADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/directx/headers)
 set(GLM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/glm)
 
-set(GAME_NAME game)
-set(TEST_PROJECT_NAME "DirectEngineTest")
+# code groups
+file (GLOB CORE_CODE core/*.h core/*.cpp)
+file (GLOB GAME_CODE game/*.h game/*.cpp)
+file (GLOB IMPORT_CODE "imgui/remixicon.h"
+                "imgui/ImGuiProfilerRenderer.h"
+                "imgui/ProfilerTask.h"
+                "import/tiny_gltf.h"
+                "import/json.hpp"
+                "import/stb_image.h"
+                "import/stb_image_write.h"
+                "directx-tex/DDSTextureLoader12.h"
+                "directx-tex/DDSTextureLoader12.cpp")
+file (GLOB SHADER_CODE "shaders/compile/*.hlsl")
 
 function(DEPS PROJ)
     # imgui
@@ -45,7 +56,6 @@ function(DEPS PROJ)
         target_link_libraries(${PROJ} "${XAUDIO2_DIR}/release/lib/x64/xaudio2_9redist.lib")
     endif()
     target_link_libraries(${PROJ} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib")
-
     
     # edit and continue mode
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -62,11 +72,10 @@ function(DEPS PROJ)
     set_property(TARGET ${PROJ} PROPERTY CXX_STANDARD 20)
 endfunction()
 
-# game
-set(ENGINE_NAME "Engine")
-add_executable(${ENGINE_NAME} WIN32 "DirectEngine.cpp" "DirectEngine.h")
-target_link_libraries(${ENGINE_NAME} ${PROJECT_NAME})
-DEPS(${ENGINE_NAME})
+# executable
+add_executable(${PROJECT_NAME} WIN32 "DirectEngine.cpp" "DirectEngine.h")
+target_link_libraries(${PROJECT_NAME} ${CORE_NAME})
+DEPS(${PROJECT_NAME})
 
 # assets
 file(COPY "Montserrat-Regular.ttf" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
@@ -77,41 +86,29 @@ cmake_path(NATIVE_PATH SHADER_DIR SHADER_DIR_NATIVE)
 set(SHADER_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders_bin")
 
 add_custom_command(
-        TARGET ${ENGINE_NAME} PRE_BUILD
+        TARGET ${PROJECT_NAME} PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${CMAKE_CURRENT_SOURCE_DIR}/audio
                 ${CMAKE_CURRENT_BINARY_DIR}/audio)
 
 add_custom_command(
-        TARGET ${ENGINE_NAME} PRE_BUILD
+        TARGET ${PROJECT_NAME} PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${SHADER_DIR}
                 ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
 
 add_custom_command(
-        TARGET ${ENGINE_NAME} PRE_BUILD
+        TARGET ${PROJECT_NAME} PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${CMAKE_CURRENT_SOURCE_DIR}/models
                 ${CMAKE_CURRENT_BINARY_DIR}/models)
                 
 add_custom_command(
-        TARGET ${ENGINE_NAME} PRE_BUILD
+        TARGET ${PROJECT_NAME} PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${CMAKE_CURRENT_SOURCE_DIR}/textures
                 ${CMAKE_CURRENT_BINARY_DIR}/textures)
-                
-# compile shaders
-target_include_directories(${ENGINE_NAME} PRIVATE "${SHADER_DIR}")
-foreach(SHADER_FILE ${SHADER_CODE})
-    get_filename_component(SHADER_NAME ${SHADER_FILE} NAME_WE)
-
-    add_custom_command(
-        OUTPUT "${SHADER_OUT_DIR}/${SHADER_NAME}.vert.cso" "${SHADER_OUT_DIR}/${SHADER_NAME}.frag.cso"
-        COMMAND dxc /T vs_6_0 /E "VSMain" /Fo "${SHADER_OUT_DIR}/${SHADER_NAME}.vert.cso" /I ${SHADER_DIR_NATIVE} "${SHADER_FILE}" && dxc /T ps_6_0 /E "PSMain" /Fo "${SHADER_OUT_DIR}/${SHADER_NAME}.frag.cso" /I ${SHADER_DIR_NATIVE} "${SHADER_FILE}"
-        MAIN_DEPENDENCY "${SHADER_FILE}"
-    )
-endforeach()
-
+             
 # sub projects
 add_subdirectory(core)
 add_subdirectory(game)

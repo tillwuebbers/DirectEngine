@@ -347,7 +347,7 @@ CD3DX12_CPU_DESCRIPTOR_HANDLE EngineCore::CreateDepthStencilView(UINT width, UIN
 
 void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount)
 {
-    config->creationError = ERROR_SUCCESS;
+    config->creationError = S_OK;
 
     {
         D3D12_FEATURE_DATA_ROOT_SIGNATURE featureData = {};
@@ -448,6 +448,7 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
     }
 
     CreatePipelineState(config);
+    assert(config->creationError == S_OK);
 }
 
 void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders)
