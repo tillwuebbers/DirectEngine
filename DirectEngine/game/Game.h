@@ -1,10 +1,10 @@
 #pragma once
 
 #include "Entity.h"
-#include "IGame.h"
 #include "Puzzle.h"
 #include "Log.h"
 #include "Mesh.h"
+#include "../core/IGame.h"
 #include "../core/EngineCore.h"
 
 #include "imgui.h"
@@ -12,6 +12,7 @@
 
 #include <string>
 #include <vector>
+#include <mutex>
 
 #include <DirectXMath.h>
 using namespace DirectX;
@@ -20,13 +21,6 @@ using namespace DirectX;
 #define MAX_PROJECTILE_COUNT 64
 #define PLAYER_HAND_OFFSET XMVECTOR{ 0.05f, -.2f, .1f }
 #define LASER_LENGTH 100.f
-
-struct WindowUpdate
-{
-	bool updateCursor;
-	bool cursorVisible;
-	bool cursorClipped;
-};
 
 struct DirectionalLight
 {
@@ -182,6 +176,9 @@ public:
 	void Log(const std::string& message) override;
 	void Warn(const std::string& message) override;
 	void Error(const std::string& message) override;
+
+	std::mutex& GetWindowUdpateDataMutex() override { return windowUdpateDataMutex; };
+	WindowUpdate& GetWindowUpdateData() override { return windowUpdateData; };
 };
 
 
@@ -190,3 +187,5 @@ Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex);
 MAT_RMAJ CalculateShadowCamProjection(const MAT_RMAJ& camViewMatrix, const MAT_RMAJ& camProjectionMatrix, const MAT_RMAJ& lightViewMatrix);
 
 void LoadUIStyle();
+
+__declspec(dllexport) IGame* __cdecl CreateGame(MemoryArena& arena);

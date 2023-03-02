@@ -21,7 +21,7 @@ void SetupImgui(HWND hwnd, EngineCore* engine, int framesInFlight)
 {
 	// Setup Dear ImGui context
 	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
+	engine->m_imguiContext = ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
 	ImGuiStyle& style = ImGui::GetStyle();
 	ImGui::StyleColorsDark();

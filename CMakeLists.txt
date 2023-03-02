@@ -1,10 +1,6 @@
-﻿# CMakeList.txt : Top-level CMake project file, do global configuration
-# and include sub-projects here.
-#
+﻿# Top Level CMakeLists
 cmake_minimum_required (VERSION 3.12)
 
-project ("DirectEngine")
+project("DirectEngine")
 enable_testing()
-
-# Include sub-projects.
 add_subdirectory ("DirectEngine")

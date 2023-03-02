@@ -3,6 +3,7 @@
 #include "../core/EngineCore.h"
 #include "../core/Audio.h"
 #include "../core/Collision.h"
+#include "Mesh.h"
 
 #include <DirectXMath.h>
 using namespace DirectX;

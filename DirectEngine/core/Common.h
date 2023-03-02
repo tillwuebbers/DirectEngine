@@ -2,6 +2,8 @@
 
 #include <d3d12.h>
 #include <d3dx12.h>
+#include <DirectXMath.h>
+using namespace DirectX;
 
 struct DescriptorHandle
 {
@@ -13,6 +15,16 @@ struct Texture
 {
     ID3D12Resource* buffer = nullptr;
     DescriptorHandle handle;
+};
+
+struct Vertex
+{
+    XMFLOAT3 position;
+    XMFLOAT4 color;
+    XMFLOAT3 normal;
+    XMFLOAT2 uv;
+    XMFLOAT4 boneWeights;
+    XMUINT4 boneIndices;
 };
 
 class PipelineConfig

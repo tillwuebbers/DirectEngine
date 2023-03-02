@@ -8,22 +8,13 @@
 
 #include "Log.h"
 #include "../core/Memory.h"
+#include "../core/Common.h"
 
 #include <string>
 #include <vector>
 #include <unordered_map>
 #include <DirectXMath.h>
 using namespace DirectX;
-
-struct Vertex
-{
-	XMFLOAT3 position;
-	XMFLOAT4 color;
-	XMFLOAT3 normal;
-	XMFLOAT2 uv;
-	XMFLOAT4 boneWeights;
-	XMUINT4 boneIndices;
-};
 
 struct TransformNode
 {

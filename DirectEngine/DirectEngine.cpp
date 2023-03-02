@@ -10,8 +10,7 @@
 
 #include "core/EngineCore.h"
 #include "core/UI.h"
-#include "game/IGame.h"
-#include "game/Game.h"
+#include "core/IGame.h"
 #include "DirectEngine.h"
 
 struct GameThreadData
@@ -259,7 +258,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 // main
-int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine, int nCmdShow)
+int CALLBACK wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ PWSTR lpCmdLine, _In_ int nCmdShow)
 {
 #if defined(_DEBUG)
 	DWORD fileWatcherThreadID;
@@ -268,11 +267,21 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 
 	MSG msg = {};
 	{
-		// Create game and engine on window thread to set up events, then give it to render thread and never touch it again.
-		Game game{};
+		HMODULE gameModule = LoadLibrary(L"game\\game.dll");
+		if (gameModule == nullptr)
+		{
+			MessageBox(0, L"Failed to load game.dll", L"Error", MB_OK);
+			return 1;
+		}
 
-		EngineCore engine(1920, 1080, static_cast<IGame*>(&game));
-		//EngineCore engine(2016, 2240, static_cast<IGame*>(&game));
+		CreateGameFunc createGame = (CreateGameFunc)GetProcAddress(gameModule, "?CreateGame@@YAPEAVIGame@@AEAVMemoryArena@@@Z");
+		if (createGame == nullptr)
+		{
+			MessageBox(0, L"Failed to load CreateGame function from game.dll", L"Error", MB_OK);
+			return 1;
+		}
+
+		EngineCore engine(1920, 1080, createGame);
 		engineCore = &engine;
 		engine.OnInit(hInstance, nCmdShow, WndProc);
 
@@ -308,11 +317,11 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 			}
 
 			// Handle game messages
-			game.windowUdpateDataMutex.lock();
-			if (game.windowUpdateData.updateCursor)
+			engine.m_game->GetWindowUdpateDataMutex().lock();
+			if (engine.m_game->GetWindowUpdateData().updateCursor)
 			{
-				game.windowUpdateData.updateCursor = false;
-				if (game.windowUpdateData.cursorClipped)
+				engine.m_game->GetWindowUpdateData().updateCursor = false;
+				if (engine.m_game->GetWindowUpdateData().cursorClipped)
 				{
 					RECT clientRect;
 					GetClientRect(engine.m_hwnd, &clientRect);
@@ -331,18 +340,18 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 				if (!GetCursorInfo(&info))
 					OutputDebugString(std::format(L"failed to GetCursorInfo: {:x}", GetLastError()).c_str());
 
-				if (info.flags == 0 && game.windowUpdateData.cursorVisible)
+				if (info.flags == 0 && engine.m_game->GetWindowUpdateData().cursorVisible)
 				{
 					ShowCursor(true);
 					cursorVisible = true;
 				}
-				else if (info.flags != 0 && !game.windowUpdateData.cursorVisible)
+				else if (info.flags != 0 && !engine.m_game->GetWindowUpdateData().cursorVisible)
 				{
 					ShowCursor(false);
 					cursorVisible = false;
 				}
 			}
-			game.windowUdpateDataMutex.unlock();
+			engine.m_game->GetWindowUdpateDataMutex().unlock();
 
 			// Quit if wanted
 			DWORD renderThreadStatus;

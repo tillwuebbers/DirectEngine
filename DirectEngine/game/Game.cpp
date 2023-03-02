@@ -12,6 +12,7 @@ void Game::StartGame(EngineCore& engine)
 {
 	INIT_TIMER(timer);
 
+	ImGui::SetCurrentContext(engine.m_imguiContext);
 	LoadUIStyle();
 
 	// Shaders
@@ -848,4 +849,9 @@ MAT_RMAJ CalculateShadowCamProjection(const MAT_RMAJ& camViewMatrix, const MAT_R
 	}
 
 	return XMMatrixOrthographicOffCenterLH(XMVectorGetX(lsMin), XMVectorGetX(lsMax), XMVectorGetY(lsMin), XMVectorGetY(lsMax), XMVectorGetZ(lsMin), XMVectorGetZ(lsMax));
+}
+
+IGame* CreateGame(MemoryArena& arena)
+{
+	return NewObject(arena, Game);
 }

@@ -22,8 +22,7 @@
 #include "Audio.h"
 #include "Collision.h"
 
-#include "../game/IGame.h"
-#include "../game/Mesh.h"
+#include "IGame.h"
 
 #include "../imgui/imgui.h"
 #include "../imgui/ProfilerTask.h"
@@ -37,6 +36,7 @@ using Microsoft::WRL::ComPtr;
 
 typedef XMMATRIX MAT_CMAJ;
 typedef XMMATRIX MAT_RMAJ;
+typedef IGame* (*CreateGameFunc)(MemoryArena& arena);
 
 enum class WindowMode
 {
@@ -195,7 +195,7 @@ class EngineCore
 public:
     static const UINT FrameCount = 3;
 
-    EngineCore(UINT width, UINT height, IGame* game);
+    EngineCore(UINT width, UINT height, CreateGameFunc gameFunc);
 
     void OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc);
     void OnResize(UINT width, UINT height);
@@ -217,6 +217,7 @@ public:
     // Window Handle
     HWND m_hwnd;
     std::wstring m_windowName = L"DirectEngine";
+    ImGuiContext* m_imguiContext = nullptr;
 
     // Pipeline objects
     CD3DX12_VIEWPORT m_viewport;

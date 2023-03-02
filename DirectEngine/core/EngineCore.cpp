@@ -17,7 +17,7 @@
 #include "EngineCore.h"
 #include "../directx-tex/DDSTextureLoader12.h"
 
-EngineCore::EngineCore(UINT width, UINT height, IGame* game) :
+EngineCore::EngineCore(UINT width, UINT height, CreateGameFunc gameFunc) :
     m_frameIndex(0),
     m_viewport(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)),
     m_scissorRect(0, 0, static_cast<LONG>(width), static_cast<LONG>(height)),
@@ -25,9 +25,10 @@ EngineCore::EngineCore(UINT width, UINT height, IGame* game) :
     m_rtvDescriptorSize(0),
     m_width(width),
     m_height(height),
-    m_aspectRatio((float)width / (float)height),
-    m_game(game)
-{}
+    m_aspectRatio((float)width / (float)height)
+{
+    m_game = gameFunc(engineArena);
+}
 
 void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
 {
