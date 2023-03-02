@@ -57,13 +57,6 @@ function(DEPS PROJ)
     endif()
     target_link_libraries(${PROJ} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib")
     
-    # edit and continue mode
-    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-      set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /ZI")
-      set(CMAKE_SHARED_LINKER_FLAGS "/SAFESEH:NO")
-      set(CMAKE_EXE_LINKER_FLAGS "/SAFESEH:NO")
-    endif()
-    
     # options
     if (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
         target_link_options(${PROJ} PRIVATE $<$<CONFIG:RELWITHDEBINFO>:/PROFILE>)

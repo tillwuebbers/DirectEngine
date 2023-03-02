@@ -44,6 +44,7 @@ void Game::StartGame(EngineCore& engine)
 	engine.cubeVertexView = cubeMeshView;
 
 	gizmo = LoadGizmo(engine, *this, laserMaterialIndex);
+	gizmo->root->SetActive(false);
 	
 	LOG_TIMER(timer, "Default Meshes", debugLog);
 	RESET_TIMER(timer);
