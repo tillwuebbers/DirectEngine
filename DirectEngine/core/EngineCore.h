@@ -14,8 +14,6 @@
 
 #include <xaudio2Redist.h>
 
-#include "glm/mat4x4.hpp"
-
 #include "Input.h"
 #include "ShadowMap.h"
 #include "Texture.h"

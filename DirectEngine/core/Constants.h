@@ -43,7 +43,7 @@
 
 #define DIFFUSE_SUFFIX "_D"
 
-#ifdef _DEBUG
+#ifdef GAME_DEBUG
 #define ISDEBUG true
 #else
 #define ISDEBUG false

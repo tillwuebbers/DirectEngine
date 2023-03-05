@@ -10,6 +10,7 @@ void Entity::AddChild(Entity* child)
 	childCount++;
 
 	child->parent = this;
+	child->SetActive(this->IsActive(), false);
 }
 
 void Entity::RemoveChild(Entity* child)

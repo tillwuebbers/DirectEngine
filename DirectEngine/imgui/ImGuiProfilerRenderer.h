@@ -2,6 +2,8 @@
 
 #include "ProfilerTask.h"
 #include "imgui.h"
+#include "glm/glm.hpp"
+
 #include <array>
 #include <map>
 #include <vector>

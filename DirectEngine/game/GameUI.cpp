@@ -324,8 +324,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 		if (ImGui::Begin("Entity List", &showEntityList))
 		{
 			ImGui::Checkbox("Show Inactive Entities", &showInactiveEntities);
-			ImGui::SameLine(0, 10);
-			ImGui::Checkbox("Show Gizmo", &showGizmo);
+			ImGui::Checkbox("Gizmo Space Local", &gizmoLocal);
 
 			editElement = nullptr;
 
@@ -466,15 +465,13 @@ void Game::DrawDebugUI(EngineCore& engine)
 
 					XMVECTOR scale;
 					XMMatrixDecompose(&scale, &gizmo->root->rotation, &gizmo->root->position, entity->worldMatrix);
-					gizmo->root->SetActive(showGizmo);
+					gizmo->root->SetActive(editMode);
 					editElement = entity;
 				}
 				ImGui::PopID();
 			}
 
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 20.f);
-
-
 
 			if (ImGui::Button("Add Cube"))
 			{

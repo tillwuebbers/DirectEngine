@@ -15,7 +15,7 @@ using namespace std::chrono;
 
 MeshFile CreateQuad(float width, float height, MemoryArena& vertexArena)
 {
-	const size_t VERTEX_COUNT = 6;
+	constexpr size_t VERTEX_COUNT = 6;
 
 	Vertex* vertices = NewArray(vertexArena, Vertex, VERTEX_COUNT);
 	vertices[0] = { { 0.f  , 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f}, {}, {} };

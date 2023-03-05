@@ -89,7 +89,7 @@ public:
 	Texture* memeTexture{};
 
 	Gizmo* gizmo = nullptr;
-	bool showGizmo = true;
+	bool gizmoLocal = true;
 	bool editMode = false;
 	Entity* editElement = nullptr;
 	Entity* selectedGizmoElement = nullptr;

@@ -44,7 +44,6 @@ void Game::StartGame(EngineCore& engine)
 	engine.cubeVertexView = cubeMeshView;
 
 	gizmo = LoadGizmo(engine, *this, laserMaterialIndex);
-	gizmo->root->SetActive(false);
 	
 	LOG_TIMER(timer, "Default Meshes", debugLog);
 	RESET_TIMER(timer);
@@ -130,6 +129,9 @@ void Game::StartGame(EngineCore& engine)
 	groundEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
 	groundEntity->collisionData->collisionLayers |= Floor;
 	groundEntity->position = XMVectorSetY(groundEntity->position, -.01f);
+
+	Entity* yea = CreateMeshEntity(engine, groundMaterialIndex, cubeMeshView);
+	yea->name = "Yea";
 
 	// Defaults
 	playerPitch = XM_PI;
@@ -398,27 +400,6 @@ void Game::UpdateGame(EngineCore& engine)
 		laser->SetActive(false);
 	}
 
-	// Shoot!
-	/*if (input.KeyDown(VK_LBUTTON) && engine.TimeSinceStart() > lastProjectileSpawn + projectileSpawnRate)
-	{
-		for (int i = 0; i < MAX_PROJECTILE_COUNT; i++)
-		{
-			Entity* projectile = projectiles[i];
-			if (projectile->isActive) continue;
-
-			projectile->isActive = true;
-			projectile->spawnTime = engine.TimeSinceStart();
-			projectile->position = camera.position + PLAYER_HAND_OFFSET;
-			projectile->rotation = camera.rotation;
-			projectile->velocity = camForward * projectileSpeed + playerVelocity;
-			projectile->GetData().visible = true;
-			PlaySound(engine, &projectile->audioSource, AudioFile::Shoot);
-
-			lastProjectileSpawn = engine.TimeSinceStart();
-			break;
-		}
-	}*/
-
 	// Laser
 	if (!editMode && input.KeyDown(VK_LBUTTON) && engine.TimeSinceStart() > lastLaserSpawn + laserSpawnRate)
 	{
@@ -445,7 +426,7 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 
 	// Gizmo
-	if (editMode && showGizmo && editElement != nullptr && input.KeyJustPressed(VK_LBUTTON))
+	if (editMode && editElement != nullptr && input.KeyJustPressed(VK_LBUTTON))
 	{
 		RaycastScreenPositionAll(engine, *engine.mainCamera, { input.mouseX, input.mouseY }, CollisionLayers::GizmoClick, raycastResult);
 		Entity* selectedGizmo = nullptr;
@@ -701,11 +682,10 @@ Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float w
 	MeshFile file = CreateQuad(width, height, modelArena);
 	auto meshView = engine.CreateMesh(materialIndex, file.vertices, file.vertexCount);
 	Entity* entity = CreateMeshEntity(engine, materialIndex, meshView);
-	entity->position = { -width / 2.f, 0.f, -width / 2.f };
-	entity->collisionData = engine.CreateCollider({ width / 2.f, -.05f, width / 2.f }, { width, .1f, width }, entity);
+	entity->position = { -width / 2.f, 0.f, -height / 2.f };
+	entity->collisionData = engine.CreateCollider({ width / 2.f, -.05f, height / 2.f }, { width, .1f, height }, entity);
 	return entity;
 }
-
 
 Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, const std::wstring& shaderName, RingLog& log)
 {

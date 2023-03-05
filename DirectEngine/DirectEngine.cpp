@@ -260,7 +260,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 // main
 int CALLBACK wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ PWSTR lpCmdLine, _In_ int nCmdShow)
 {
-#if defined(_DEBUG)
+#if defined(GAME_DEBUG)
 	DWORD fileWatcherThreadID;
 	HANDLE fileWatcherThreadHandle = CreateThread(0, 0, FileWatcherThread, 0, 0, &fileWatcherThreadID);
 #endif
@@ -371,7 +371,7 @@ int CALLBACK wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 		}
 	}
 
-#if defined(_DEBUG)
+#if defined(GAME_DEBUG)
 	CloseHandle(fileWatcherThreadHandle);
 
 	{
