@@ -648,7 +648,7 @@ void EngineCore::LoadAssets()
     // Render texture
     for (int i = 0; i < 2; i++)
     {
-        RenderTexture* renderTexture = (m_renderTextures.NewElement() = CreateRenderTexture(2048, 2048));
+        RenderTexture* renderTexture = (m_renderTextures.NewElement() = CreateRenderTexture(1024, 2048));
         renderTexture->camera->skipRenderTextures = true;
     }
 
@@ -693,6 +693,7 @@ RenderTexture* EngineCore::CreateRenderTexture(UINT width, UINT height)
     renderTexture->viewport = CD3DX12_VIEWPORT{ 0.f, 0.f, static_cast<float>(width), static_cast<float>(height) };
     renderTexture->scissorRect = CD3DX12_RECT{ 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
     renderTexture->camera = CreateCamera();
+    renderTexture->camera->aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 
     D3D12_RESOURCE_DESC textureDesc = CD3DX12_RESOURCE_DESC::Tex2D(DISPLAY_FORMAT, width, height);
     textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
@@ -1221,6 +1222,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
         {
             EntityData* entity = data.entities[entityIndex];
             if (!entity->visible || entity->wireframe) continue;
+            if (entity->mainOnly && camera != mainCamera) continue;
             renderList->IASetVertexBuffers(0, 1, &entity->vertexBufferView);
             renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
             renderList->SetGraphicsRootDescriptorTable(BONES, entity->boneConstantBuffer.handles[m_frameIndex].gpuHandle);

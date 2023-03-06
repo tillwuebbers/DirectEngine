@@ -92,6 +92,7 @@ public:
 	EntityData& GetData();
 	EntityConstantBuffer& GetBuffer();
 	void UpdateWorldMatrix();
+	void SetForwardDirection(XMVECTOR direction, XMVECTOR up = V3_UP);
 	void UpdateAudio(EngineCore& engine, const X3DAUDIO_LISTENER* audioListener);
 	void UpdateAnimation(EngineCore& engine, bool isMainRender);
 	void SetActive(bool newState, bool affectSelf = true);

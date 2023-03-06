@@ -19,6 +19,7 @@ void Game::StartGame(EngineCore& engine)
 	std::wstring defaultShader = L"entity";
 	std::wstring groundShader = L"ground";
 	std::wstring laserShader = L"laser";
+	std::wstring crosshairShader = L"crosshair";
 	std::wstring textureQuad = L"texturequad";
 
 	// Textures
@@ -34,6 +35,7 @@ void Game::StartGame(EngineCore& engine)
 	size_t laserMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, laserShader);
 	size_t portal1MaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTextures[0]->texture}, textureQuad);
 	size_t portal2MaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTextures[1]->texture}, textureQuad);
+	size_t crosshairMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, crosshairShader);
 
 	LOG_TIMER(timer, "Test Materials", debugLog);
 	RESET_TIMER(timer);
@@ -50,9 +52,13 @@ void Game::StartGame(EngineCore& engine)
 	RESET_TIMER(timer);
 
 	// Entities
+	Entity* crosshair = CreateQuadEntity(engine, crosshairMaterialIndex, .03f, .03f, true);
+	crosshair->GetData().mainOnly = true;
+	crosshair->GetBuffer().color = { 1.f, .3f, .1f, 1.f };
+
 	auto createPortal = [&](size_t matIndex){
-		Entity* portalRenderQuad = CreateQuadEntity(engine, matIndex, 2.f, 2.f);
-		portalRenderQuad->position = { -1.f, 1.f, 0.f };
+		Entity* portalRenderQuad = CreateQuadEntity(engine, matIndex, 2.f, 4.f);
+		portalRenderQuad->position = { -1.f, 2.f, 0.f };
 		portalRenderQuad->rotation = XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f);
 		portalRenderQuad->name = "PortalQuad";
 
@@ -62,11 +68,11 @@ void Game::StartGame(EngineCore& engine)
 
 		return portal;
 	};
-	portal1 = createPortal(portal1MaterialIndex);
-	portal1->position = { 3.f, 2.f, 3.f };
+	portal1 = createPortal(portal2MaterialIndex);
+	portal1->position = { 2.f, 2.f, 3.f };
 	portal1->name = "Portal 1";
 
-	portal2 = createPortal(portal2MaterialIndex);
+	portal2 = createPortal(portal1MaterialIndex);
 	portal2->position = { -2.f, 2.f, 3.f };
 	portal2->name = "Portal 2";
 
@@ -110,6 +116,9 @@ void Game::StartGame(EngineCore& engine)
 
 	Entity* yea = CreateMeshEntity(engine, groundMaterialIndex, cubeMeshView);
 	yea->name = "Yea";
+	yea->collisionData->collisionLayers |= CollisionLayers::Floor;
+	yea->position = { 3.f, 0.5f, 0.f };
+	yea->scale = { 2.f, 5.f, 2.f };
 
 	// Defaults
 	playerPitch = XM_PI;
@@ -368,6 +377,18 @@ void Game::UpdateGame(EngineCore& engine)
 	XMStoreFloat3(&playerAudioListener.Position, engine.mainCamera->position);
 	XMStoreFloat3(&playerAudioListener.Velocity, playerVelocity);
 
+	// Shoot portal
+	if (input.KeyJustPressed(VK_LBUTTON) || input.KeyJustPressed(VK_RBUTTON))
+	{
+		CollisionResult collision = CollideWithWorld(engine.m_collisionData, engine.mainCamera->position, camForward, CollisionLayers::Floor);
+		if (collision.collider != nullptr)
+		{
+			Entity* targetPortal = input.KeyJustPressed(VK_LBUTTON) ? portal1 : portal2;
+			targetPortal->position = collision.collisionPoint - camForward * 0.001f;
+			targetPortal->SetForwardDirection(-camForward);
+		}
+	}
+
 	// Update entities
 	for (Entity& entity : entityArena)
 	{
@@ -548,9 +569,9 @@ Entity* Game::CreateMeshEntity(EngineCore& engine, size_t materialIndex, D3D12_V
 	return entity;
 }
 
-Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height)
+Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical)
 {
-	MeshFile file = CreateQuad(width, height, modelArena);
+	MeshFile file = vertical ? CreateQuadY(width, height, modelArena) : CreateQuad(width, height, modelArena);
 	auto meshView = engine.CreateMesh(materialIndex, file.vertices, file.vertexCount);
 	Entity* entity = CreateMeshEntity(engine, materialIndex, meshView);
 	entity->position = { -width / 2.f, 0.f, -height / 2.f };

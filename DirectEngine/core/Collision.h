@@ -44,6 +44,7 @@ struct CollisionResult
 {
 	CollisionData* collider;
 	float distance;
+	XMVECTOR collisionPoint;
 };
 
 CollisionResult CollideWithWorld(FixedList<CollisionData>& colliders, XMVECTOR rayOrigin, XMVECTOR rayDirection, CollisionLayers matchingLayers);

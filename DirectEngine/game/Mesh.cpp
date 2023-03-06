@@ -28,6 +28,21 @@ MeshFile CreateQuad(float width, float height, MemoryArena& vertexArena)
 	return MeshFile{ vertices, VERTEX_COUNT };
 }
 
+MeshFile CreateQuadY(float width, float height, MemoryArena& vertexArena)
+{
+	constexpr size_t VERTEX_COUNT = 6;
+
+	Vertex* vertices = NewArray(vertexArena, Vertex, VERTEX_COUNT);
+	vertices[0] = { { 0.f  , 0.f   , 0.f }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f}, {}, {} };
+	vertices[1] = { { width, height, 0.f }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f}, {}, {} };
+	vertices[2] = { { width, 0.f   , 0.f }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f}, {}, {} };
+	vertices[3] = { { 0.f  , 0.f   , 0.f }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f}, {}, {} };
+	vertices[4] = { { 0.f  , height, 0.f }, {}, {0.f, 1.f, 0.f }, {0.f, 1.f}, {}, {} };
+	vertices[5] = { { width, height, 0.f }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f}, {}, {} };
+
+	return MeshFile{ vertices, VERTEX_COUNT };
+}
+
 template <typename T>
 const T* ReadBuffer(Model& model, Accessor& accessor)
 {

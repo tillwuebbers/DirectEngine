@@ -122,6 +122,7 @@ struct EntityData
 {
     bool visible = true;
     bool wireframe = false;
+    bool mainOnly = false;
     size_t entityIndex = 0;
     size_t materialIndex = 0;
     ConstantBuffer<EntityConstantBuffer> constantBuffer = {};

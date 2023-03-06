@@ -122,3 +122,8 @@ public:
 private:
     const HRESULT m_hr;
 };
+
+inline void AssertVector3Normalized(XMVECTOR vector)
+{
+    assert(std::abs(XMVector3Length(vector).m128_f32[0] - 1.f) < 0.001f);
+}

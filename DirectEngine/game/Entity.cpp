@@ -71,6 +71,22 @@ void Entity::UpdateWorldMatrix()
 	}
 }
 
+void Entity::SetForwardDirection(XMVECTOR direction, XMVECTOR up)
+{
+	assert(!XMVector3Equal(direction, up));
+	AssertVector3Normalized(direction);
+	AssertVector3Normalized(up);
+
+	XMVECTOR right = XMVector3Cross(up, direction);
+	XMVECTOR realUp = XMVector3Cross(direction, right);
+	MAT_RMAJ matrix = XMMatrixSet(
+		SPLIT_V3(right), 0.f,
+		SPLIT_V3(realUp), 0.f,
+		SPLIT_V3(direction), 0.f,
+		0.f, 0.f, 0.f, 1.f);
+	rotation = XMQuaternionRotationMatrix(matrix);
+}
+
 void Entity::UpdateAudio(EngineCore& engine, const X3DAUDIO_LISTENER* audioListener)
 {
 	XMVECTOR entityForwards, entityRight, entityUp;

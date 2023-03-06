@@ -33,6 +33,7 @@ bool CollisionCheck(CollisionData& collider, XMVECTOR rayOrigin, XMVECTOR rayDir
 			result.distance = maxDistance;
 		}
 
+		result.collisionPoint = XMVectorAdd(rayOrigin, XMVectorScale(rayDirection, result.distance));
 		result.collider = &collider;
 		return true;
 	}
@@ -42,6 +43,7 @@ bool CollisionCheck(CollisionData& collider, XMVECTOR rayOrigin, XMVECTOR rayDir
 		if (!onlyWriteClosest || minDistance < result.distance)
 		{
 			result.distance = minDistance;
+			result.collisionPoint = XMVectorAdd(rayOrigin, XMVectorScale(rayDirection, result.distance));
 			result.collider = &collider;
 			return true;
 		}
