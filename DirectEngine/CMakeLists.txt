@@ -6,6 +6,13 @@ set(XAUDIO2_DIR ${CMAKE_CURRENT_SOURCE_DIR}/xaudio2)
 set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
 set(DX_HEADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/directx/headers)
 set(GLM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/glm)
+set(REACTPHYSICS_DIR "E:/Code/ReactPhysics3DInstall")
+
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
+include_directories("${REACTPHYSICS_DIR}/include")
+list(APPEND CMAKE_PREFIX_PATH ${REACTPHYSICS_DIR})
+find_package(reactphysics3d CONFIG REQUIRED)
 
 # code groups
 file (GLOB CORE_CODE core/*.h core/*.cpp)

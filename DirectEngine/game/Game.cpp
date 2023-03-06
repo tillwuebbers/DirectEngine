@@ -7,6 +7,7 @@
 
 #include "../core/vkcodes.h"
 #include "remixicon.h"
+#include <reactphysics3d/reactphysics3d.h>
 
 void Game::StartGame(EngineCore& engine)
 {
@@ -14,6 +15,10 @@ void Game::StartGame(EngineCore& engine)
 
 	ImGui::SetCurrentContext(engine.m_imguiContext);
 	LoadUIStyle();
+
+	// Physics
+	reactphysics3d::PhysicsCommon physicsCommon;
+	reactphysics3d::PhysicsWorld* world = physicsCommon.createPhysicsWorld();
 
 	// Shaders
 	std::wstring defaultShader = L"entity";

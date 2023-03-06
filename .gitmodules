@@ -7,3 +7,6 @@
 [submodule "DirectEngine/openxr-sdk"]
 	path = DirectEngine/openxr-sdk
 	url = https://github.com/KhronosGroup/OpenXR-SDK/
+[submodule "DirectEngine/reactphysics3d"]
+	path = DirectEngine/reactphysics3d
+	url = https://github.com/DanielChappuis/reactphysics3d
