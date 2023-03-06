@@ -10,7 +10,6 @@ enum CollisionLayers : unsigned int
 	None       = 0,
 	GizmoClick = 1 << 1,
 	Floor      = 1 << 2,
-	Dead       = 1 << 3,
 };
 
 inline CollisionLayers operator|(CollisionLayers a, CollisionLayers b)

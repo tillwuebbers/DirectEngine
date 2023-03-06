@@ -73,9 +73,6 @@ public:
 	TransformHierachy* transformHierachy = nullptr;
 	CollisionData* collisionData = nullptr;
 
-	bool isEnemy = false;
-	bool isProjectile = false;
-	float spawnTime = -1000.f;
 	XMVECTOR velocity = {};
 
 	bool isGizmoTranslationArrow = false;

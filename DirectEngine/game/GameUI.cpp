@@ -370,12 +370,6 @@ void Game::DrawDebugUI(EngineCore& engine)
 
 					ImGui::Separator();
 
-					std::vector<std::string> attributes{};
-					if (entity->isEnemy) attributes.push_back("enemy");
-					if (entity->isProjectile) attributes.push_back("projectile");
-					std::string attributesString = std::accumulate(attributes.begin(), attributes.end(), std::string(), [](std::string a, std::string b) { return a + (a.empty() ? "" : ", ") + b; });
-					ImGui::Text("ATTRIBUTES  %s", attributesString.c_str());
-
 					bool activeState = entity->IsActive();
 					if (ImGui::Checkbox("Active", &activeState))
 					{
@@ -427,8 +421,6 @@ void Game::DrawDebugUI(EngineCore& engine)
 						ImGui::CheckboxFlags("GizmoClick", &entity->collisionData->collisionLayers, CollisionLayers::GizmoClick);
 						ImGui::SameLine();
 						ImGui::CheckboxFlags("Floor", &entity->collisionData->collisionLayers, CollisionLayers::Floor);
-						ImGui::SameLine();
-						ImGui::CheckboxFlags("Dead", &entity->collisionData->collisionLayers, CollisionLayers::Dead);
 
 						ImGui::DragFloat3("Collision Size", &entity->collisionData->aabbLocalSize.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
 						ImGui::DragFloat3("Collision Offset", &entity->collisionData->aabbLocalPosition.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
@@ -495,10 +487,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 		if (ImGui::Begin("Lighting", &showLightWindow))
 		{
 			ImGui::Checkbox("Show Light Space", &showLightSpaceDebug);
-			if (ImGui::Checkbox("Show Light Position", &showLightPosition))
-			{
-				lightDebugEntity->GetData().visible = showLightPosition;
-			}
+			ImGui::Checkbox("Show Light Position", &showLightPosition);
 
 			// light position
 			ImGui::Text("Light Position: (%.1f %.1f %.1f)", light.position.m128_f32[0], light.position.m128_f32[1], light.position.m128_f32[2]);

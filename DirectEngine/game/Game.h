@@ -17,11 +17,6 @@
 #include <DirectXMath.h>
 using namespace DirectX;
 
-#define MAX_ENENMY_COUNT 16
-#define MAX_PROJECTILE_COUNT 64
-#define PLAYER_HAND_OFFSET XMVECTOR{ 0.05f, -.2f, .1f }
-#define LASER_LENGTH 100.f
-
 struct DirectionalLight
 {
 	XMVECTOR position{ 0.f, 0.f, 0.f };
@@ -100,10 +95,6 @@ public:
 	Entity* renderCamParent = nullptr;
 	Entity* playerEntity = nullptr;
 	Entity* cameraEntity = nullptr;
-	Entity* enemies[MAX_ENENMY_COUNT];
-	Entity* projectiles[MAX_PROJECTILE_COUNT];
-	Entity* laser = nullptr;
-	Entity* lightDebugEntity = nullptr;
 
 	AudioSource playerAudioSource{};
 	X3DAUDIO_EMITTER playerAudioEmitter{};
