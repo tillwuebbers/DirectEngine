@@ -1,14 +1,8 @@
 #include "ShadowMap.h"
 #include "../Helpers.h"
 
-ShadowMap::ShadowMap(DXGI_FORMAT format) : format(format)
+ShadowMap::ShadowMap(DXGI_FORMAT format, UINT width, UINT height) : format(format), width(width), height(height)
 {
-}
-
-void ShadowMap::SetSize(UINT newWidth, UINT newHeight)
-{
-	width = newWidth;
-	height = newHeight;
 	viewport = CD3DX12_VIEWPORT{ 0.f, 0.f, static_cast<float>(width), static_cast<float>(height) };
 	scissorRect = CD3DX12_RECT{ 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
 }

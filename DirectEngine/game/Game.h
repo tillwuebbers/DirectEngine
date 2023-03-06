@@ -92,7 +92,8 @@ public:
 	XMVECTOR gizmoDragCursorStart{};
 	XMVECTOR gizmoDragEntityStart{};
 
-	Entity* renderCamParent = nullptr;
+	Entity* portal1 = nullptr;
+	Entity* portal2 = nullptr;
 	Entity* playerEntity = nullptr;
 	Entity* cameraEntity = nullptr;
 

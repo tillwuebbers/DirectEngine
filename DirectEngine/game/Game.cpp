@@ -32,7 +32,8 @@ void Game::StartGame(EngineCore& engine)
 	size_t memeMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { memeTexture }, defaultShader);
 	size_t groundMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, groundShader);
 	size_t laserMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, laserShader);
-	size_t renderTextureMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTexture->texture }, textureQuad);
+	size_t portal1MaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTextures[0]->texture}, textureQuad);
+	size_t portal2MaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTextures[1]->texture}, textureQuad);
 
 	LOG_TIMER(timer, "Test Materials", debugLog);
 	RESET_TIMER(timer);
@@ -49,21 +50,25 @@ void Game::StartGame(EngineCore& engine)
 	RESET_TIMER(timer);
 
 	// Entities
-	Entity* renderTextureDisplay = CreateQuadEntity(engine, renderTextureMaterialIndex, 2.f, 2.f);
-	renderTextureDisplay->position = { -1.f, 1.f, 0.f };
-	renderTextureDisplay->rotation = XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f);
-	renderTextureDisplay->name = "RenderTextureDisplay";
+	auto createPortal = [&](size_t matIndex){
+		Entity* portalRenderQuad = CreateQuadEntity(engine, matIndex, 2.f, 2.f);
+		portalRenderQuad->position = { -1.f, 1.f, 0.f };
+		portalRenderQuad->rotation = XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f);
+		portalRenderQuad->name = "PortalQuad";
 
-	Entity* renderTextureCameraIndicator = CreateMeshEntity(engine, laserMaterialIndex, cubeMeshView);
-	renderTextureCameraIndicator->scale = { 0.1f, 0.1f, 0.1f };
-	renderTextureCameraIndicator->name = "RenderCamIndicator";
+		Entity* portal = CreateEmptyEntity(engine);
+		portal->rotation = XMQuaternionRotationRollPitchYaw(0.f, XM_PI, 0.f);
+		portal->AddChild(portalRenderQuad);
 
-	renderCamParent = CreateEmptyEntity(engine);
-	renderCamParent->position = { 3.f, 2.f, 3.f };
-	renderCamParent->rotation = XMQuaternionRotationRollPitchYaw(0.f, XM_PI, 0.f);
-	renderCamParent->name = "RenderCamParent";
-	renderCamParent->AddChild(renderTextureDisplay);
-	renderCamParent->AddChild(renderTextureCameraIndicator);
+		return portal;
+	};
+	portal1 = createPortal(portal1MaterialIndex);
+	portal1->position = { 3.f, 2.f, 3.f };
+	portal1->name = "Portal 1";
+
+	portal2 = createPortal(portal2MaterialIndex);
+	portal2->position = { -2.f, 2.f, 3.f };
+	portal2->name = "Portal 2";
 
 	playerEntity = CreateEmptyEntity(engine);
 	playerEntity->name = "Player";
@@ -398,8 +403,11 @@ void Game::UpdateGame(EngineCore& engine)
 	XMMatrixDecompose(&camScale, &camRotation, &camTranslation, cameraEntity->worldMatrix);
 	engine.mainCamera->position = camTranslation;
 	engine.mainCamera->rotation = camRotation;
-	engine.renderTextureCamera->position = renderCamParent->position;
-	engine.renderTextureCamera->rotation = renderCamParent->rotation;
+
+	engine.m_renderTextures[0]->camera->position = portal1->position;
+	engine.m_renderTextures[0]->camera->rotation = portal1->rotation;
+	engine.m_renderTextures[1]->camera->position = portal2->position;
+	engine.m_renderTextures[1]->camera->rotation = portal2->rotation;
 
 	CalculateDirectionVectors(camForward, camRight, camUp, engine.mainCamera->rotation);
 

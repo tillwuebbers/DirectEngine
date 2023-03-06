@@ -188,6 +188,23 @@ struct CameraData
     }
 };
 
+struct RenderTexture
+{
+    UINT width;
+    UINT height;
+    DXGI_FORMAT format;
+    CD3DX12_VIEWPORT viewport;
+    CD3DX12_RECT scissorRect;
+
+    CameraData* camera;
+
+    Texture texture{};
+    ID3D12Resource* msaaBuffer;
+    ID3D12Resource* dsvBuffer;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle{};
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle{};
+};
+
 class EngineCore
 {
 public:
@@ -251,7 +268,7 @@ public:
     UINT m_dsvDescriptorSize;
 
     UINT m_constantBufferCount = 0;
-    UINT m_depthStencilViewCount = 4; // main dsv, shadow dsv, rendertexture dsv, msaa dsv
+    UINT m_depthStencilViewCount = 2; // main dsv, msaa dsv are fixed
     UINT m_renderTargetViewCount = FrameCount * 2; // main rtv, msaa rtv
 
     // App resources
@@ -269,8 +286,7 @@ public:
     FixedList<CollisionData> m_collisionData{ engineArena, MAX_COLLIDERS };
 
     CameraData* mainCamera = nullptr;
-    CameraData* renderTextureCamera = nullptr;
-    RenderTexture* m_renderTexture = nullptr;
+    FixedList<RenderTexture*> m_renderTextures{ engineArena, 2 };
 
     // Synchronization objects
     UINT m_frameIndex = 0;
