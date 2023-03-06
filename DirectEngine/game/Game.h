@@ -156,6 +156,7 @@ public:
 
 	void StartGame(EngineCore& engine) override;
 	void UpdateGame(EngineCore& engine) override;
+	void BeforeMainRender(EngineCore& engine) override;
 	void DrawUI(EngineCore& engine);
 	void DrawDebugUI(EngineCore& engine);
 

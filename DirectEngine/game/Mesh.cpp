@@ -175,6 +175,10 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 			{
 				maskedChannels.push_back(animation.extras.Get("mask").Get<std::string>());
 			}
+			if (animation.extras.Has("mainrender"))
+			{
+				transformAnimation.onlyInMainCamera = true;
+			}
 
 
 			float maxTime = 0.f;

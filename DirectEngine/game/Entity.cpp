@@ -97,7 +97,7 @@ void Entity::UpdateAudio(EngineCore& engine, const X3DAUDIO_LISTENER* audioListe
 	}
 }
 
-void Entity::UpdateAnimation(EngineCore& engine)
+void Entity::UpdateAnimation(EngineCore& engine, bool isMainRender)
 {
 	if (isSkinnedRoot)
 	{
@@ -113,7 +113,7 @@ void Entity::UpdateAnimation(EngineCore& engine)
 		{
 			TransformAnimation& animation = transformHierachy->animations[animIndex];
 
-			if (animation.active)
+			if (animation.active && (isMainRender || !animation.onlyInMainCamera))
 			{
 				animation.time = fmodf(engine.TimeSinceStart(), animation.duration);
 

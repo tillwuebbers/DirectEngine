@@ -18,6 +18,7 @@ class IGame
 public:
 	virtual void StartGame(EngineCore& engine) = 0;
 	virtual void UpdateGame(EngineCore& engine) = 0;
+	virtual void BeforeMainRender(EngineCore& engine) = 0;
 
 	virtual float* GetClearColor() = 0;
 	virtual EngineInput& GetInput() = 0;

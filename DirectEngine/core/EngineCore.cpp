@@ -1090,6 +1090,18 @@ void EngineCore::PopulateCommandList()
     // 'Main' render
     BeginProfile("Render Main", ImColor::HSV(.7, .3, 1.));
 
+    // Apply masked animations for first-person
+    m_game->BeforeMainRender(*this);
+    for (int matIndex = 0; matIndex < m_materialCount; matIndex++)
+    {
+        for (int entityIndex = 0; entityIndex < m_materials[matIndex].entityCount; entityIndex++)
+        {
+            EntityData* entityData = m_materials[matIndex].entities[entityIndex];
+            entityData->constantBuffer.UploadData(m_frameIndex);
+            entityData->boneConstantBuffer.UploadData(m_frameIndex);
+        }
+    }
+
     ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
     Transition(m_renderCommandList, renderTargetWindow, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 

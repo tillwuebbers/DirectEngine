@@ -51,6 +51,7 @@ struct TransformAnimation
 
 	bool active = false;
 	bool loop = true;
+	bool onlyInMainCamera = false;
 
 	float time = 0.f;
 	float duration = 0.f;

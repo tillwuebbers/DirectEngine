@@ -96,7 +96,7 @@ public:
 	EntityConstantBuffer& GetBuffer();
 	void UpdateWorldMatrix();
 	void UpdateAudio(EngineCore& engine, const X3DAUDIO_LISTENER* audioListener);
-	void UpdateAnimation(EngineCore& engine);
+	void UpdateAnimation(EngineCore& engine, bool isMainRender);
 	void SetActive(bool newState, bool affectSelf = true);
 	bool IsActive();
 

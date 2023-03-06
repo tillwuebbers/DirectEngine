@@ -508,7 +508,7 @@ void Game::UpdateGame(EngineCore& engine)
 	// Update entities
 	for (Entity& entity : entityArena)
 	{
-		entity.UpdateAnimation(engine);
+		entity.UpdateAnimation(engine, false);
 		entity.UpdateAudio(engine, &playerAudioListener);
 	}
 
@@ -646,6 +646,14 @@ void Game::UpdateGame(EngineCore& engine)
 
 	input.NextFrame();
 	input.accessMutex.unlock();
+}
+
+void Game::BeforeMainRender(EngineCore& engine)
+{
+	for (Entity& entity : entityArena)
+	{
+		entity.UpdateAnimation(engine, true);
+	}
 }
 
 float* Game::GetClearColor()
