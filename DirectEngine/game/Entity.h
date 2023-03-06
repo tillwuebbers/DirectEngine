@@ -8,6 +8,8 @@
 #include <DirectXMath.h>
 using namespace DirectX;
 
+#include <reactphysics3d/reactphysics3d.h>
+
 struct FixedStr
 {
 	constexpr static size_t SIZE = 128;
@@ -84,10 +86,19 @@ public:
 	bool isGizmoScaleCube = false;
 	XMVECTOR gizmoScaleAxis{};
 
+	reactphysics3d::RigidBody* rigidBody = nullptr;
+	reactphysics3d::CollisionBody* collisionBody = nullptr;
+	reactphysics3d::Collider* collider = nullptr;
+
 	AudioSource audioSource;
 
 	void AddChild(Entity* child);
 	void RemoveChild(Entity* child);
+
+	reactphysics3d::Transform GetPhysicsTransform();
+	void InitRigidBody(reactphysics3d::PhysicsWorld* physicsWorld, reactphysics3d::BodyType type = reactphysics3d::BodyType::DYNAMIC);
+	void InitCollisionBody(reactphysics3d::PhysicsWorld* physicsWorld);
+	void InitBoxCollider(reactphysics3d::PhysicsCommon& physicsCommon, XMVECTOR boxExtents, XMVECTOR boxOffset);
 
 	EntityData& GetData();
 	EntityConstantBuffer& GetBuffer();

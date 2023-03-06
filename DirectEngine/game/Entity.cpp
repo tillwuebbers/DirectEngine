@@ -33,6 +33,40 @@ void Entity::RemoveChild(Entity* child)
 	}
 }
 
+reactphysics3d::Transform Entity::GetPhysicsTransform()
+{
+	return PhysicsTransformFromXM(position, rotation);
+}
+
+void Entity::InitRigidBody(reactphysics3d::PhysicsWorld* physicsWorld, reactphysics3d::BodyType type)
+{
+	rigidBody = physicsWorld->createRigidBody(GetPhysicsTransform());
+	rigidBody->setType(type);
+}
+
+void Entity::InitCollisionBody(reactphysics3d::PhysicsWorld* physicsWorld)
+{
+	collisionBody = physicsWorld->createCollisionBody(GetPhysicsTransform());
+}
+
+void Entity::InitBoxCollider(reactphysics3d::PhysicsCommon& physicsCommon, XMVECTOR boxExtents, XMVECTOR boxOffset)
+{
+	assert(rigidBody != nullptr || collisionBody != nullptr);
+	assert(rigidBody == nullptr || collisionBody == nullptr);
+
+	reactphysics3d::BoxShape* boxShape = physicsCommon.createBoxShape(PhysicsVectorFromXM(boxExtents));
+	reactphysics3d::Transform boxTransform = PhysicsTransformFromXM(boxOffset, XMQuaternionIdentity());
+
+	if (rigidBody != nullptr)
+	{
+		rigidBody->addCollider(boxShape, boxTransform);
+	}
+	if (collisionBody != nullptr)
+	{
+		collisionBody->addCollider(boxShape, boxTransform);
+	}
+}
+
 EntityData& Entity::GetData()
 {
 	assert(isRendered);

@@ -17,6 +17,8 @@
 #include <DirectXMath.h>
 using namespace DirectX;
 
+#include <reactphysics3d/reactphysics3d.h>
+
 struct DirectionalLight
 {
 	XMVECTOR position{ 0.f, 0.f, 0.f };
@@ -96,10 +98,14 @@ public:
 	Entity* portal2 = nullptr;
 	Entity* playerEntity = nullptr;
 	Entity* cameraEntity = nullptr;
+	Entity* yea = nullptr;
 
 	AudioSource playerAudioSource{};
 	X3DAUDIO_EMITTER playerAudioEmitter{};
 	X3DAUDIO_LISTENER playerAudioListener{};
+
+	reactphysics3d::PhysicsCommon physicsCommon;
+	reactphysics3d::PhysicsWorld* physicsWorld;
 
 	float playerPitch = 0.f;
 	float playerYaw = 0.f;

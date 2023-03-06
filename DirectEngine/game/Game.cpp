@@ -7,7 +7,6 @@
 
 #include "../core/vkcodes.h"
 #include "remixicon.h"
-#include <reactphysics3d/reactphysics3d.h>
 
 void Game::StartGame(EngineCore& engine)
 {
@@ -17,8 +16,15 @@ void Game::StartGame(EngineCore& engine)
 	LoadUIStyle();
 
 	// Physics
-	reactphysics3d::PhysicsCommon physicsCommon;
-	reactphysics3d::PhysicsWorld* world = physicsCommon.createPhysicsWorld();
+	physicsWorld = physicsCommon.createPhysicsWorld();
+
+	physicsWorld->setIsDebugRenderingEnabled(true);
+	reactphysics3d::DebugRenderer& debugRenderer = physicsWorld->getDebugRenderer();
+	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::COLLIDER_AABB, true);
+	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::COLLISION_SHAPE, true);
+	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::CONTACT_POINT, true);
+	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::CONTACT_NORMAL, true);
+
 
 	// Shaders
 	std::wstring defaultShader = L"entity";
@@ -87,6 +93,8 @@ void Game::StartGame(EngineCore& engine)
 	cameraEntity->name = "Camera";
 	cameraEntity->position = { 0.f, 1.85f, 0.15f };
 	playerEntity->AddChild(cameraEntity);
+	playerEntity->InitCollisionBody(physicsWorld);
+	playerEntity->InitBoxCollider(physicsCommon, { 1.f, 2.f, 1.f }, { 0.f, 1.f, 0.f });
 
 	LOG_TIMER(timer, "Camera Entity", debugLog);
 	RESET_TIMER(timer);
@@ -118,12 +126,16 @@ void Game::StartGame(EngineCore& engine)
 	groundEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
 	groundEntity->collisionData->collisionLayers |= Floor;
 	groundEntity->position = XMVectorSetY(groundEntity->position, -.01f);
+	groundEntity->InitRigidBody(physicsWorld, reactphysics3d::BodyType::STATIC);
+	groundEntity->InitBoxCollider(physicsCommon, groundEntity->collisionData->aabbLocalSize, groundEntity->collisionData->aabbLocalPosition);
 
-	Entity* yea = CreateMeshEntity(engine, groundMaterialIndex, cubeMeshView);
+	yea = CreateMeshEntity(engine, groundMaterialIndex, cubeMeshView);
 	yea->name = "Yea";
 	yea->collisionData->collisionLayers |= CollisionLayers::Floor;
 	yea->position = { 3.f, 0.5f, 0.f };
 	yea->scale = { 2.f, 5.f, 2.f };
+	yea->InitRigidBody(physicsWorld);
+	yea->InitBoxCollider(physicsCommon, yea->collisionData->aabbLocalSize, yea->collisionData->aabbLocalPosition);
 
 	// Defaults
 	playerPitch = XM_PI;
@@ -398,7 +410,34 @@ void Game::UpdateGame(EngineCore& engine)
 	for (Entity& entity : entityArena)
 	{
 		entity.UpdateAnimation(engine, false);
-		entity.UpdateAudio(engine, &playerAudioListener);
+	}
+
+	// Update physics
+	for (Entity& entity : entityArena)
+	{
+		if (entity.collisionBody != nullptr)
+		{
+			entity.collisionBody->setTransform(PhysicsTransformFromXM(entity.position, entity.rotation));
+		}
+	}
+
+	physicsWorld->update(std::min(engine.m_updateDeltaTime, MAX_PHYSICS_STEP));
+
+	reactphysics3d::DebugRenderer& debugRenderer = physicsWorld->getDebugRenderer();
+	for (int i = 0; i < debugRenderer.getNbLines(); i++)
+	{
+		auto line = debugRenderer.getLinesArray()[i];
+		engine.m_debugLineData.AddLine(XMVectorFromPhysics(line.point1), XMVectorFromPhysics(line.point2), XMColorFromPhysics(line.color1), XMColorFromPhysics(line.color2));
+	}
+
+	for (Entity& entity : entityArena)
+	{
+		if (entity.rigidBody == nullptr) continue;
+		const reactphysics3d::Transform& rbTransform = entity.rigidBody->getTransform();
+		const reactphysics3d::Vector3& rbPosition = rbTransform.getPosition();
+		const reactphysics3d::Quaternion& rbOrientation = rbTransform.getOrientation();
+		entity.position = { rbPosition.x, rbPosition.y, rbPosition.z };
+		entity.rotation = { rbOrientation.x, rbOrientation.y, rbOrientation.z, rbOrientation.w };
 	}
 
 	// Update entity matrices
@@ -407,6 +446,7 @@ void Game::UpdateGame(EngineCore& engine)
 		if (entity.parent == nullptr)
 		{
 			entity.UpdateWorldMatrix();
+			entity.UpdateAudio(engine, &playerAudioListener);
 		}
 	}
 

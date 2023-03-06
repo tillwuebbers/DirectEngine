@@ -15,6 +15,8 @@
 #include <DirectXMath.h>
 using namespace DirectX;
 
+#include <reactphysics3d/reactphysics3d.h>
+
 inline std::string HrToString(HRESULT hr)
 {
     char s_str[64] = {};
@@ -126,4 +128,40 @@ private:
 inline void AssertVector3Normalized(XMVECTOR vector)
 {
     assert(std::abs(XMVector3Length(vector).m128_f32[0] - 1.f) < 0.001f);
+}
+
+inline XMVECTOR XMVectorFromPhysics(reactphysics3d::Vector3 v)
+{
+    return XMVECTOR{ v.x, v.y, v.z };
+}
+
+inline XMVECTOR XMQuaternionFromPhysics(reactphysics3d::Quaternion q)
+{
+    return XMVECTOR{ q.x, q.y, q.z, q.w };
+}
+
+inline XMVECTOR XMColorFromPhysics(reactphysics3d::uint32 c)
+{
+    // uint32 to floats
+    float r = (c & 0xFF) / 255.f;
+    float g = ((c >> 8) & 0xFF) / 255.f;
+    float b = ((c >> 16) & 0xFF) / 255.f;
+    float a = ((c >> 24) & 0xFF) / 255.f;
+
+    return XMVECTOR{ r, g, b, a };
+}
+
+inline reactphysics3d::Vector3 PhysicsVectorFromXM(XMVECTOR v)
+{
+	return reactphysics3d::Vector3{ v.m128_f32[0], v.m128_f32[1], v.m128_f32[2] };
+}
+
+inline reactphysics3d::Quaternion PhysicsQuaternionFromXM(XMVECTOR v)
+{
+	return reactphysics3d::Quaternion{ v.m128_f32[0], v.m128_f32[1], v.m128_f32[2], v.m128_f32[3] };
+}
+
+inline reactphysics3d::Transform PhysicsTransformFromXM(XMVECTOR pos, XMVECTOR rot)
+{
+    return reactphysics3d::Transform{ PhysicsVectorFromXM(pos), PhysicsQuaternionFromXM(rot) };
 }
