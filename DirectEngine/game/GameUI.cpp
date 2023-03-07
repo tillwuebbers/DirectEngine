@@ -47,6 +47,38 @@ void DisplayTransformNode(TransformNode* node)
 	}
 }
 
+void DisplayCollider(reactphysics3d::Collider* collider)
+{
+	const char* colliderIcon;
+	switch (collider->getCollisionShape()->getName())
+	{
+	case reactphysics3d::CollisionShapeName::TRIANGLE:      colliderIcon = ICON_ARROW_DROP_UP_FILL; break;
+	case reactphysics3d::CollisionShapeName::SPHERE:        colliderIcon = ICON_CHECKBOX_BLANK_CIRCLE_LINE; break;
+	case reactphysics3d::CollisionShapeName::CAPSULE:       colliderIcon = ICON_CAPSULE_LINE; break;
+	case reactphysics3d::CollisionShapeName::BOX:           colliderIcon = ICON_CHECKBOX_BLANK_LINE; break;
+	case reactphysics3d::CollisionShapeName::CONVEX_MESH:   colliderIcon = ICON_MAGIC_LINE; break;
+	case reactphysics3d::CollisionShapeName::TRIANGLE_MESH: colliderIcon = ICON_VIP_DIAMOND_LINE; break;
+	case reactphysics3d::CollisionShapeName::HEIGHTFIELD:   colliderIcon = ICON_LINE_CHART_LINE; break;
+	default: colliderIcon = "?"; break;
+	}
+	ImGui::Text("%s COLLIDER %i", colliderIcon, collider->getCollisionCategoryBits());
+
+	bool isTrigger = collider->getIsTrigger();
+	if (ImGui::Checkbox("Is Trigger", &isTrigger))
+	{
+		collider->setIsTrigger(isTrigger);
+	}
+
+	reactphysics3d::Material& mat = collider->getMaterial();
+	float bounciness = mat.getBounciness();
+	float friction = mat.getFrictionCoefficient();
+	float density = mat.getMassDensity();
+
+	if (ImGui::DragFloat("Bounciness", &bounciness, SLIDER_SPEED, 0.f, 1.f, "%.2f", ImGuiSliderFlags_NoRoundToFormat)) mat.setBounciness(bounciness);
+	if (ImGui::DragFloat("Friction", &friction, SLIDER_SPEED, 0.f, 1.f, "%.2f", ImGuiSliderFlags_NoRoundToFormat)) mat.setFrictionCoefficient(friction);
+	if (ImGui::DragFloat("Density", &density, SLIDER_SPEED, 0.f, 1.f, "%.2f", ImGuiSliderFlags_NoRoundToFormat)) mat.setMassDensity(density);
+}
+
 void InputSizeT(const char* label, size_t* value)
 {
 	size_t defaultStep = 1;
@@ -114,7 +146,6 @@ void Game::DrawDebugUI(EngineCore& engine)
 
 			ImGui::Text("Camera Position: %.1f %.1f %.1f", SPLIT_V3(engine.mainCamera->position));
 			ImGui::Text("Camera Rotation: %.1f %.1f", playerPitch / XM_2PI * 360.f, playerYaw / XM_2PI * 360.f);
-			ImGui::Text("RB test pos: %.1f %.1f %.1f", SPLIT_V3(yea->position));
 
 			ImGui::NewLine();
 
@@ -248,7 +279,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 		ImGui::End();
 	}
 
-	// Post Processing
+	// Graphics
 	if (showPostProcessWindow)
 	{
 		if (ImGui::Begin("Graphics", &showPostProcessWindow))
@@ -271,7 +302,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 			ImGui::Checkbox("Render Texture", &engine.m_renderTextureEnabled);
 
 			ImGui::Separator();
-			ImGui::Checkbox("Show Bounds", &engine.renderAABB);
+			ImGui::Checkbox("Show Physics", &renderPhysics);
 			//ImGui::Checkbox("Show Wireframe", &engine.renderWireframe);
 		}
 		ImGui::End();
@@ -303,7 +334,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 			ImGui::SameLine();
 
 			ImVec2 cursorPos = ImGui::GetCursorScreenPos();
-			float playerDisplaySpeed = XMVectorGetX(XMVector3Length(XMVectorSetY(playerVelocity, 0.)));
+			float playerDisplaySpeed = XMVectorGetX(XMVector3Length(XMVectorSetY(XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity()), 0.)));
 			ImGui::GetWindowDrawList()->AddLine({ cursorPos.x, cursorPos.y + 10.f }, { cursorPos.x + (playerDisplaySpeed * 30.f / playerMaxSpeed), cursorPos.y + 10.f }, ImColor(.1f, .2f, .9f), 10.f);
 			ImGui::SetCursorPosX(cursorPos.x + 35.f);
 			ImGui::Text("Vel: %.1f", playerDisplaySpeed);
@@ -413,18 +444,99 @@ void Game::DrawDebugUI(EngineCore& engine)
 					}
 					ImGui::EndTabBar();
 
-
-					if (entity->collisionData != nullptr)
+					if (entity->rigidBody != nullptr)
 					{
 						ImGui::Separator();
-						ImGui::Text("COLLISION");
 
-						ImGui::CheckboxFlags("GizmoClick", &entity->collisionData->collisionLayers, CollisionLayers::GizmoClick);
+						const char* bodyTypeIcon = nullptr;
+						switch (entity->rigidBody->getType())
+						{
+						case reactphysics3d::BodyType::STATIC:    bodyTypeIcon = ICON_HOME_2_LINE; break;
+						case reactphysics3d::BodyType::KINEMATIC: bodyTypeIcon = ICON_DRAG_MOVE_2_LINE; break;
+						case reactphysics3d::BodyType::DYNAMIC:   bodyTypeIcon = ICON_SEND_PLANE_LINE; break;
+						}
+
+						ImGui::Text("%s RIGIDBODY %s", bodyTypeIcon, entity->rigidBody->isSleeping() ? ICON_ZZZ_FILL : "");
+
+						ImGui::Text("Velocity: %.1f %.1f %.1f", entity->rigidBody->getLinearVelocity().x, entity->rigidBody->getLinearVelocity().y, entity->rigidBody->getLinearVelocity().z);
+						ImGui::Text("Angular Velocity: %.1f %.1f %.1f", entity->rigidBody->getAngularVelocity().x, entity->rigidBody->getAngularVelocity().y, entity->rigidBody->getAngularVelocity().z);
+						ImGui::Text("Inertia: %.1f %.1f %.1f", entity->rigidBody->getLocalInertiaTensor().x, entity->rigidBody->getLocalInertiaTensor().y, entity->rigidBody->getLocalInertiaTensor().z);
+
+						ImGui::Text("Mass: %.1f", entity->rigidBody->getMass());
 						ImGui::SameLine();
-						ImGui::CheckboxFlags("Floor", &entity->collisionData->collisionLayers, CollisionLayers::Floor);
+						if (ImGui::Button("Recalculate")) entity->rigidBody->updateMassPropertiesFromColliders();
 
-						ImGui::DragFloat3("Collision Size", &entity->collisionData->aabbLocalSize.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
-						ImGui::DragFloat3("Collision Offset", &entity->collisionData->aabbLocalPosition.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
+						bool isActive = entity->rigidBody->isActive();
+						if (ImGui::Checkbox("Active", &isActive)) entity->rigidBody->setIsActive(isActive);
+
+						ImGui::SameLine();
+
+						bool hasGravity = entity->rigidBody->isGravityEnabled();
+						if (ImGui::Checkbox("Gravity", &hasGravity)) entity->rigidBody->enableGravity(hasGravity);
+						
+						reactphysics3d::Vector3 linearLock = entity->rigidBody->getLinearLockAxisFactor();
+						bool xLocked = linearLock.x < 0.01f;
+						bool yLocked = linearLock.y < 0.01f;
+						bool zLocked = linearLock.z < 0.01f;
+						ImGui::Text("Lock Movement: ");
+						ImGui::SameLine();
+						ImGui::Checkbox("X##linearlockx", &xLocked);
+						ImGui::SameLine();
+						ImGui::Checkbox("Y##linearlocky", &yLocked);
+						ImGui::SameLine();
+						ImGui::Checkbox("Z##linearlockz", &zLocked);
+						linearLock.x = xLocked ? 0.f : 1.f;
+						linearLock.y = yLocked ? 0.f : 1.f;
+						linearLock.z = zLocked ? 0.f : 1.f;
+						entity->rigidBody->setLinearLockAxisFactor(linearLock);
+
+						reactphysics3d::Vector3 rotationLock = entity->rigidBody->getAngularLockAxisFactor();
+						xLocked = rotationLock.x < 0.01f;
+						yLocked = rotationLock.y < 0.01f;
+						zLocked = rotationLock.z < 0.01f;
+						ImGui::Text("Lock Rotation: ");
+						ImGui::SameLine();
+						ImGui::Checkbox("X##rotationlockx", &xLocked);
+						ImGui::SameLine();
+						ImGui::Checkbox("Y##rotationlocky", &yLocked);
+						ImGui::SameLine();
+						ImGui::Checkbox("Z##rotationlockz", &zLocked);
+						rotationLock.x = xLocked ? 0.f : 1.f;
+						rotationLock.y = yLocked ? 0.f : 1.f;
+						rotationLock.z = zLocked ? 0.f : 1.f;
+						entity->rigidBody->setAngularLockAxisFactor(rotationLock);
+
+						ImGui::DragFloat3("##ApplyForce", &physicsForceDebug.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f");
+						ImGui::SameLine();
+						if (ImGui::Button("Apply Force"))
+						{
+							entity->rigidBody->applyWorldForceAtCenterOfMass(PhysicsVectorFromXM(physicsForceDebug));
+						}
+
+						ImGui::DragFloat3("##ApplyTorque", &physicsTorqueDebug.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f");
+						ImGui::SameLine();
+						if (ImGui::Button("Apply Torque"))
+						{
+							entity->rigidBody->applyWorldTorque(PhysicsVectorFromXM(physicsTorqueDebug));
+						}
+
+						for (size_t i = 0; i < entity->rigidBody->getNbColliders(); i++)
+						{
+							ImGui::Separator();
+							DisplayCollider(entity->rigidBody->getCollider(i));
+						}
+					}
+
+					if (entity->collisionBody != nullptr)
+					{
+						ImGui::Separator();
+						ImGui::Text("COLLISION BODY");
+
+						for (size_t i = 0; i < entity->collisionBody->getNbColliders(); i++)
+						{
+							ImGui::Separator();
+							DisplayCollider(entity->collisionBody->getCollider(i));
+						}
 					}
 
 					if (entity->isSkinnedRoot && entity->transformHierachy->nodeCount > 0)

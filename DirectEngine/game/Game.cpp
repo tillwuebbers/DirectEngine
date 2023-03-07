@@ -17,7 +17,6 @@ void Game::StartGame(EngineCore& engine)
 
 	// Physics
 	physicsWorld = physicsCommon.createPhysicsWorld();
-
 	physicsWorld->setIsDebugRenderingEnabled(true);
 	reactphysics3d::DebugRenderer& debugRenderer = physicsWorld->getDebugRenderer();
 	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::COLLIDER_AABB, true);
@@ -89,53 +88,59 @@ void Game::StartGame(EngineCore& engine)
 
 	playerEntity = CreateEmptyEntity(engine);
 	playerEntity->name = "Player";
+	playerEntity->position = { 0.f, 1.f, 0.f };
+	playerEntity->InitRigidBody(physicsWorld, reactphysics3d::BodyType::KINEMATIC);
+	playerEntity->InitBoxCollider(physicsCommon, { .5f, 1.f, .5f }, { 0.f, 1.f, 0.f }, CollisionLayers::Player);
+	playerEntity->rigidBody->setAngularLockAxisFactor({ 0.f, 0.f, 0.f });
+	playerEntity->rigidBody->enableGravity(false);
+
+	playerLookEntity = CreateEmptyEntity(engine);
+	playerLookEntity->name = "PlayerLook";
+	playerLookEntity->position = { 0.f, 1.85f, 0.f };
+	playerEntity->AddChild(playerLookEntity);
+
 	cameraEntity = CreateEmptyEntity(engine);
 	cameraEntity->name = "Camera";
-	cameraEntity->position = { 0.f, 1.85f, 0.15f };
-	playerEntity->AddChild(cameraEntity);
-	playerEntity->InitCollisionBody(physicsWorld);
-	playerEntity->InitBoxCollider(physicsCommon, { 1.f, 2.f, 1.f }, { 0.f, 1.f, 0.f });
+	cameraEntity->position = { 0.f, 0.f, 0.15f };
+	playerLookEntity->AddChild(cameraEntity);
 
 	LOG_TIMER(timer, "Camera Entity", debugLog);
 	RESET_TIMER(timer);
 
-	Entity* kaijuMeshEntity = CreateEntityFromGltf(engine, "models/kaiju.glb", defaultShader, debugLog);
+	playerModelEntity = CreateEntityFromGltf(engine, "models/kaiju.glb", defaultShader, debugLog);
 
 	LOG_TIMER(timer, "Kaiju Entity", debugLog);
 	RESET_TIMER(timer);
 
-	assert(kaijuMeshEntity->isSkinnedRoot);
-	kaijuMeshEntity->name = "KaijuRoot";
-	kaijuMeshEntity->transformHierachy->SetAnimationActive("BasePose", true);
-	kaijuMeshEntity->transformHierachy->SetAnimationActive("NeckShrink", true);
-	
-	playerEntity->AddChild(kaijuMeshEntity);
+	assert(playerModelEntity->isSkinnedRoot);
+	playerModelEntity->name = "KaijuRoot";
+	playerModelEntity->transformHierachy->SetAnimationActive("BasePose", true);
+	playerModelEntity->transformHierachy->SetAnimationActive("NeckShrink", true);
 
-	for (int i = 0; i < kaijuMeshEntity->childCount; i++)
+	playerEntity->AddChild(playerModelEntity);
+
+	for (int i = 0; i < playerModelEntity->childCount; i++)
 	{
-		// TODO: auto calculate bounds on mesh creation
-		Entity* entity = kaijuMeshEntity->children[i];
-		entity->collisionData = engine.CreateCollider({ 0.f, 1.5f, -0.5f }, { 5.f, 3.f, 3.f }, entity);
+		Entity* entity = playerModelEntity->children[i];
 	}
 
 	LOG_TIMER(timer, "Kaiju Children", debugLog);
 	RESET_TIMER(timer);
 
-	Entity* groundEntity = CreateQuadEntity(engine, groundMaterialIndex, 100.f, 100.f);
+	Entity* groundEntity = CreateQuadEntity(engine, groundMaterialIndex, 100.f, 100.f, false, CollisionInitType::RigidBody, CollisionLayers::Floor);
 	groundEntity->name = "Ground";
 	groundEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
-	groundEntity->collisionData->collisionLayers |= Floor;
 	groundEntity->position = XMVectorSetY(groundEntity->position, -.01f);
-	groundEntity->InitRigidBody(physicsWorld, reactphysics3d::BodyType::STATIC);
-	groundEntity->InitBoxCollider(physicsCommon, groundEntity->collisionData->aabbLocalSize, groundEntity->collisionData->aabbLocalPosition);
+	groundEntity->rigidBody->setType(reactphysics3d::BodyType::STATIC);
 
-	yea = CreateMeshEntity(engine, groundMaterialIndex, cubeMeshView);
-	yea->name = "Yea";
-	yea->collisionData->collisionLayers |= CollisionLayers::Floor;
-	yea->position = { 3.f, 0.5f, 0.f };
-	yea->scale = { 2.f, 5.f, 2.f };
-	yea->InitRigidBody(physicsWorld);
-	yea->InitBoxCollider(physicsCommon, yea->collisionData->aabbLocalSize, yea->collisionData->aabbLocalPosition);
+	for (int i = 0; i < 16; i++)
+	{
+		Entity* yea = CreateMeshEntity(engine, groundMaterialIndex, cubeMeshView);
+		yea->name = "Yea";
+		yea->position = { 3.f, 0.5f + i * 16.f, 0.f };
+		yea->InitRigidBody(physicsWorld);
+		yea->InitBoxCollider(physicsCommon, { .5f, .5f, .5f }, {}, CollisionLayers::Floor);
+	}
 
 	// Defaults
 	playerPitch = XM_PI;
@@ -205,13 +210,22 @@ void Game::UpdateGame(EngineCore& engine)
 		if (playerPitch < -maxPitch) playerPitch = -maxPitch;
 	}
 
-	playerEntity->rotation = XMQuaternionRotationRollPitchYaw(0.f, playerYaw, 0.f);
 	cameraEntity->rotation = XMQuaternionRotationRollPitchYaw(playerPitch, 0.f, 0.f);
+	playerLookEntity->rotation = XMQuaternionRotationRollPitchYaw(0.f, playerYaw, 0.f);
+
+	XMVECTOR horizontalCamForward = XMVectorSetY(camForward, 0.f);
+	if (XMVectorGetX(XMVector3AngleBetweenVectors(horizontalCamForward, playerModelEntity->GetForwardDirection())) > XMConvertToRadians(20.f))
+	{
+		playerModelEntity->SetForwardDirection(XMVector3Normalize(horizontalCamForward));
+	}
 
 	// Player movement
 	if (input.KeyComboJustPressed(VK_KEY_R, VK_CONTROL))
 	{
-		playerEntity->position = { 0.f, 0.f, 0.f };
+		playerEntity->position = { 0.f, 1.f, 0.f };
+		playerEntity->rigidBody->setTransform(PhysicsTransformFromXM(playerEntity->position, playerEntity->rotation));
+		playerEntity->rigidBody->setLinearVelocity({ 0.f, 0.f, 0.f });
+		playerEntity->rigidBody->setAngularVelocity({ 0.f, 0.f, 0.f });
 	}
 
 	float horizontalInput = 0.f;
@@ -221,6 +235,8 @@ void Game::UpdateGame(EngineCore& engine)
 	float verticalInput = 0.f;
 	if (input.KeyDown(VK_KEY_S)) verticalInput -= 1.f;
 	if (input.KeyDown(VK_KEY_W)) verticalInput += 1.f;
+
+	playerEntity->rigidBody->setIsActive(!noclip);
 
 	if (noclip)
 	{
@@ -248,6 +264,7 @@ void Game::UpdateGame(EngineCore& engine)
 		XMVECTOR wantedDirection = XMVector3Normalize(wantedForward + wantedSideways);
 		bool playerWantsDirection = XMVectorGetX(XMVector3LengthSq(wantedForward) + XMVector3LengthSq(wantedSideways)) > 0.01f;
 
+		XMVECTOR playerVelocity = XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity());
 		float verticalPlayerVelocity = XMVectorGetY(playerVelocity);
 		XMVECTOR horizontalPlayerVelocity = XMVectorSetY(playerVelocity, 0.f);
 		XMVECTOR horizontalPlayerDirection = XMVector3Normalize(XMVectorSetY(playerVelocity, 0.f));
@@ -275,12 +292,13 @@ void Game::UpdateGame(EngineCore& engine)
 
 		// Ground collision
 		const float collisionEpsilon = std::max(0.1, XMVectorGetX(XMVector3Length(playerVelocity)) * engine.m_updateDeltaTime);
-		CollisionResult floorCollision = CollideWithWorld(engine.m_collisionData, playerEntity->position + XMVectorScale(V3_UP, collisionEpsilon), V3_DOWN, Floor);
-		bool onGround = floorCollision.distance <= collisionEpsilon;
+		minRaycastCollector.Raycast(physicsWorld, playerEntity->position, playerEntity->position + V3_UP * collisionEpsilon, CollisionLayers::Floor);
+		bool onGround = minRaycastCollector.anyCollision;
+
 		if (onGround)
 		{
 			// Move player out of ground
-			playerEntity->position = playerEntity->position + XMVectorScale(V3_UP, collisionEpsilon - floorCollision.distance);
+			playerEntity->position = playerEntity->position + XMVectorScale(V3_UP, collisionEpsilon - minRaycastCollector.collision.distance);
 
 			// Stop falling speed
 			playerVelocity = XMVectorSetY(playerVelocity, 0.);
@@ -311,19 +329,19 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 
 		// Apply velocity
-		playerEntity->position += playerVelocity * engine.m_updateDeltaTime;
+		playerEntity->rigidBody->setLinearVelocity(PhysicsVectorFromXM(playerVelocity));
 	}
 
 	// Gizmo
 	if (editMode && editElement != nullptr && input.KeyJustPressed(VK_LBUTTON))
 	{
-		RaycastScreenPositionAll(engine, *engine.mainCamera, { input.mouseX, input.mouseY }, CollisionLayers::GizmoClick, raycastResult);
+		RaycastScreenPosition(engine, *engine.mainCamera, { input.mouseX, input.mouseY }, &allRaycastCollector, CollisionLayers::GizmoClick);
 		Entity* selectedGizmo = nullptr;
-		for (CollisionResult& gizmoHit : raycastResult)
+		for (CollisionRecord& gizmoHit : allRaycastCollector.collisions)
 		{
-			if (gizmoHit.collider->entity != nullptr)
+			if (gizmoHit.collider->getUserData() != nullptr)
 			{
-				Entity* hitGizmo = gizmoHit.collider->GetEntity<Entity>();
+				Entity* hitGizmo = reinterpret_cast<Entity*>(gizmoHit.collider->getUserData());
 				if (selectedGizmo == nullptr
 					|| (selectedGizmo->isGizmoRotationRing && (hitGizmo->isGizmoTranslationArrow || hitGizmo->isGizmoScaleCube))
 					|| (selectedGizmo->isGizmoTranslationArrow && hitGizmo->isGizmoScaleCube))
@@ -392,17 +410,17 @@ void Game::UpdateGame(EngineCore& engine)
 	XMStoreFloat3(&playerAudioListener.OrientFront, camForward);
 	XMStoreFloat3(&playerAudioListener.OrientTop, XMVector3Cross(camForward, camRight));
 	XMStoreFloat3(&playerAudioListener.Position, engine.mainCamera->position);
-	XMStoreFloat3(&playerAudioListener.Velocity, playerVelocity);
+	XMStoreFloat3(&playerAudioListener.Velocity, XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity()));
 
 	// Shoot portal
 	if (input.KeyJustPressed(VK_LBUTTON) || input.KeyJustPressed(VK_RBUTTON))
 	{
-		CollisionResult collision = CollideWithWorld(engine.m_collisionData, engine.mainCamera->position, camForward, CollisionLayers::Floor);
-		if (collision.collider != nullptr)
+		minRaycastCollector.Raycast(physicsWorld, engine.mainCamera->position, engine.mainCamera->position + camForward * 1000.f, CollisionLayers::Floor);
+		if (minRaycastCollector.anyCollision)
 		{
 			Entity* targetPortal = input.KeyJustPressed(VK_LBUTTON) ? portal1 : portal2;
-			targetPortal->position = collision.collisionPoint - camForward * 0.001f;
-			targetPortal->SetForwardDirection(-camForward);
+			targetPortal->position = minRaycastCollector.collision.worldPoint - camForward * 0.001f;
+			targetPortal->SetForwardDirection(minRaycastCollector.collision.worldNormal);
 		}
 	}
 
@@ -419,15 +437,22 @@ void Game::UpdateGame(EngineCore& engine)
 		{
 			entity.collisionBody->setTransform(PhysicsTransformFromXM(entity.position, entity.rotation));
 		}
+		if (entity.rigidBody != nullptr && entity.rigidBody->getType() == reactphysics3d::BodyType::STATIC)
+		{
+			entity.rigidBody->setTransform(PhysicsTransformFromXM(entity.position, entity.rotation));
+		}
 	}
 
 	physicsWorld->update(std::min(engine.m_updateDeltaTime, MAX_PHYSICS_STEP));
 
-	reactphysics3d::DebugRenderer& debugRenderer = physicsWorld->getDebugRenderer();
-	for (int i = 0; i < debugRenderer.getNbLines(); i++)
+	if (renderPhysics)
 	{
-		auto line = debugRenderer.getLinesArray()[i];
-		engine.m_debugLineData.AddLine(XMVectorFromPhysics(line.point1), XMVectorFromPhysics(line.point2), XMColorFromPhysics(line.color1), XMColorFromPhysics(line.color2));
+		reactphysics3d::DebugRenderer& debugRenderer = physicsWorld->getDebugRenderer();
+		for (int i = 0; i < debugRenderer.getNbLines(); i++)
+		{
+			auto line = debugRenderer.getLinesArray()[i];
+			engine.m_debugLineData.AddLine(XMVectorFromPhysics(line.point1), XMVectorFromPhysics(line.point2), XMColorFromPhysics(line.color1), XMColorFromPhysics(line.color2));
+		}
 	}
 
 	for (Entity& entity : entityArena)
@@ -447,20 +472,6 @@ void Game::UpdateGame(EngineCore& engine)
 		{
 			entity.UpdateWorldMatrix();
 			entity.UpdateAudio(engine, &playerAudioListener);
-		}
-	}
-
-	// Update collision data
-	for (Entity& entity : entityArena)
-	{
-		if (entity.collisionData != nullptr)
-		{
-			entity.collisionData->worldMatrix = entity.worldMatrix;
-			if (entity.isRendered)
-			{
-				entity.GetBuffer().aabbLocalPosition = entity.collisionData->aabbLocalPosition;
-				entity.GetBuffer().aabbLocalSize = entity.collisionData->aabbLocalSize;
-			}
 		}
 	}
 
@@ -610,17 +621,27 @@ Entity* Game::CreateMeshEntity(EngineCore& engine, size_t materialIndex, D3D12_V
 	entity->isRendered = true;
 	entity->materialIndex = materialIndex;
 	entity->dataIndex = engine.CreateEntity(materialIndex, meshView);
-	entity->collisionData = engine.CreateCollider({}, { 1.f, 1.f, 1.f }, entity);
 	return entity;
 }
 
-Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical)
+Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical, CollisionInitType collisionInit, CollisionLayers collisionLayers)
 {
 	MeshFile file = vertical ? CreateQuadY(width, height, modelArena) : CreateQuad(width, height, modelArena);
 	auto meshView = engine.CreateMesh(materialIndex, file.vertices, file.vertexCount);
 	Entity* entity = CreateMeshEntity(engine, materialIndex, meshView);
 	entity->position = { -width / 2.f, 0.f, -height / 2.f };
-	entity->collisionData = engine.CreateCollider({ width / 2.f, -.05f, height / 2.f }, { width, .1f, height }, entity);
+	if (collisionInit == CollisionInitType::CollisionBody)
+	{
+		entity->InitCollisionBody(physicsWorld);
+	}
+	if (collisionInit == CollisionInitType::RigidBody)
+	{
+		entity->InitRigidBody(physicsWorld);
+	}
+	if (collisionInit != CollisionInitType::None)
+	{
+		reactphysics3d::Collider* collider = entity->InitBoxCollider(physicsCommon, { width / 2.f, .05f, height / 2.f }, { width / 2.f, -.05f, height / 2.f }, collisionLayers);
+	}
 	return entity;
 }
 
@@ -700,20 +721,11 @@ XMVECTOR Game::ScreenToWorldPosition(EngineCore& engine, CameraData& cameraData,
 	return XMVector3Unproject(screenPos, 0.f, 0.f, engine.m_width, engine.m_height, 0.f, 1.f, cameraProjection, cameraView, XMMatrixIdentity());
 }
 
-CollisionResult Game::RaycastScreenPosition(EngineCore& engine, CameraData& cameraData, XMVECTOR screenPos, CollisionLayers layers)
+void Game::RaycastScreenPosition(EngineCore& engine, CameraData& cameraData, XMVECTOR screenPos, EngineRaycastCallback* callback, CollisionLayers layers)
 {
 	XMVECTOR rayOriginWorld = ScreenToWorldPosition(engine, cameraData, screenPos);
 	XMVECTOR rayDirection = XMVector3Normalize(rayOriginWorld - cameraData.position);
-
-	return CollideWithWorld(engine.m_collisionData, rayOriginWorld, rayDirection, layers);
-}
-
-void Game::RaycastScreenPositionAll(EngineCore& engine, CameraData& cameraData, XMVECTOR screenPos, CollisionLayers layers, FixedList<CollisionResult>& result)
-{
-	XMVECTOR rayOriginWorld = ScreenToWorldPosition(engine, cameraData, screenPos);
-	XMVECTOR rayDirection = XMVector3Normalize(rayOriginWorld - cameraData.position);
-
-	CollideWithWorldList(engine.m_collisionData, rayOriginWorld, rayDirection, layers, result);
+	callback->Raycast(physicsWorld, rayOriginWorld, rayOriginWorld + rayDirection * 1000.f);
 }
 
 void Game::Log(const std::string& message)

@@ -6,7 +6,13 @@ set(XAUDIO2_DIR ${CMAKE_CURRENT_SOURCE_DIR}/xaudio2)
 set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
 set(DX_HEADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/directx/headers)
 set(GLM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/glm)
-set(REACTPHYSICS_DIR "E:/Code/ReactPhysics3DInstall")
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(REACTPHYSICS_DIR "E:/Code/ReactPhysics3DInstallDebug")
+else()
+    set(REACTPHYSICS_DIR "E:/Code/ReactPhysics3DInstallRelease")
+endif()
+
 
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")

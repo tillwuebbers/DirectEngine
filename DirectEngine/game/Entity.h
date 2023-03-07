@@ -73,9 +73,6 @@ public:
 
 	bool isSkinnedRoot = false;
 	TransformHierachy* transformHierachy = nullptr;
-	CollisionData* collisionData = nullptr;
-
-	XMVECTOR velocity = {};
 
 	bool isGizmoTranslationArrow = false;
 	XMVECTOR gizmoTranslationAxis{};
@@ -88,7 +85,6 @@ public:
 
 	reactphysics3d::RigidBody* rigidBody = nullptr;
 	reactphysics3d::CollisionBody* collisionBody = nullptr;
-	reactphysics3d::Collider* collider = nullptr;
 
 	AudioSource audioSource;
 
@@ -98,12 +94,13 @@ public:
 	reactphysics3d::Transform GetPhysicsTransform();
 	void InitRigidBody(reactphysics3d::PhysicsWorld* physicsWorld, reactphysics3d::BodyType type = reactphysics3d::BodyType::DYNAMIC);
 	void InitCollisionBody(reactphysics3d::PhysicsWorld* physicsWorld);
-	void InitBoxCollider(reactphysics3d::PhysicsCommon& physicsCommon, XMVECTOR boxExtents, XMVECTOR boxOffset);
+	reactphysics3d::Collider* InitBoxCollider(reactphysics3d::PhysicsCommon& physicsCommon, XMVECTOR boxExtents, XMVECTOR boxOffset, CollisionLayers collisionLayers, float bounciness = 0.1f, float friction = 0.5f, float density = 1.0f);
 
 	EntityData& GetData();
 	EntityConstantBuffer& GetBuffer();
 	void UpdateWorldMatrix();
-	void SetForwardDirection(XMVECTOR direction, XMVECTOR up = V3_UP);
+	void SetForwardDirection(XMVECTOR direction, XMVECTOR up = V3_UP, XMVECTOR altUp = V3_RIGHT);
+	XMVECTOR GetForwardDirection();
 	void UpdateAudio(EngineCore& engine, const X3DAUDIO_LISTENER* audioListener);
 	void UpdateAnimation(EngineCore& engine, bool isMainRender);
 	void SetActive(bool newState, bool affectSelf = true);

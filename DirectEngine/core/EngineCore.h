@@ -284,7 +284,6 @@ public:
 	size_t m_textureCount = 0;
     CameraData m_cameras[MAX_CAMERAS] = {};
     uint32_t m_cameraCount = 0;
-    FixedList<CollisionData> m_collisionData{ engineArena, MAX_COLLIDERS };
 
     CameraData* mainCamera = nullptr;
     FixedList<RenderTexture*> m_renderTextures{ engineArena, 2 };
@@ -322,7 +321,6 @@ public:
 
     // TODO: don't init this in game
     D3D12_VERTEX_BUFFER_VIEW cubeVertexView;
-    bool renderAABB = false;
     const float m_renderTargetClearColor[4] = {0.0f, 0.0f, 0.0f, 1.0f};
     
     // Audio
@@ -352,7 +350,6 @@ public:
     Texture* CreateTexture(const wchar_t* filePath);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
     size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride, const std::vector<Texture*>& textures, const std::wstring& shaderName);
-    CollisionData* CreateCollider(const XMVECTOR localCenter = { 0.f, 0.f, 0.f }, const XMVECTOR localExtents = { 1.f, 1.f, 1.f }, void* entity = nullptr, void* bone = nullptr);
     D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount);
     size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
     void UploadVertices();

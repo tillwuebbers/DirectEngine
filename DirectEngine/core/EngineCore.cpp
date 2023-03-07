@@ -85,7 +85,7 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
             debugController->EnableDebugLayer();
             
             ThrowIfFailed(debugController->QueryInterface(IID_PPV_ARGS(&debugController1)));
-            debugController1->SetEnableGPUBasedValidation(true);
+            //debugController1->SetEnableGPUBasedValidation(true);
 
             // Enable additional debug layers.
             dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
@@ -895,20 +895,6 @@ size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_
     return entity->entityIndex;
 }
 
-CollisionData* EngineCore::CreateCollider(const XMVECTOR localCenter, const XMVECTOR localExtents, void* entity, void* bone)
-{
-    assert(m_collisionData.size < MAX_COLLIDERS);
-    if (m_collisionData.size >= MAX_COLLIDERS) return nullptr;
-
-    CollisionData& collider = m_collisionData.NewElement();
-    collider.aabbLocalPosition = localCenter;
-    collider.aabbLocalSize = localExtents;
-    collider.entity = entity;
-    collider.bone = bone;
-
-    return &collider;
-}
-
 void EngineCore::UploadVertices()
 {
     for (int i = 0; i < m_materialCount; i++)
@@ -1260,14 +1246,6 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CP
         for (int entityIndex = 0; entityIndex < data.entityCount; entityIndex++)
         {
             EntityData* entity = data.entities[entityIndex];
-
-            if (entity->visible && renderAABB)
-            {
-                renderList->IASetVertexBuffers(0, 1, &cubeVertexView);
-                renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
-                renderList->SetGraphicsRootDescriptorTable(BONES, entity->boneConstantBuffer.handles[m_frameIndex].gpuHandle);
-                renderList->DrawInstanced(cubeVertexView.SizeInBytes / cubeVertexView.StrideInBytes, 1, 0, 0);
-            }
 
             if (entity->visible && entity->wireframe)
             {

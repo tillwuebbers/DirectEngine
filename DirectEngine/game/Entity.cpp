@@ -42,14 +42,16 @@ void Entity::InitRigidBody(reactphysics3d::PhysicsWorld* physicsWorld, reactphys
 {
 	rigidBody = physicsWorld->createRigidBody(GetPhysicsTransform());
 	rigidBody->setType(type);
+	rigidBody->setUserData(this);
 }
 
 void Entity::InitCollisionBody(reactphysics3d::PhysicsWorld* physicsWorld)
 {
 	collisionBody = physicsWorld->createCollisionBody(GetPhysicsTransform());
+	collisionBody->setUserData(this);
 }
 
-void Entity::InitBoxCollider(reactphysics3d::PhysicsCommon& physicsCommon, XMVECTOR boxExtents, XMVECTOR boxOffset)
+reactphysics3d::Collider* Entity::InitBoxCollider(reactphysics3d::PhysicsCommon& physicsCommon, XMVECTOR boxExtents, XMVECTOR boxOffset, CollisionLayers collisionLayers, float bounciness, float friction, float density)
 {
 	assert(rigidBody != nullptr || collisionBody != nullptr);
 	assert(rigidBody == nullptr || collisionBody == nullptr);
@@ -57,14 +59,34 @@ void Entity::InitBoxCollider(reactphysics3d::PhysicsCommon& physicsCommon, XMVEC
 	reactphysics3d::BoxShape* boxShape = physicsCommon.createBoxShape(PhysicsVectorFromXM(boxExtents));
 	reactphysics3d::Transform boxTransform = PhysicsTransformFromXM(boxOffset, XMQuaternionIdentity());
 
+	reactphysics3d::Collider* collider = nullptr;
+
 	if (rigidBody != nullptr)
 	{
-		rigidBody->addCollider(boxShape, boxTransform);
+		collider = rigidBody->addCollider(boxShape, boxTransform);
 	}
 	if (collisionBody != nullptr)
 	{
-		collisionBody->addCollider(boxShape, boxTransform);
+		collider = collisionBody->addCollider(boxShape, boxTransform);
 	}
+
+	if (collider != nullptr)
+	{
+		collider->setCollisionCategoryBits(collisionLayers);
+		collider->setUserData(this);
+
+		reactphysics3d::Material& mat = collider->getMaterial();
+		mat.setBounciness(bounciness);
+		mat.setFrictionCoefficient(friction);
+		mat.setMassDensity(density);
+	}
+
+	if (rigidBody != nullptr)
+	{
+		rigidBody->updateMassPropertiesFromColliders();
+	}
+
+	return collider;
 }
 
 EntityData& Entity::GetData()
@@ -81,7 +103,6 @@ EntityConstantBuffer& Entity::GetBuffer()
 
 void Entity::UpdateWorldMatrix()
 {
-	// TODO: we're duplicating state here, bad
 	localMatrix = DirectX::XMMatrixAffineTransformation(scale, XMVECTOR{}, rotation, position);
 
 	if (parent == nullptr)
@@ -105,13 +126,22 @@ void Entity::UpdateWorldMatrix()
 	}
 }
 
-void Entity::SetForwardDirection(XMVECTOR direction, XMVECTOR up)
+void Entity::SetForwardDirection(XMVECTOR direction, XMVECTOR up, XMVECTOR altUp)
 {
-	assert(!XMVector3Equal(direction, up));
 	AssertVector3Normalized(direction);
 	AssertVector3Normalized(up);
+	AssertVector3Normalized(altUp);
 
-	XMVECTOR right = XMVector3Cross(up, direction);
+	XMVECTOR right;
+	if (std::abs(XMVectorGetX(XMVector3Dot(direction, up))) > .99f)
+	{
+		right = XMVector3Cross(altUp, direction);
+	}
+	else
+	{
+		right = XMVector3Cross(up, direction);
+	}
+
 	XMVECTOR realUp = XMVector3Cross(direction, right);
 	MAT_RMAJ matrix = XMMatrixSet(
 		SPLIT_V3(right), 0.f,
@@ -119,6 +149,12 @@ void Entity::SetForwardDirection(XMVECTOR direction, XMVECTOR up)
 		SPLIT_V3(direction), 0.f,
 		0.f, 0.f, 0.f, 1.f);
 	rotation = XMQuaternionRotationMatrix(matrix);
+	UpdateWorldMatrix();
+}
+
+XMVECTOR Entity::GetForwardDirection()
+{
+	return XMVector3TransformNormal(V3_FORWARD, worldMatrix);
 }
 
 void Entity::UpdateAudio(EngineCore& engine, const X3DAUDIO_LISTENER* audioListener)
@@ -133,7 +169,15 @@ void Entity::UpdateAudio(EngineCore& engine, const X3DAUDIO_LISTENER* audioListe
 		XMStoreFloat3(&emitter.OrientFront, entityForwards);
 		XMStoreFloat3(&emitter.OrientTop, entityUp);
 		XMStoreFloat3(&emitter.Position, position);
-		XMStoreFloat3(&emitter.Velocity, velocity);
+
+		if (rigidBody != nullptr)
+		{
+			XMStoreFloat3(&emitter.Velocity, XMVectorFromPhysics(rigidBody->getLinearVelocity()));
+		}
+		else
+		{
+			XMStoreFloat3(&emitter.Velocity, {});
+		}
 
 		XAUDIO2_VOICE_DETAILS audioSourceDetails;
 		audioSourceVoice->GetVoiceDetails(&audioSourceDetails);
@@ -235,7 +279,8 @@ void Entity::SetActive(bool newState, bool affectSelf)
 	}
 
 	if (isRendered) GetData().visible = newState;
-	if (collisionData != nullptr) collisionData->isActive = newState;
+	if (rigidBody != nullptr) rigidBody->setIsActive(newState);
+	if (collisionBody != nullptr) collisionBody->setIsActive(newState);
 
 	for (int i = 0; i < childCount; i++)
 	{
