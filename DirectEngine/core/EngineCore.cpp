@@ -891,6 +891,7 @@ size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_
 
     CreateConstantBuffers<EntityConstantBuffer>(entity->constantBuffer, std::format(L"Entity {} Constant Buffer", entity->entityIndex).c_str());
     CreateConstantBuffers<BoneMatricesBuffer>(entity->boneConstantBuffer, std::format(L"Entity {} Bone Buffer", entity->entityIndex).c_str());
+    CreateConstantBuffers<BoneMatricesBuffer>(entity->firstPersonBoneConstantBuffer, std::format(L"Entity {} First Person Bone Buffer", entity->entityIndex).c_str());
 
     return entity->entityIndex;
 }
@@ -1040,9 +1041,10 @@ void EngineCore::PopulateCommandList()
     // Render Textures
     if (m_renderTextureEnabled)
     {
+        BeginProfile("RenderTextures", ImColor::HSV(.6, .2, 1.));
+
         for (RenderTexture* renderTexture : m_renderTextures)
         {
-            BeginProfile("RenderTextures", ImColor::HSV(.6, .2, 1.));
             ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
 
             m_renderCommandList->RSSetViewports(1, &renderTexture->viewport);
@@ -1074,11 +1076,11 @@ void EngineCore::PopulateCommandList()
             }
 
             ExecCommandList(m_renderCommandList);
-            EndProfile("RenderTextures");
         }
+
+        EndProfile("RenderTextures");
     }
 
-    // 'Main' render
     BeginProfile("Render Main", ImColor::HSV(.7, .3, 1.));
 
     // Apply masked animations for first-person
@@ -1088,11 +1090,11 @@ void EngineCore::PopulateCommandList()
         for (int entityIndex = 0; entityIndex < m_materials[matIndex].entityCount; entityIndex++)
         {
             EntityData* entityData = m_materials[matIndex].entities[entityIndex];
-            entityData->constantBuffer.UploadData(m_frameIndex);
-            entityData->boneConstantBuffer.UploadData(m_frameIndex);
+            entityData->firstPersonBoneConstantBuffer.UploadData(m_frameIndex);
         }
     }
 
+    // 'Main' render
     ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
     Transition(m_renderCommandList, renderTargetWindow, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
@@ -1211,7 +1213,8 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
             if (entity->mainOnly && camera != mainCamera) continue;
             renderList->IASetVertexBuffers(0, 1, &entity->vertexBufferView);
             renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
-            renderList->SetGraphicsRootDescriptorTable(BONES, entity->boneConstantBuffer.handles[m_frameIndex].gpuHandle);
+            auto& boneBuffer = camera == mainCamera ? entity->firstPersonBoneConstantBuffer : entity->boneConstantBuffer;
+            renderList->SetGraphicsRootDescriptorTable(BONES, boneBuffer.handles[m_frameIndex].gpuHandle);
             renderList->DrawInstanced(entity->vertexBufferView.SizeInBytes / entity->vertexBufferView.StrideInBytes, 1, 0, 0);
         }
     }

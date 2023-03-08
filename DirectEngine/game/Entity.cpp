@@ -259,8 +259,10 @@ void Entity::UpdateAnimation(EngineCore& engine, bool isMainRender)
 				for (int i = 0; i < transformHierachy->nodeCount; i++)
 				{
 					assert(i < MAX_BONES);
-					data.boneConstantBuffer.data.inverseJointBinds[i] = XMMatrixTranspose(transformHierachy->nodes[i].inverseBind);
-					data.boneConstantBuffer.data.jointTransforms[i] = XMMatrixTranspose(transformHierachy->nodes[i].global);
+
+					BoneMatricesBuffer& boneBuffer = isMainRender ? data.firstPersonBoneConstantBuffer.data : data.boneConstantBuffer.data;
+					boneBuffer.inverseJointBinds[i] = XMMatrixTranspose(transformHierachy->nodes[i].inverseBind);
+					boneBuffer.jointTransforms[i] = XMMatrixTranspose(transformHierachy->nodes[i].global);
 				}
 			}
 		}

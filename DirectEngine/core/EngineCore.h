@@ -127,6 +127,7 @@ struct EntityData
     size_t materialIndex = 0;
     ConstantBuffer<EntityConstantBuffer> constantBuffer = {};
     ConstantBuffer<BoneMatricesBuffer> boneConstantBuffer = {};
+    ConstantBuffer<BoneMatricesBuffer> firstPersonBoneConstantBuffer = {};
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
 };
 
@@ -356,7 +357,6 @@ public:
     void RenderShadows(ID3D12GraphicsCommandList* renderList);
     void RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);
     void RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);
-    void RenderBones(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);
     void RenderDebugLines(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);
     void ExecCommandList(ID3D12GraphicsCommandList* commandList);
     void PopulateCommandList();
