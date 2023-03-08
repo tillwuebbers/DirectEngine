@@ -15,14 +15,26 @@ enum class CollisionInitType
 	RigidBody,
 };
 
-enum CollisionLayers : uint32_t
+#define CollisionLayersTable\
+  EnumFlag(1,  GizmoClick, "Gizmo Click")\
+  EnumFlag(2,  Floor,      "Floor")\
+  EnumFlag(3,  Player,     "Player")
+
+enum class CollisionLayers : uint32_t
 {
-	None       = 0,
-	GizmoClick = 1 << 1,
-	Floor      = 1 << 2,
-	Player     = 1 << 3,
-	All        = ~0
+	None = 0,
+#define EnumFlag(idx, name, str) name = 1 << (idx - 1),
+	CollisionLayersTable
+#undef EnumFlag
+	All = ~0
 };
+
+const std::vector<const char*> collisionLayerNames =
+{
+#define EnumFlag(idx, name, str) str,
+	CollisionLayersTable
+#undef EnumFlag
+};;
 
 inline CollisionLayers operator|(CollisionLayers a, CollisionLayers b)
 {
@@ -70,7 +82,7 @@ public:
 		collisions.Clear();
 		rayLength = XMVectorGetX(XMVector3Length(end - start));
 		reactphysics3d::Ray ray = reactphysics3d::Ray(PhysicsVectorFromXM(start), PhysicsVectorFromXM(end));
-		physicsWorld->raycast(ray, this, collisionLayers);
+		physicsWorld->raycast(ray, this, static_cast<uint32_t>(collisionLayers));
 	}
 
 	virtual reactphysics3d::decimal notifyRaycastHit(const reactphysics3d::RaycastInfo& info) override
@@ -96,7 +108,7 @@ public:
 		anyCollision = false;
 		rayLength = XMVectorGetX(XMVector3Length(end - start));
 		reactphysics3d::Ray ray = reactphysics3d::Ray(PhysicsVectorFromXM(start), PhysicsVectorFromXM(end));
-		physicsWorld->raycast(ray, this, collisionLayers);
+		physicsWorld->raycast(ray, this, static_cast<uint32_t>(collisionLayers));
 	}
 
 	virtual reactphysics3d::decimal notifyRaycastHit(const reactphysics3d::RaycastInfo& info) override

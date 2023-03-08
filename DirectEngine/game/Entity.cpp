@@ -72,7 +72,7 @@ reactphysics3d::Collider* Entity::InitBoxCollider(reactphysics3d::PhysicsCommon&
 
 	if (collider != nullptr)
 	{
-		collider->setCollisionCategoryBits(collisionLayers);
+		collider->setCollisionCategoryBits(static_cast<uint32_t>(collisionLayers));
 		collider->setUserData(this);
 
 		reactphysics3d::Material& mat = collider->getMaterial();
