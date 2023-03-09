@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Entity.h"
-#include "Puzzle.h"
 #include "Log.h"
 #include "Mesh.h"
 #include "../core/IGame.h"

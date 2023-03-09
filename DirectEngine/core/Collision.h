@@ -8,6 +8,8 @@ using namespace DirectX;
 
 #include <reactphysics3d/reactphysics3d.h>
 
+#include <vector>
+
 enum class CollisionInitType
 {
 	None,
