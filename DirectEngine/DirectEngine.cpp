@@ -274,7 +274,7 @@ int CALLBACK wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 			return 1;
 		}
 
-		CreateGameFunc createGame = (CreateGameFunc)GetProcAddress(gameModule, "?CreateGame@@YAPEAVIGame@@AEAVMemoryArena@@@Z");
+		CreateGameFunc createGame = (CreateGameFunc)GetProcAddress(gameModule, "?CreateGame@@YAPEAVIGame@@AEAVMemoryArena@@0@Z");
 		if (createGame == nullptr)
 		{
 			MessageBox(0, L"Failed to load CreateGame function from game.dll", L"Error", MB_OK);

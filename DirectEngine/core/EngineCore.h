@@ -34,7 +34,7 @@ using Microsoft::WRL::ComPtr;
 
 typedef XMMATRIX MAT_CMAJ;
 typedef XMMATRIX MAT_RMAJ;
-typedef IGame* (*CreateGameFunc)(MemoryArena& arena);
+typedef IGame* (*CreateGameFunc)(MemoryArena& globalArena, MemoryArena& configArena);
 
 enum class WindowMode
 {
@@ -229,6 +229,7 @@ public:
     ComStack comPointersSizeDependent = {};
     ComStack comPointersTextureUpload = {};
     MemoryArena engineArena = {};
+    MemoryArena configArena = {};
     MemoryArena frameArena = {};
 
     // Window Handle

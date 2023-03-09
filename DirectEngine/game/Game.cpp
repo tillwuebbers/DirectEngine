@@ -8,6 +8,8 @@
 #include "../core/vkcodes.h"
 #include "remixicon.h"
 
+Game::Game(MemoryArena& globalArena, MemoryArena& configArena) : globalArena(globalArena), configArena(configArena) {}
+
 bool Game::LoadGameConfig()
 {
 	configArena.Reset();
@@ -80,7 +82,7 @@ void Game::StartGame(EngineCore& engine)
 
 	// Meshes
 	// TODO: why does mesh need material index, and why doesn't it matter if it's wrong?
-	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", debugLog, modelArena).meshes[0];
+	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", debugLog, globalArena).meshes[0];
 	auto cubeMeshView = engine.CreateMesh(memeMaterialIndex, cubeMeshFile.vertices, cubeMeshFile.vertexCount);
 	engine.cubeVertexView = cubeMeshView;
 
@@ -654,7 +656,7 @@ Entity* Game::CreateMeshEntity(EngineCore& engine, size_t materialIndex, D3D12_V
 
 Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical, CollisionInitType collisionInit, CollisionLayers collisionLayers)
 {
-	MeshFile file = vertical ? CreateQuadY(width, height, modelArena) : CreateQuad(width, height, modelArena);
+	MeshFile file = vertical ? CreateQuadY(width, height, globalArena) : CreateQuad(width, height, globalArena);
 	auto meshView = engine.CreateMesh(materialIndex, file.vertices, file.vertexCount);
 	Entity* entity = CreateMeshEntity(engine, materialIndex, meshView);
 	entity->position = { -width / 2.f, 0.f, -height / 2.f };
@@ -677,7 +679,7 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, const s
 {
 	Entity* mainEntity = CreateEmptyEntity(engine);
 
-	GltfResult gltfResult = LoadGltfFromFile(path, log, modelArena);
+	GltfResult gltfResult = LoadGltfFromFile(path, log, globalArena);
 	if (gltfResult.transformHierachy != nullptr)
 	{
 		mainEntity->isSkinnedRoot = true;
@@ -809,7 +811,8 @@ MAT_RMAJ CalculateShadowCamProjection(const MAT_RMAJ& camViewMatrix, const MAT_R
 	return XMMatrixOrthographicOffCenterLH(XMVectorGetX(lsMin), XMVectorGetX(lsMax), XMVectorGetY(lsMin), XMVectorGetY(lsMax), XMVectorGetZ(lsMin), XMVectorGetZ(lsMax));
 }
 
-IGame* CreateGame(MemoryArena& arena)
+IGame* CreateGame(MemoryArena& globalArena, MemoryArena& configArena)
 {
-	return NewObject(arena, Game);
+	Game* game = NewObject(globalArena, Game, globalArena, configArena);
+	return game;
 }

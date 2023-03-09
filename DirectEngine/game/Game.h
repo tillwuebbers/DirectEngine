@@ -45,11 +45,12 @@ struct Gizmo
 class Game : public IGame
 {
 public:
+	Game(MemoryArena& globalArena, MemoryArena& configArena);
+
 	// Memory (keep this up here!)
-	MemoryArena globalArena{};
-	MemoryArena configArena{};
+	MemoryArena& globalArena;
+	MemoryArena& configArena;
 	TypedMemoryArena<Entity> entityArena{};
-	MemoryArena modelArena{};
 
 	// Logging
 	bool showLog = ISDEBUG;
@@ -96,7 +97,7 @@ public:
 	reactphysics3d::PhysicsCommon physicsCommon;
 	reactphysics3d::PhysicsWorld* physicsWorld;
 	MinimumRaycastCallback minRaycastCollector{};
-	AllRaycastCallback allRaycastCollector{globalArena};
+	AllRaycastCallback allRaycastCollector{ globalArena };
 
 	// Materials and Lighting
 	DirectionalLight light{};
@@ -175,12 +176,6 @@ public:
 
 	std::mutex& GetWindowUdpateDataMutex() override { return windowUdpateDataMutex; };
 	WindowUpdate& GetWindowUpdateData() override { return windowUpdateData; };
-
-	// delete copy and move constructors, we're working with memory arenas here
-	Game(const Game&) = delete;
-	Game(Game&&) = delete;
-	Game& operator=(const Game&) = delete;
-	Game& operator=(Game&&) = delete;
 };
 
 Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex);
@@ -189,4 +184,4 @@ MAT_RMAJ CalculateShadowCamProjection(const MAT_RMAJ& camViewMatrix, const MAT_R
 
 void LoadUIStyle();
 
-__declspec(dllexport) IGame* __cdecl CreateGame(MemoryArena& arena);
+__declspec(dllexport) IGame* __cdecl CreateGame(MemoryArena& globalArena, MemoryArena& configArena);

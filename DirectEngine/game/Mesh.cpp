@@ -154,7 +154,7 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 		assert(inverseBindAccessor.type == TINYGLTF_TYPE_MAT4);
 		const float* inverseBindMatrices = ReadBuffer<float>(model, inverseBindAccessor);
 
-		hierachy = NewObject(arena, TransformHierachy);
+		hierachy = NewObjectAligned(arena, TransformHierachy, 16);
 		hierachy->nodeCount = model.skins[0].joints.size();
 		for (int i = 0; i < model.skins[0].joints.size(); i++)
 		{

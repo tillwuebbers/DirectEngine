@@ -27,7 +27,7 @@ EngineCore::EngineCore(UINT width, UINT height, CreateGameFunc gameFunc) :
     m_height(height),
     m_aspectRatio((float)width / (float)height)
 {
-    m_game = gameFunc(engineArena);
+    m_game = gameFunc(engineArena, configArena);
 }
 
 void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
