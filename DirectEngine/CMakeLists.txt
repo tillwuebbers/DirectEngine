@@ -6,6 +6,7 @@ set(XAUDIO2_DIR ${CMAKE_CURRENT_SOURCE_DIR}/xaudio2)
 set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
 set(DX_HEADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/directx/headers)
 set(GLM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/glm)
+set(METADESK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/metadesk/source)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(REACTPHYSICS_DIR "E:/Code/ReactPhysics3DInstallDebug")
@@ -13,9 +14,9 @@ else()
     set(REACTPHYSICS_DIR "E:/Code/ReactPhysics3DInstallRelease")
 endif()
 
-
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
+
 include_directories("${REACTPHYSICS_DIR}/include")
 list(APPEND CMAKE_PREFIX_PATH ${REACTPHYSICS_DIR})
 find_package(reactphysics3d CONFIG REQUIRED)
@@ -36,6 +37,12 @@ file (GLOB SHADER_CODE "shaders/compile/*.hlsl")
 
 function(DEPS PROJ)
     # imgui
+    target_include_directories(${PROJ}
+                                PRIVATE ${IMGUI_DIR}
+                                PRIVATE ${IMGUI_DIR}/backends
+                                PRIVATE ${GLM_DIR}
+                                PRIVATE ${METADESK_DIR})
+
     target_sources(${PROJ}
                     PRIVATE
                         ${IMGUI_DIR}/imgui_demo.cpp
@@ -43,16 +50,8 @@ function(DEPS PROJ)
                         ${IMGUI_DIR}/imgui_tables.cpp
                         ${IMGUI_DIR}/imgui_widgets.cpp
                         ${IMGUI_DIR}/imgui.cpp
-
-                    PRIVATE
                         ${IMGUI_DIR}/backends/imgui_impl_dx12.cpp
-                        ${IMGUI_DIR}/backends/imgui_impl_win32.cpp
-                    )
-
-    target_include_directories(${PROJ}
-                                PRIVATE ${IMGUI_DIR}
-                                PRIVATE ${IMGUI_DIR}/backends
-                                PRIVATE ${GLM_DIR})
+                        ${IMGUI_DIR}/backends/imgui_impl_win32.cpp)
 
     # directx
     target_include_directories(${PROJ} PRIVATE ${DX_HEADER_DIR})
@@ -75,10 +74,11 @@ function(DEPS PROJ)
         target_link_options(${PROJ} PRIVATE $<$<CONFIG:RELWITHDEBINFO>:/PROFILE>)
     endif()
     target_compile_definitions(${PROJ} PRIVATE "UNICODE;_UNICODE")
-    set_property(TARGET ${PROJ} PROPERTY CXX_STANDARD 20)
+    target_compile_options(${PROJ} PUBLIC -std:c++20 /Zc:strictStrings-)
 endfunction()
 
 # executable
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_executable(${PROJECT_NAME} WIN32 "DirectEngine.cpp" "DirectEngine.h")
 target_link_libraries(${PROJECT_NAME} ${CORE_NAME})
 DEPS(${PROJECT_NAME})
@@ -114,7 +114,7 @@ add_custom_command(
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${CMAKE_CURRENT_SOURCE_DIR}/textures
                 ${CMAKE_CURRENT_BINARY_DIR}/textures)
-             
+      
 # sub projects
 add_subdirectory(core)
 add_subdirectory(game)

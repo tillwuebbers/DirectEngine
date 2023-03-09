@@ -1,8 +1,8 @@
 #pragma once
-
 #include "Entity.h"
 #include "Log.h"
 #include "Mesh.h"
+#include "Config.h"
 #include "../core/IGame.h"
 #include "../core/EngineCore.h"
 
@@ -47,6 +47,7 @@ class Game : public IGame
 public:
 	// Memory (keep this up here!)
 	MemoryArena globalArena{};
+	MemoryArena configArena{};
 	TypedMemoryArena<Entity> entityArena{};
 	MemoryArena modelArena{};
 
@@ -135,22 +136,16 @@ public:
 	AudioBuffer* soundFiles[8];
 
 	// Movement
+	MovementSettings* movementSettings = nullptr;
+
 	float playerPitch = 0.f;
 	float playerYaw = 0.f;
 	bool playerOnGround = false;
-
-	float playerAcceleration = 125.f;
-	float playerFriction = 125.f;
-	float playerMaxSpeed = 20.f;
-	float playerJumpStrength = 15.f;
-	float playerGravity = 35.f;
+	
 	float inputDeadzone = 0.05f;
-	bool autojump = true;
 
 	float jumpBufferDuration = 1.f;
 	float lastJumpPressTime = -1000.f;
-
-
 
 	void StartGame(EngineCore& engine) override;
 	void UpdateGame(EngineCore& engine) override;
@@ -171,12 +166,21 @@ public:
 	float* GetClearColor() override;
 	EngineInput& GetInput() override;
 
+	bool LoadGameConfig();
+	void ResetGameConfig();
+
 	void Log(const std::string& message) override;
 	void Warn(const std::string& message) override;
 	void Error(const std::string& message) override;
 
 	std::mutex& GetWindowUdpateDataMutex() override { return windowUdpateDataMutex; };
 	WindowUpdate& GetWindowUpdateData() override { return windowUpdateData; };
+
+	// delete copy and move constructors, we're working with memory arenas here
+	Game(const Game&) = delete;
+	Game(Game&&) = delete;
+	Game& operator=(const Game&) = delete;
+	Game& operator=(Game&&) = delete;
 };
 
 Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex);

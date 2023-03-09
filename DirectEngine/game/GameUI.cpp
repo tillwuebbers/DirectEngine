@@ -164,6 +164,16 @@ void Game::DrawDebugUI(EngineCore& engine)
 			ImGui::SameLine();
 			ImGui::Checkbox("Edit Mode", &editMode);
 
+			if (ImGui::Button("Reset Config"))
+			{
+				ResetGameConfig();
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Save Config"))
+			{
+				SaveConfig(configArena, CONFIG_PATH);
+			}
+
 			ImGui::Text("Camera Position: %.1f %.1f %.1f", SPLIT_V3(engine.mainCamera->position));
 			ImGui::Text("Camera Rotation: %.1f %.1f", playerPitch / XM_2PI * 360.f, playerYaw / XM_2PI * 360.f);
 			ImGui::Text("Player on Ground: %s", playerOnGround ? "true" : "false");
@@ -351,20 +361,20 @@ void Game::DrawDebugUI(EngineCore& engine)
 		{
 			ImGui::Checkbox("Noclip", &noclip);
 			ImGui::SameLine();
-			ImGui::Checkbox("Autojump", &autojump);
+			ImGui::Checkbox("Autojump", &movementSettings->autojump);
 			ImGui::SameLine();
 
 			ImVec2 cursorPos = ImGui::GetCursorScreenPos();
 			float playerDisplaySpeed = XMVectorGetX(XMVector3Length(XMVectorSetY(XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity()), 0.)));
-			ImGui::GetWindowDrawList()->AddLine({ cursorPos.x, cursorPos.y + 10.f }, { cursorPos.x + (playerDisplaySpeed * 30.f / playerMaxSpeed), cursorPos.y + 10.f }, ImColor(.1f, .2f, .9f), 10.f);
+			ImGui::GetWindowDrawList()->AddLine({ cursorPos.x, cursorPos.y + 10.f }, { cursorPos.x + (playerDisplaySpeed * 30.f / movementSettings->playerMaxSpeed), cursorPos.y + 10.f }, ImColor(.1f, .2f, .9f), 10.f);
 			ImGui::SetCursorPosX(cursorPos.x + 35.f);
 			ImGui::Text("Vel: %.1f", playerDisplaySpeed);
 
-			ImGui::SliderFloat("Acceleration", &playerAcceleration, 1., 200., "%.0f");
-			ImGui::SliderFloat("Friction", &playerFriction, 1., 200., "%.0f");
-			ImGui::SliderFloat("Gravity", &playerGravity, 1., 100., "%.0f");
-			ImGui::SliderFloat("Max Speed", &playerMaxSpeed, 1., 100., "%.0f");
-			ImGui::SliderFloat("Jump Strength", &playerJumpStrength, 1., 1000., "%.0f");
+			ImGui::SliderFloat("Acceleration", &movementSettings->playerAcceleration, 1., 200., "%.0f");
+			ImGui::SliderFloat("Friction", &movementSettings->playerFriction, 1., 200., "%.0f");
+			ImGui::SliderFloat("Gravity", &movementSettings->playerGravity, 1., 100., "%.0f");
+			ImGui::SliderFloat("Max Speed", &movementSettings->playerMaxSpeed, 1., 100., "%.0f");
+			ImGui::SliderFloat("Jump Strength", &movementSettings->playerJumpStrength, 1., 1000., "%.0f");
 			ImGui::SliderFloat("Jump Buffer Duration", &jumpBufferDuration, 0.01, 1., "%.2f");
 		}
 		ImGui::End();

@@ -8,12 +8,40 @@
 #include "../core/vkcodes.h"
 #include "remixicon.h"
 
+bool Game::LoadGameConfig()
+{
+	configArena.Reset();
+	if (!LoadConfig(configArena, CONFIG_PATH)) return false;
+
+	ConfigFile* configFile = LoadConfigEntry<ConfigFile>(configArena, 0, CONFIG_VERSION);
+	if (configFile == nullptr) return false;
+
+	movementSettings = LoadConfigEntry<MovementSettings>(configArena, configFile->movementSettingsOffset, MOVEMENT_SETTINGS_VERSION);
+	if (movementSettings == nullptr) return false;
+}
+
+void Game::ResetGameConfig()
+{
+	configArena.Reset();
+	ConfigFile* configFile = NewObject(configArena, ConfigFile);
+
+	configFile->movementSettingsOffset = configArena.used;
+	movementSettings = NewObject(configArena, MovementSettings);
+}
+
 void Game::StartGame(EngineCore& engine)
 {
 	INIT_TIMER(timer);
 
 	ImGui::SetCurrentContext(engine.m_imguiContext);
 	LoadUIStyle();
+
+	// Config
+	if (!LoadGameConfig())
+	{
+		ResetGameConfig();
+		SaveConfig(configArena, CONFIG_PATH);
+	}
 
 	// Physics
 	physicsWorld = physicsCommon.createPhysicsWorld();
@@ -280,10 +308,10 @@ void Game::UpdateGame(EngineCore& engine)
 				resultScale = std::max(0.f, XMVectorGetX(XMVector3Dot(XMVector3Normalize(horizontalPlayerVelocity), wantedDirection)));
 			}
 
-			horizontalPlayerSpeed = horizontalPlayerSpeed * resultScale + playerAcceleration * engine.m_updateDeltaTime;
-			if (horizontalPlayerSpeed > playerMaxSpeed)
+			horizontalPlayerSpeed = horizontalPlayerSpeed * resultScale + movementSettings->playerAcceleration * engine.m_updateDeltaTime;
+			if (horizontalPlayerSpeed > movementSettings->playerMaxSpeed)
 			{
-				horizontalPlayerSpeed = playerMaxSpeed;
+				horizontalPlayerSpeed = movementSettings->playerMaxSpeed;
 			}
 
 			playerVelocity = XMVectorScale(resultDirection, horizontalPlayerSpeed);
@@ -304,17 +332,17 @@ void Game::UpdateGame(EngineCore& engine)
 			playerVelocity = XMVectorSetY(playerVelocity, 0.);
 
 			// Apply jump
-			if (input.KeyDown(VK_SPACE) && (lastJumpPressTime + jumpBufferDuration >= engine.TimeSinceStart() || autojump))
+			if (input.KeyDown(VK_SPACE) && (lastJumpPressTime + jumpBufferDuration >= engine.TimeSinceStart() || movementSettings->autojump))
 			{
 				lastJumpPressTime = -1000.f;
-				playerVelocity.m128_f32[1] += playerJumpStrength;
+				playerVelocity.m128_f32[1] += movementSettings->playerJumpStrength;
 			}
 			else
 			{
 				// Apply friction when no input
 				if (std::abs(horizontalInput) <= inputDeadzone && std::abs(verticalInput) <= inputDeadzone)
 				{
-					float speedDecrease = playerFriction * engine.m_updateDeltaTime;
+					float speedDecrease = movementSettings->playerFriction * engine.m_updateDeltaTime;
 					if (horizontalPlayerSpeed <= speedDecrease)
 					{
 						playerVelocity = V3_ZERO;
@@ -325,7 +353,7 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 		else
 		{
-			playerVelocity.m128_f32[1] -= engine.m_updateDeltaTime * playerGravity;
+			playerVelocity.m128_f32[1] -= engine.m_updateDeltaTime * movementSettings->playerGravity;
 		}
 
 		// Apply velocity
