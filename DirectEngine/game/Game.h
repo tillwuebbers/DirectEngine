@@ -138,6 +138,7 @@ public:
 	// Movement
 	float playerPitch = 0.f;
 	float playerYaw = 0.f;
+	bool playerOnGround = false;
 
 	float playerAcceleration = 125.f;
 	float playerFriction = 125.f;

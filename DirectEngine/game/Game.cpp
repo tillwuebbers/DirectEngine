@@ -89,7 +89,7 @@ void Game::StartGame(EngineCore& engine)
 	playerEntity = CreateEmptyEntity(engine);
 	playerEntity->name = "Player";
 	playerEntity->position = { 0.f, 1.f, 0.f };
-	playerEntity->InitRigidBody(physicsWorld, reactphysics3d::BodyType::KINEMATIC);
+	playerEntity->InitRigidBody(physicsWorld, reactphysics3d::BodyType::DYNAMIC);
 	playerEntity->InitBoxCollider(physicsCommon, { .5f, 1.f, .5f }, { 0.f, 1.f, 0.f }, CollisionLayers::Player);
 	playerEntity->rigidBody->setAngularLockAxisFactor({ 0.f, 0.f, 0.f });
 	playerEntity->rigidBody->enableGravity(false);
@@ -291,11 +291,11 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 
 		// Ground collision
-		const float collisionEpsilon = std::max(0.1, XMVectorGetX(XMVector3Length(playerVelocity)) * engine.m_updateDeltaTime);
-		minRaycastCollector.Raycast(physicsWorld, playerEntity->position, playerEntity->position + V3_UP * collisionEpsilon, CollisionLayers::Floor);
-		bool onGround = minRaycastCollector.anyCollision;
+		const float collisionEpsilon = .02f;
+		minRaycastCollector.Raycast(physicsWorld, playerEntity->position + V3_UP * collisionEpsilon, playerEntity->position - V3_UP * collisionEpsilon, CollisionLayers::Floor);
+		playerOnGround = minRaycastCollector.anyCollision;
 
-		if (onGround)
+		if (playerOnGround)
 		{
 			// Move player out of ground
 			playerEntity->position = playerEntity->position + XMVectorScale(V3_UP, collisionEpsilon - minRaycastCollector.collision.distance);
@@ -640,7 +640,7 @@ Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float w
 	}
 	if (collisionInit != CollisionInitType::None)
 	{
-		reactphysics3d::Collider* collider = entity->InitBoxCollider(physicsCommon, { width / 2.f, .05f, height / 2.f }, { width / 2.f, -.05f, height / 2.f }, collisionLayers);
+		reactphysics3d::Collider* collider = entity->InitBoxCollider(physicsCommon, { width / 2.f, .2f, height / 2.f }, { width / 2.f, -.2f, height / 2.f }, collisionLayers);
 	}
 	return entity;
 }
