@@ -10,3 +10,6 @@
 [submodule "DirectEngine/reactphysics3d"]
 	path = DirectEngine/reactphysics3d
 	url = https://github.com/DanielChappuis/reactphysics3d
+[submodule "DirectEngine/metadesk"]
+	path = DirectEngine/metadesk
+	url = https://github.com/Dion-Systems/metadesk
