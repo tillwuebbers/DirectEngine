@@ -135,7 +135,7 @@ void Game::LoadLevel(EngineCore& engine)
 
 		Entity* portal = CreateEmptyEntity(engine);
 		portal->rotation = XMQuaternionRotationRollPitchYaw(0.f, XM_PI, 0.f);
-		portal->AddChild(portalRenderQuad);
+		portal->AddChild(portalRenderQuad, false);
 
 		return portal;
 	};
@@ -158,13 +158,13 @@ void Game::LoadLevel(EngineCore& engine)
 
 	playerLookEntity = CreateEmptyEntity(engine);
 	playerLookEntity->name = "PlayerLook";
-	playerLookEntity->position = { 0.f, 1.85f, 0.f };
-	playerEntity->AddChild(playerLookEntity);
+	playerLookEntity->position = defaultPlayerLookPosition;
+	playerEntity->AddChild(playerLookEntity, false);
 
 	cameraEntity = CreateEmptyEntity(engine);
 	cameraEntity->name = "Camera";
 	cameraEntity->position = { 0.f, 0.f, 0.15f };
-	playerLookEntity->AddChild(cameraEntity);
+	playerLookEntity->AddChild(cameraEntity, false);
 
 	playerModelEntity = CreateEntityFromGltf(engine, "models/kaiju.glb", L"entity", debugLog);
 
@@ -173,12 +173,7 @@ void Game::LoadLevel(EngineCore& engine)
 	playerModelEntity->transformHierachy->SetAnimationActive("BasePose", true);
 	playerModelEntity->transformHierachy->SetAnimationActive("NeckShrink", true);
 
-	playerEntity->AddChild(playerModelEntity);
-
-	for (int i = 0; i < playerModelEntity->childCount; i++)
-	{
-		Entity* entity = playerModelEntity->children[i];
-	}
+	playerEntity->AddChild(playerModelEntity, false);
 
 	// Ground
 	Entity* groundEntity = CreateQuadEntity(engine, materialIndices[Material::Ground], 100.f, 100.f, false, CollisionInitType::RigidBody, CollisionLayers::Floor);
@@ -232,7 +227,7 @@ void Game::UpdateGame(EngineCore& engine)
 	float clampedDeltaTime = std::min(engine.m_updateDeltaTime, MAX_PHYSICS_STEP);
 
 	// Reset per frame values
-	engine.m_debugLineData.lineVertices.Clear();
+	engine.m_debugLineData.lineVertices.clear();
 
 	// Debug Controls
 	if (input.KeyJustPressed(VK_ESCAPE))
@@ -289,6 +284,16 @@ void Game::UpdateGame(EngineCore& engine)
 		levelLoaded = false;
 	}
 
+	// Unlock camera in noclip
+	if (noclip && playerEntity->children.contains(playerLookEntity))
+	{
+		playerEntity->RemoveChild(playerLookEntity, true);
+	}
+	else if (!noclip && !playerEntity->children.contains(playerLookEntity))
+	{
+		playerEntity->AddChild(playerLookEntity, true);
+	}
+
 	// Player movement
 	float horizontalInput = 0.f;
 	if (input.KeyDown(VK_KEY_A)) horizontalInput -= 1.f;
@@ -304,8 +309,8 @@ void Game::UpdateGame(EngineCore& engine)
 		if (input.KeyDown(VK_SHIFT)) camSpeed *= .1f;
 		if (input.KeyDown(VK_CONTROL)) camSpeed *= 5.f;
 
-		playerEntity->position += camRight * horizontalInput * clampedDeltaTime * camSpeed;
-		playerEntity->position += camForward * verticalInput * clampedDeltaTime * camSpeed;
+		playerLookEntity->position += camRight * horizontalInput * clampedDeltaTime * camSpeed;
+		playerLookEntity->position += camForward * verticalInput * clampedDeltaTime * camSpeed;
 	}
 	else
 	{
@@ -623,8 +628,8 @@ void Game::UpdateGame(EngineCore& engine)
 			XMFLOAT3 edgeEnd3;
 			XMStoreFloat3(&edgeStart3, edgeStart);
 			XMStoreFloat3(&edgeEnd3, edgeEnd);
-			engine.m_debugLineData.lineVertices.NewElement() = { edgeStart3, cubeColor };
-			engine.m_debugLineData.lineVertices.NewElement() = { edgeEnd3, cubeColor };
+			engine.m_debugLineData.lineVertices.newElement() = { edgeStart3, cubeColor };
+			engine.m_debugLineData.lineVertices.newElement() = { edgeEnd3, cubeColor };
 		}
 	}
 
@@ -744,7 +749,7 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, const s
 		Entity* child = CreateMeshEntity(engine, materialIndex, meshView);
 		child->name = meshFile.textureName.c_str();
 		if (gltfResult.transformHierachy != nullptr) child->isSkinnedMesh = true;
-		mainEntity->AddChild(child);
+		mainEntity->AddChild(child, false);
 
 		LOG_TIMER(timer, "Create entity for model", debugLog);
 		RESET_TIMER(timer);

@@ -52,7 +52,7 @@ Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex)
 		translateArrow->name = std::format("TranslateArrow{}", xyzNames[i]).c_str();
 		translateArrow->isGizmoTranslationArrow = true;
 		translateArrow->gizmoTranslationAxis = transformAxis[i];
-		gizmo->root->AddChild(translateArrow);
+		gizmo->root->AddChild(translateArrow, false);
 
 		Entity* rotateArrow = gizmo->rotateArrows[i];
 		rotateArrow = game.CreateMeshEntity(engine, materialIndex, gizmo->rotateArrowMesh);
@@ -63,7 +63,7 @@ Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex)
 		rotateArrow->name = std::format("RotateArrow{}", xyzNames[i]).c_str();
 		rotateArrow->isGizmoRotationRing = true;
 		rotateArrow->gizmoRotationAxis = transformAxis[i];
-		gizmo->root->AddChild(rotateArrow);
+		gizmo->root->AddChild(rotateArrow, false);
 
 		Entity* scaleArrow = gizmo->scaleArrows[i];
 		scaleArrow = game.CreateMeshEntity(engine, materialIndex, gizmo->scaleArrowMesh);
@@ -74,7 +74,7 @@ Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex)
 		scaleArrow->name = std::format("ScaleArrow{}", xyzNames[i]).c_str();
 		scaleArrow->isGizmoScaleCube = true;
 		scaleArrow->gizmoScaleAxis = transformAxis[i];
-		gizmo->root->AddChild(scaleArrow);
+		gizmo->root->AddChild(scaleArrow, false);
 	}
 
 	return gizmo;

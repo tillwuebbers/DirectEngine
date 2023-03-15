@@ -155,6 +155,7 @@ public:
 
 	// Movement
 	MovementSettings* movementSettings = nullptr;
+	XMVECTOR defaultPlayerLookPosition = { 0.f, 1.85f, 0.f };
 
 	float playerPitch = 0.f;
 	float playerYaw = 0.f;

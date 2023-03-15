@@ -55,16 +55,15 @@ public:
 	XMVECTOR rotation{ 0.f, 0.f, 0.f, 1.f };
 	XMVECTOR scale{ 1.f, 1.f, 1.f };
 
-	MAT_RMAJ localMatrix;
-	MAT_RMAJ worldMatrix;
+	MAT_RMAJ localMatrix = XMMatrixIdentity();
+	MAT_RMAJ worldMatrix = XMMatrixIdentity();
 
 	FixedStr name = "Entity";
 
 	EngineCore* engine;
 
 	Entity* parent = nullptr;
-	Entity* children[MAX_ENTITY_CHILDREN];
-	size_t childCount = 0;
+	CountingArray<Entity*, MAX_ENTITY_CHILDREN> children = {};
 
 	bool isRendered = false;
 	bool isSkinnedMesh = false;
@@ -88,8 +87,8 @@ public:
 
 	AudioSource audioSource;
 
-	void AddChild(Entity* child);
-	void RemoveChild(Entity* child);
+	void AddChild(Entity* child, bool keepWorldPosition);
+	void RemoveChild(Entity* child, bool keepWorldPosition);
 
 	reactphysics3d::Transform GetPhysicsTransform();
 	void InitRigidBody(reactphysics3d::PhysicsWorld* physicsWorld, reactphysics3d::BodyType type = reactphysics3d::BodyType::DYNAMIC);

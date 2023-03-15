@@ -1,36 +1,48 @@
 #include "Entity.h"
 
-void Entity::AddChild(Entity* child)
+void Entity::AddChild(Entity* child, bool keepWorldPosition)
 {
 	assert(child != nullptr);
+	if (child == nullptr) return;
+
 	assert(child != this);
-	assert(childCount < MAX_ENTITY_CHILDREN);
+	if (child == this) return;
+
+	assert(child->parent == nullptr);
+	if (child->parent != nullptr) child->parent->RemoveChild(child, false);
 	
-	children[childCount] = child;
-	childCount++;
+	children.newElement() = child;
 
 	child->parent = this;
 	child->SetActive(this->IsActive(), false);
+
+	if (keepWorldPosition)
+	{
+		XMVECTOR scale;
+		XMVECTOR rotation;
+		XMVECTOR position;
+		XMMatrixDecompose(&scale, &rotation, &position, child->worldMatrix);
+
+		child->position = XMVector3Transform(position, XMMatrixInverse(nullptr, worldMatrix));
+	}
 }
 
-void Entity::RemoveChild(Entity* child)
+void Entity::RemoveChild(Entity* child, bool keepWorldPosition)
 {
 	assert(child != nullptr);
-	assert(child->parent == this);
-	child->parent = nullptr;
+	if (child == nullptr) return;
 
-	for (size_t i = 0; i < childCount; i++)
+	assert(child->parent == this);
+	if (child->parent == this) child->parent = nullptr;
+
+	if (keepWorldPosition)
 	{
-		if (children[i] == child)
-		{
-			if (childCount > 1)
-			{
-				children[i] = children[childCount - 1];
-			}
-			childCount--;
-			break;
-		}
+		XMVECTOR scale;
+		XMVECTOR rotation;
+		XMMatrixDecompose(&scale, &rotation, &child->position, child->worldMatrix);
 	}
+
+	children.removeAllEqual(child);
 }
 
 reactphysics3d::Transform Entity::GetPhysicsTransform()
@@ -120,9 +132,9 @@ void Entity::UpdateWorldMatrix()
 		GetBuffer().worldTransform = DirectX::XMMatrixTranspose(worldMatrix);
 	}
 
-	for (size_t i = 0; i < childCount; i++)
+	for (Entity* child : children)
 	{
-		children[i]->UpdateWorldMatrix();
+		child->UpdateWorldMatrix();
 	}
 }
 
@@ -250,12 +262,11 @@ void Entity::UpdateAnimation(EngineCore& engine, bool isMainRender)
 		}
 
 		// Upload new transforms to children
-		for (int childIdx = 0; childIdx < childCount; childIdx++)
+		for (Entity* child : children)
 		{
-			Entity& child = *children[childIdx];
-			if (child.isSkinnedMesh && child.isRendered)
+			if (child->isSkinnedMesh && child->isRendered)
 			{
-				EntityData& data = child.GetData();
+				EntityData& data = child->GetData();
 				for (int i = 0; i < transformHierachy->nodeCount; i++)
 				{
 					assert(i < MAX_BONES);
@@ -284,9 +295,9 @@ void Entity::SetActive(bool newState, bool affectSelf)
 	if (rigidBody != nullptr) rigidBody->setIsActive(newState);
 	if (collisionBody != nullptr) collisionBody->setIsActive(newState);
 
-	for (int i = 0; i < childCount; i++)
+	for (Entity* child : children)
 	{
-		children[i]->SetActive(newState, false);
+		child->SetActive(newState, false);
 	}
 }
 

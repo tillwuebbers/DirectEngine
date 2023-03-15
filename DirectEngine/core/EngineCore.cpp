@@ -648,7 +648,7 @@ void EngineCore::LoadAssets()
     // Render texture
     for (int i = 0; i < 2; i++)
     {
-        RenderTexture* renderTexture = (m_renderTextures.NewElement() = CreateRenderTexture(1024, 2048));
+        RenderTexture* renderTexture = (m_renderTextures.newElement() = CreateRenderTexture(1024, 2048));
         renderTexture->camera->skipRenderTextures = true;
     }
 
@@ -685,7 +685,7 @@ void EngineCore::ResetLevelData()
 
 CameraData* EngineCore::CreateCamera()
 {
-    CameraData& cam = m_cameras.NewElement();
+    CameraData& cam = m_cameras.newElement();
     CreateConstantBuffers(cam.constantBuffer, L"Camera Constant Buffer");
     return &cam;
 }
@@ -765,7 +765,7 @@ Texture* EngineCore::CreateTexture(const std::wstring& filePath)
 		}
 	}
 
-    Texture& texture = m_textures.NewElement();
+    Texture& texture = m_textures.newElement();
     texture.name = textureId;
 
     TextureData header = ParseDDSHeader(filePath.c_str());
@@ -827,7 +827,7 @@ size_t EngineCore::CreateMaterial(const size_t maxVertices, const size_t vertexS
     const size_t maxByteCount = vertexStride * maxVertices;
 
     size_t dataIndex = m_materials.size;
-    MaterialData& data = m_materials.NewElement();
+    MaterialData& data = m_materials.newElement();
 
     data.maxVertexCount = maxVertices;
     data.vertexStride = vertexStride;

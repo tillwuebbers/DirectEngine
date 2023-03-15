@@ -363,6 +363,11 @@ void Game::DrawDebugUI(EngineCore& engine)
 			ImGui::SameLine();
 			ImGui::Checkbox("Autojump", &movementSettings->autojump);
 			ImGui::SameLine();
+			if (ImGui::Button("Reset Player Look"))
+			{
+				playerLookEntity->position = defaultPlayerLookPosition;
+			}
+			ImGui::SameLine();
 
 			ImVec2 cursorPos = ImGui::GetCursorScreenPos();
 			float playerDisplaySpeed = XMVectorGetX(XMVector3Length(XMVectorSetY(XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity()), 0.)));
@@ -406,13 +411,13 @@ void Game::DrawDebugUI(EngineCore& engine)
 					ImGui::Separator();
 
 
-					ImGui::Text(std::format("CHILDREN ({})", entity->childCount).c_str());
+					ImGui::Text(std::format("CHILDREN ({})", entity->children.size).c_str());
 
-					for (int i = 0; i < entity->childCount; i++)
+					for (int i = 0; i < entity->children.size; i++)
 					{
 						if (ImGui::SmallButton(std::format("{}###{}", ICON_CLOSE_FILL, i).c_str()))
 						{
-							entity->RemoveChild(entity->children[i]);
+							entity->RemoveChild(entity->children[i], true);
 							i--;
 							continue;
 						}
@@ -423,7 +428,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 
 					if (ImGui::Button("Add"))
 					{
-						entity->AddChild((Entity*)entityArena.base + newChildId);
+						entity->AddChild((Entity*)entityArena.base + newChildId, true);
 					}
 					ImGui::SameLine();
 					ImGui::PushItemWidth(100);

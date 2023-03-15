@@ -169,8 +169,8 @@ public:
 		XMStoreFloat4(&startCol4, startColor);
 		XMStoreFloat4(&endCol4, endColor);
 
-        lineVertices.NewElement() = { startPos3, startCol4 };
-		lineVertices.NewElement() = { endPos3, endCol4 };
+        lineVertices.newElement() = { startPos3, startCol4 };
+		lineVertices.newElement() = { endPos3, endCol4 };
     }
 };
 

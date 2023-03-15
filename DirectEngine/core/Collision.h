@@ -81,7 +81,7 @@ public:
 
 	virtual void Raycast(reactphysics3d::PhysicsWorld* physicsWorld, XMVECTOR start, XMVECTOR end, CollisionLayers collisionLayers = CollisionLayers::All) override
 	{
-		collisions.Clear();
+		collisions.clear();
 		rayLength = XMVectorGetX(XMVector3Length(end - start));
 		reactphysics3d::Ray ray = reactphysics3d::Ray(PhysicsVectorFromXM(start), PhysicsVectorFromXM(end));
 		physicsWorld->raycast(ray, this, static_cast<uint32_t>(collisionLayers));
@@ -89,7 +89,7 @@ public:
 
 	virtual reactphysics3d::decimal notifyRaycastHit(const reactphysics3d::RaycastInfo& info) override
 	{
-		CollisionRecord& collision = collisions.NewElement();
+		CollisionRecord& collision = collisions.newElement();
 		SetCollisionRecord(collision, info, rayLength);
 		return 1.;
 	}
