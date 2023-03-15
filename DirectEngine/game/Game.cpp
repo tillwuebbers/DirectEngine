@@ -356,15 +356,23 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 
 		// Ground collision
-		const float collisionEpsilon = .02f;
-		minRaycastCollector.Raycast(physicsWorld, playerEntity->position + V3_UP * collisionEpsilon, playerEntity->position - V3_UP * collisionEpsilon, CollisionLayers::Floor);
+		const float maxPlayerSpeedEstimate = std::max(10.f, playerEntity->rigidBody->getLinearVelocity().y);
+		const float collisionEpsilon = maxPlayerSpeedEstimate * clampedDeltaTime;
+		XMVECTOR groundRayStart = playerEntity->position + V3_UP * collisionEpsilon;
+		XMVECTOR groundRayEnd = playerEntity->position - V3_UP * collisionEpsilon;
+		minRaycastCollector.Raycast(physicsWorld, groundRayStart, groundRayEnd, CollisionLayers::Floor);
 		playerOnGround = minRaycastCollector.anyCollision;
 		debugLog.Log(playerOnGround ? "--- G" : "--- A");
+		float ps = MAX_PHYSICS_STEP;
+		debugLog.Log("Delta: {}", engine.m_updateDeltaTime, ps, clampedDeltaTime);
+		debugLog.Log("Player Y: {}", playerEntity->position.m128_f32[1]);
+		debugLog.Log("Ray Y: {} -> {}", groundRayStart.m128_f32[1], groundRayEnd.m128_f32[1]);
+		if (minRaycastCollector.anyCollision) debugLog.Log("Ray hit: {}", minRaycastCollector.collision.worldPoint.m128_f32[1]);
 
 		if (playerOnGround)
 		{
-			// Move player out of ground
-			playerEntity->position = playerEntity->position + XMVectorScale(V3_UP, collisionEpsilon - minRaycastCollector.collision.distance);
+			// Move player on ground
+			playerEntity->rigidBody->setTransform(PhysicsTransformFromXM(minRaycastCollector.collision.worldPoint, playerEntity->rotation));
 
 			// Stop falling speed
 			playerVelocity = XMVectorSetY(playerVelocity, 0.);
