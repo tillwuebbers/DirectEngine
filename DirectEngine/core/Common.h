@@ -15,6 +15,7 @@ struct Texture
 {
     ID3D12Resource* buffer = nullptr;
     DescriptorHandle handle;
+    std::string name = {};
 };
 
 struct Vertex

@@ -93,11 +93,26 @@ public:
         assert(index < capacity);
 		return base[index];
     }
+
+    T& at(size_t index)
+    {
+        assert(index >= 0);
+        assert(index < size);
+        return base[index];
+    }
+
+    const T& at(size_t index) const
+    {
+        assert(index >= 0);
+        assert(index < size);
+        return base[index];
+    }
     
+    template <typename... Args>
     T& NewElement()
     {
 		assert(size < capacity);
-		return base[size++];
+		return *new(reinterpret_cast<void*>(&base[size++])) T(Args...);
     }
 
     void Clear()

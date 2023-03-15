@@ -42,14 +42,25 @@ struct Gizmo
 	D3D12_VERTEX_BUFFER_VIEW scaleArrowMesh;
 };
 
+enum class Material
+{
+	Test,
+	Ground,
+	Laser,
+	Portal1,
+	Portal2,
+	Crosshair,
+};
+
 class Game : public IGame
 {
 public:
-	Game(MemoryArena& globalArena, MemoryArena& configArena);
+	Game(GAME_CREATION_PARAMS);
 
 	// Memory (keep this up here!)
 	MemoryArena& globalArena;
 	MemoryArena& configArena;
+	MemoryArena& levelArena;
 	TypedMemoryArena<Entity> entityArena{};
 
 	// Logging
@@ -81,12 +92,16 @@ public:
 	bool showLightPosition = false;
 	bool keepDebugMenuVisibleInGame = ISDEBUG;
 
+	bool frameStep = false;
+	bool levelLoaded = false;
+
 	int newChildId = 0;
 	int newEntityMaterialIndex = 0;
 	float newEntityWidth = 1.f;
 	float newEntityHeight = 1.f;
 	XMVECTOR physicsForceDebug = {};
 	XMVECTOR physicsTorqueDebug = {};
+	XMVECTOR physicsAddColliderDebug = {};
 
 	// Updates
 	WindowUpdate windowUpdateData{};
@@ -100,6 +115,8 @@ public:
 	AllRaycastCallback allRaycastCollector{ globalArena };
 
 	// Materials and Lighting
+	std::unordered_map<Material, size_t> materialIndices{};
+	
 	DirectionalLight light{};
 	Texture* diffuseTexture{};
 	Texture* memeTexture{};
@@ -122,7 +139,7 @@ public:
 	XMVECTOR gizmoDragCursorStart{};
 	XMVECTOR gizmoDragEntityStart{};
 
-	// Permanent Entities
+	// Entities
 	Entity* portal1 = nullptr;
 	Entity* portal2 = nullptr;
 	Entity* playerEntity = nullptr;
@@ -149,6 +166,7 @@ public:
 	float lastJumpPressTime = -1000.f;
 
 	void StartGame(EngineCore& engine) override;
+	void LoadLevel(EngineCore& engine);
 	void UpdateGame(EngineCore& engine) override;
 	void BeforeMainRender(EngineCore& engine) override;
 	void DrawUI(EngineCore& engine);
@@ -184,4 +202,4 @@ MAT_RMAJ CalculateShadowCamProjection(const MAT_RMAJ& camViewMatrix, const MAT_R
 
 void LoadUIStyle();
 
-__declspec(dllexport) IGame* __cdecl CreateGame(MemoryArena& globalArena, MemoryArena& configArena);
+__declspec(dllexport) IGame* __cdecl CreateGame(GAME_CREATION_PARAMS);

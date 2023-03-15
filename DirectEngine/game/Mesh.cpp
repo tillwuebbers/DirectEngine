@@ -17,6 +17,7 @@ MeshFile CreateQuad(float width, float height, MemoryArena& vertexArena)
 {
 	constexpr size_t VERTEX_COUNT = 6;
 
+	uint64_t hash = 0;
 	Vertex* vertices = NewArray(vertexArena, Vertex, VERTEX_COUNT);
 	vertices[0] = { { 0.f  , 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f}, {}, {} };
 	vertices[1] = { { width, 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f}, {}, {} };
@@ -25,13 +26,21 @@ MeshFile CreateQuad(float width, float height, MemoryArena& vertexArena)
 	vertices[4] = { { 0.f  , 0.f, height }, {}, {0.f, 1.f, 0.f }, {0.f, 1.f}, {}, {} };
 	vertices[5] = { { width, 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f}, {}, {} };
 
-	return MeshFile{ vertices, VERTEX_COUNT };
+	for (int i = 0; i < 6; i++)
+	{
+		hash += *reinterpret_cast<uint32_t*>(&vertices[i].position.x);
+		hash += *reinterpret_cast<uint32_t*>(&vertices[i].position.y);
+		hash += *reinterpret_cast<uint32_t*>(&vertices[i].position.z);
+	}
+
+	return MeshFile{ vertices, VERTEX_COUNT, {}, 0, hash };
 }
 
 MeshFile CreateQuadY(float width, float height, MemoryArena& vertexArena)
 {
 	constexpr size_t VERTEX_COUNT = 6;
 
+	uint64_t hash = 0;
 	Vertex* vertices = NewArray(vertexArena, Vertex, VERTEX_COUNT);
 	vertices[0] = { { 0.f  , 0.f   , 0.f }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f}, {}, {} };
 	vertices[1] = { { width, height, 0.f }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f}, {}, {} };
@@ -40,7 +49,14 @@ MeshFile CreateQuadY(float width, float height, MemoryArena& vertexArena)
 	vertices[4] = { { 0.f  , height, 0.f }, {}, {0.f, 1.f, 0.f }, {0.f, 1.f}, {}, {} };
 	vertices[5] = { { width, height, 0.f }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f}, {}, {} };
 
-	return MeshFile{ vertices, VERTEX_COUNT };
+	for (int i = 0; i < 6; i++)
+	{
+		hash += *reinterpret_cast<uint32_t*>(&vertices[i].position.x);
+		hash += *reinterpret_cast<uint32_t*>(&vertices[i].position.y);
+		hash += *reinterpret_cast<uint32_t*>(&vertices[i].position.z);
+	}
+
+	return MeshFile{ vertices, VERTEX_COUNT, {}, 0, hash };
 }
 
 template <typename T>
@@ -315,6 +331,8 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 	{
 		for (Primitive& primitive : mesh.primitives)
 		{
+			uint64_t hash = 0;
+
 			Accessor& indexAccessor = model.accessors[primitive.indices];
 			assert(indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT);
 			assert(indexAccessor.type == TINYGLTF_TYPE_SCALAR);
@@ -350,6 +368,9 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 				vert.position.x = positionData[idx * 3 + 0];
 				vert.position.y = positionData[idx * 3 + 1];
 				vert.position.z = positionData[idx * 3 + 2];
+				hash += *reinterpret_cast<uint32_t*>(&vert.position.x);
+				hash += *reinterpret_cast<uint32_t*>(&vert.position.y);
+				hash += *reinterpret_cast<uint32_t*>(&vert.position.z);
 
 				vert.normal.x = normalData[idx * 3 + 0];
 				vert.normal.y = normalData[idx * 3 + 1];
@@ -411,7 +432,7 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 				}
 			}
 
-			meshFiles.emplace_back(MeshFile{ vertices, vertexCount, materialName, textureCount });
+			meshFiles.emplace_back(MeshFile{ vertices, vertexCount, materialName, textureCount, hash });
 		}
 	}
 

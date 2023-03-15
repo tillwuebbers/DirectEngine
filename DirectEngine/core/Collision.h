@@ -24,11 +24,11 @@ enum class CollisionInitType
 
 enum class CollisionLayers : uint32_t
 {
-	None = 0,
-#define EnumFlag(idx, name, str) name = 1 << (idx - 1),
+	None = 0U,
+#define EnumFlag(idx, name, str) name = 1U << (idx - 1),
 	CollisionLayersTable
 #undef EnumFlag
-	All = ~0
+	All = ~0U
 };
 
 const std::vector<const char*> collisionLayerNames =

@@ -34,7 +34,9 @@ using Microsoft::WRL::ComPtr;
 
 typedef XMMATRIX MAT_CMAJ;
 typedef XMMATRIX MAT_RMAJ;
-typedef IGame* (*CreateGameFunc)(MemoryArena& globalArena, MemoryArena& configArena);
+
+#define GAME_CREATION_PARAMS MemoryArena& globalArena, MemoryArena& configArena, MemoryArena& levelArena
+typedef IGame* (*CreateGameFunc)(GAME_CREATION_PARAMS);
 
 enum class WindowMode
 {
@@ -224,12 +226,15 @@ public:
     IGame* m_game = nullptr;
     bool m_gameStarted = false;
     bool m_quit = false;
+    bool m_resetLevel = false;
 
     ComStack comPointers = {};
     ComStack comPointersSizeDependent = {};
     ComStack comPointersTextureUpload = {};
+    ComStack comPointersLevel = {};
     MemoryArena engineArena = {};
     MemoryArena configArena = {};
+    MemoryArena levelArena = {};
     MemoryArena frameArena = {};
 
     // Window Handle
@@ -280,12 +285,10 @@ public:
     ShadowMap* m_shadowmap = nullptr;
     ID3D12Resource* m_textureUploadHeaps[MAX_TEXTURE_UPLOADS] = {};
     size_t m_textureUploadIndex = 0;
-    MaterialData m_materials[MAX_MATERIALS] = {};
-    size_t m_materialCount = 0;
-	Texture m_textures[MAX_TEXTURE_UPLOADS] = {};
-	size_t m_textureCount = 0;
-    CameraData m_cameras[MAX_CAMERAS] = {};
-    uint32_t m_cameraCount = 0;
+    FixedList<MaterialData> m_materials{ engineArena, MAX_MATERIALS };
+    FixedList<Texture> m_textures = { engineArena, MAX_TEXTURE_UPLOADS };
+    FixedList<CameraData> m_cameras = { engineArena, MAX_CAMERAS };
+    std::unordered_map<uint64_t, D3D12_VERTEX_BUFFER_VIEW> m_meshes{};
 
     CameraData* mainCamera = nullptr;
     FixedList<RenderTexture*> m_renderTextures{ engineArena, 2 };
@@ -344,15 +347,16 @@ public:
     void LoadPipeline(LUID* requiredLuid);
     void LoadSizeDependentResources();
     void LoadAssets();
+    void ResetLevelData();
     CameraData* CreateCamera();
     CD3DX12_CPU_DESCRIPTOR_HANDLE CreateDepthStencilView(UINT width, UINT height, ComStack& comStack, ID3D12Resource** bufferTarget, int fixedOffset = -1, UINT sampleCount = 1);
     void CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount);
     void CreatePipelineState(PipelineConfig* config, bool hotloadShaders = false);
     RenderTexture* CreateRenderTexture(UINT width, UINT height);
-    Texture* CreateTexture(const wchar_t* filePath);
+    Texture* CreateTexture(const std::wstring& filePath);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
     size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride, const std::vector<Texture*>& textures, const std::wstring& shaderName);
-    D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount);
+    D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount, const uint64_t id);
     size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
     void UploadVertices();
     void RenderShadows(ID3D12GraphicsCommandList* renderList);
@@ -412,8 +416,10 @@ public:
     }
 
     template<typename T>
-    void CreateConstantBuffers(ConstantBuffer<T>& buffers, const wchar_t* name)
+    void CreateConstantBuffers(ConstantBuffer<T>& buffers, const wchar_t* name, ComStack* comStack = nullptr)
     {
+        ComStack* stack = comStack ? comStack : &comPointers;
+
         const UINT constantBufferSize = sizeof(T);
         assert(constantBufferSize % 256 == 0);
 
@@ -422,7 +428,7 @@ public:
         {
             CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
             CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(constantBufferSize);
-            ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, NewComObject(comPointers, &buffers.resources[i])));
+            ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, NewComObject(*stack, &buffers.resources[i])));
 
             // Describe and create a constant buffer view.
             D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};

@@ -8,7 +8,7 @@
 #include "../core/vkcodes.h"
 #include "remixicon.h"
 
-Game::Game(MemoryArena& globalArena, MemoryArena& configArena) : globalArena(globalArena), configArena(configArena) {}
+Game::Game(GAME_CREATION_PARAMS) : globalArena(globalArena), configArena(configArena), levelArena(levelArena) {}
 
 bool Game::LoadGameConfig()
 {
@@ -45,16 +45,6 @@ void Game::StartGame(EngineCore& engine)
 		SaveConfig(configArena, CONFIG_PATH);
 	}
 
-	// Physics
-	physicsWorld = physicsCommon.createPhysicsWorld();
-	physicsWorld->setIsDebugRenderingEnabled(true);
-	reactphysics3d::DebugRenderer& debugRenderer = physicsWorld->getDebugRenderer();
-	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::COLLIDER_AABB, true);
-	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::COLLISION_SHAPE, true);
-	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::CONTACT_POINT, true);
-	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::CONTACT_NORMAL, true);
-
-
 	// Shaders
 	std::wstring defaultShader = L"entity";
 	std::wstring groundShader = L"ground";
@@ -66,37 +56,78 @@ void Game::StartGame(EngineCore& engine)
 	diffuseTexture = engine.CreateTexture(L"textures/ground_D.dds");
 	memeTexture = engine.CreateTexture(L"textures/cat_D.dds");
 
-	LOG_TIMER(timer, "Test Textures", debugLog);
+	LOG_TIMER(timer, "Textures", debugLog);
 	RESET_TIMER(timer);
 
 	// Materials
-	size_t memeMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { memeTexture }, defaultShader);
-	size_t groundMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, groundShader);
-	size_t laserMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, laserShader);
-	size_t portal1MaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTextures[0]->texture}, textureQuad);
-	size_t portal2MaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTextures[1]->texture}, textureQuad);
-	size_t crosshairMaterialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, crosshairShader);
+	materialIndices.try_emplace(Material::Test, engine.CreateMaterial(1024 * 64, sizeof(Vertex), { memeTexture }, defaultShader));
+	materialIndices.try_emplace(Material::Ground, engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, groundShader));
+	materialIndices.try_emplace(Material::Laser, engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, laserShader));
+	materialIndices.try_emplace(Material::Portal1, engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTextures[0]->texture}, textureQuad));
+	materialIndices.try_emplace(Material::Portal2, engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTextures[1]->texture}, textureQuad));
+	materialIndices.try_emplace(Material::Crosshair, engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, crosshairShader));
 
-	LOG_TIMER(timer, "Test Materials", debugLog);
+	LOG_TIMER(timer, "Materials", debugLog);
 	RESET_TIMER(timer);
 
 	// Meshes
 	// TODO: why does mesh need material index, and why doesn't it matter if it's wrong?
 	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", debugLog, globalArena).meshes[0];
-	auto cubeMeshView = engine.CreateMesh(memeMaterialIndex, cubeMeshFile.vertices, cubeMeshFile.vertexCount);
+	auto cubeMeshView = engine.CreateMesh(materialIndices[Material::Test], cubeMeshFile.vertices, cubeMeshFile.vertexCount, 0);
 	engine.cubeVertexView = cubeMeshView;
 
-	gizmo = LoadGizmo(engine, *this, laserMaterialIndex);
-	
 	LOG_TIMER(timer, "Default Meshes", debugLog);
 	RESET_TIMER(timer);
 
-	// Entities
-	Entity* crosshair = CreateQuadEntity(engine, crosshairMaterialIndex, .03f, .03f, true);
+	// Defaults
+	playerPitch = XM_PI;
+
+	light.position = { 10.f, 10.f, 10.f };
+
+	LOG_TIMER(timer, "Other Entities", debugLog);
+	RESET_TIMER(timer);
+
+	// Audio
+	soundFiles[(size_t)AudioFile::PlayerDamage] = LoadAudioFile(L"audio/chord.wav", globalArena);
+	soundFiles[(size_t)AudioFile::EnemyDeath] = LoadAudioFile(L"audio/tada.wav", globalArena);
+	soundFiles[(size_t)AudioFile::Shoot] = LoadAudioFile(L"audio/laser.wav", globalArena);
+	
+	// Finish setup
+	LoadLevel(engine);
+	engine.UploadVertices();
+	UpdateCursorState();
+
+	LOG_TIMER(timer, "Finalize", debugLog);
+	RESET_TIMER(timer);
+}
+
+void Game::LoadLevel(EngineCore& engine)
+{
+	levelLoaded = true;
+
+	// TODO: this arena should be reset in the engine
+	entityArena.Reset();
+
+	// Physics
+	if (physicsWorld != nullptr) physicsCommon.destroyPhysicsWorld(physicsWorld);
+	physicsWorld = physicsCommon.createPhysicsWorld();
+	physicsWorld->setIsDebugRenderingEnabled(true);
+	reactphysics3d::DebugRenderer& debugRenderer = physicsWorld->getDebugRenderer();
+	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::COLLIDER_AABB, true);
+	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::COLLISION_SHAPE, true);
+	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::CONTACT_POINT, true);
+	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::CONTACT_NORMAL, true);
+
+	// Gizmo
+	gizmo = LoadGizmo(engine, *this, materialIndices[Material::Laser]);
+
+	// Crosshair
+	Entity* crosshair = CreateQuadEntity(engine, materialIndices[Material::Crosshair], .03f, .03f, true);
 	crosshair->GetData().mainOnly = true;
 	crosshair->GetBuffer().color = { 1.f, .3f, .1f, 1.f };
 
-	auto createPortal = [&](size_t matIndex){
+	// Portals
+	auto createPortal = [&](size_t matIndex) {
 		Entity* portalRenderQuad = CreateQuadEntity(engine, matIndex, 2.f, 4.f);
 		portalRenderQuad->position = { -1.f, 2.f, 0.f };
 		portalRenderQuad->rotation = XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f);
@@ -108,14 +139,15 @@ void Game::StartGame(EngineCore& engine)
 
 		return portal;
 	};
-	portal1 = createPortal(portal2MaterialIndex);
+	portal1 = createPortal(materialIndices[Material::Portal2]);
 	portal1->position = { 2.f, 2.f, 3.f };
 	portal1->name = "Portal 1";
 
-	portal2 = createPortal(portal1MaterialIndex);
+	portal2 = createPortal(materialIndices[Material::Portal1]);
 	portal2->position = { -2.f, 2.f, 3.f };
 	portal2->name = "Portal 2";
 
+	// Player
 	playerEntity = CreateEmptyEntity(engine);
 	playerEntity->name = "Player";
 	playerEntity->position = { 0.f, 1.f, 0.f };
@@ -134,13 +166,7 @@ void Game::StartGame(EngineCore& engine)
 	cameraEntity->position = { 0.f, 0.f, 0.15f };
 	playerLookEntity->AddChild(cameraEntity);
 
-	LOG_TIMER(timer, "Camera Entity", debugLog);
-	RESET_TIMER(timer);
-
-	playerModelEntity = CreateEntityFromGltf(engine, "models/kaiju.glb", defaultShader, debugLog);
-
-	LOG_TIMER(timer, "Kaiju Entity", debugLog);
-	RESET_TIMER(timer);
+	playerModelEntity = CreateEntityFromGltf(engine, "models/kaiju.glb", L"entity", debugLog);
 
 	assert(playerModelEntity->isSkinnedRoot);
 	playerModelEntity->name = "KaijuRoot";
@@ -154,10 +180,8 @@ void Game::StartGame(EngineCore& engine)
 		Entity* entity = playerModelEntity->children[i];
 	}
 
-	LOG_TIMER(timer, "Kaiju Children", debugLog);
-	RESET_TIMER(timer);
-
-	Entity* groundEntity = CreateQuadEntity(engine, groundMaterialIndex, 100.f, 100.f, false, CollisionInitType::RigidBody, CollisionLayers::Floor);
+	// Ground
+	Entity* groundEntity = CreateQuadEntity(engine, materialIndices[Material::Ground], 100.f, 100.f, false, CollisionInitType::RigidBody, CollisionLayers::Floor);
 	groundEntity->name = "Ground";
 	groundEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
 	groundEntity->position = XMVectorSetY(groundEntity->position, -.01f);
@@ -165,43 +189,47 @@ void Game::StartGame(EngineCore& engine)
 
 	for (int i = 0; i < 16; i++)
 	{
-		Entity* yea = CreateMeshEntity(engine, groundMaterialIndex, cubeMeshView);
+		Entity* yea = CreateMeshEntity(engine, materialIndices[Material::Ground], engine.cubeVertexView);
 		yea->name = "Yea";
 		yea->position = { 3.f, 0.5f + i * 16.f, 0.f };
 		yea->InitRigidBody(physicsWorld);
 		yea->InitBoxCollider(physicsCommon, { .5f, .5f, .5f }, {}, CollisionLayers::Floor);
 	}
-
-	// Defaults
-	playerPitch = XM_PI;
-
-	light.position = { 10.f, 10.f, 10.f };
-
-	LOG_TIMER(timer, "Other Entities", debugLog);
-	RESET_TIMER(timer);
-
-	// Audio
-	soundFiles[(size_t)AudioFile::PlayerDamage] = LoadAudioFile(L"audio/chord.wav", globalArena);
-	soundFiles[(size_t)AudioFile::EnemyDeath] = LoadAudioFile(L"audio/tada.wav", globalArena);
-	soundFiles[(size_t)AudioFile::Shoot] = LoadAudioFile(L"audio/laser.wav", globalArena);
-	
-	// Finish setup
-	engine.UploadVertices();
-	UpdateCursorState();
-
-	LOG_TIMER(timer, "Finalize", debugLog);
-	RESET_TIMER(timer);
 }
 
 void Game::UpdateGame(EngineCore& engine)
 {
+	input.accessMutex.lock();
+	if (frameStep)
+	{
+		DrawUI(engine);
+
+		if (input.KeyJustPressed(VK_TAB))
+		{
+			debugLog.Log("Step...");
+		}
+		else
+		{
+			input.accessMutex.unlock();
+			return;
+		}
+	}
+	input.accessMutex.unlock();
+
 	engine.BeginProfile("Game Update", ImColor::HSV(.75f, 1.f, 1.f));
+
+	if (!levelLoaded)
+	{
+		LoadLevel(engine);
+	}
+
 	input.accessMutex.lock();
 	input.UpdateMousePosition();
 
 	// Read camera rotation into vectors
 	XMVECTOR camForward, camRight, camUp;
 	CalculateDirectionVectors(camForward, camRight, camUp, engine.mainCamera->rotation);
+	float clampedDeltaTime = std::min(engine.m_updateDeltaTime, MAX_PHYSICS_STEP);
 
 	// Reset per frame values
 	engine.m_debugLineData.lineVertices.Clear();
@@ -228,6 +256,12 @@ void Game::UpdateGame(EngineCore& engine)
 	{
 		showDebugImage = !showDebugImage;
 	}
+	if (input.KeyComboJustPressed(VK_TAB, VK_CONTROL))
+	{
+		frameStep = !frameStep;
+		if (frameStep) debugLog.Log("Frame Step Enabled");
+		else debugLog.Log("Frame Step Disabled");
+	}
 
 	// Camera controls
 	if (!showEscMenu)
@@ -249,15 +283,13 @@ void Game::UpdateGame(EngineCore& engine)
 		playerModelEntity->SetForwardDirection(XMVector3Normalize(horizontalCamForward));
 	}
 
-	// Player movement
 	if (input.KeyComboJustPressed(VK_KEY_R, VK_CONTROL))
 	{
-		playerEntity->position = { 0.f, 1.f, 0.f };
-		playerEntity->rigidBody->setTransform(PhysicsTransformFromXM(playerEntity->position, playerEntity->rotation));
-		playerEntity->rigidBody->setLinearVelocity({ 0.f, 0.f, 0.f });
-		playerEntity->rigidBody->setAngularVelocity({ 0.f, 0.f, 0.f });
+		engine.m_resetLevel = true;
+		levelLoaded = false;
 	}
 
+	// Player movement
 	float horizontalInput = 0.f;
 	if (input.KeyDown(VK_KEY_A)) horizontalInput -= 1.f;
 	if (input.KeyDown(VK_KEY_D)) horizontalInput += 1.f;
@@ -266,16 +298,14 @@ void Game::UpdateGame(EngineCore& engine)
 	if (input.KeyDown(VK_KEY_S)) verticalInput -= 1.f;
 	if (input.KeyDown(VK_KEY_W)) verticalInput += 1.f;
 
-	playerEntity->rigidBody->setIsActive(!noclip);
-
 	if (noclip)
 	{
 		float camSpeed = 10.f;
 		if (input.KeyDown(VK_SHIFT)) camSpeed *= .1f;
 		if (input.KeyDown(VK_CONTROL)) camSpeed *= 5.f;
 
-		playerEntity->position += camRight * horizontalInput * engine.m_updateDeltaTime * camSpeed;
-		playerEntity->position += camForward * verticalInput * engine.m_updateDeltaTime * camSpeed;
+		playerEntity->position += camRight * horizontalInput * clampedDeltaTime * camSpeed;
+		playerEntity->position += camForward * verticalInput * clampedDeltaTime * camSpeed;
 	}
 	else
 	{
@@ -310,7 +340,7 @@ void Game::UpdateGame(EngineCore& engine)
 				resultScale = std::max(0.f, XMVectorGetX(XMVector3Dot(XMVector3Normalize(horizontalPlayerVelocity), wantedDirection)));
 			}
 
-			horizontalPlayerSpeed = horizontalPlayerSpeed * resultScale + movementSettings->playerAcceleration * engine.m_updateDeltaTime;
+			horizontalPlayerSpeed = horizontalPlayerSpeed * resultScale + movementSettings->playerAcceleration * clampedDeltaTime;
 			if (horizontalPlayerSpeed > movementSettings->playerMaxSpeed)
 			{
 				horizontalPlayerSpeed = movementSettings->playerMaxSpeed;
@@ -324,6 +354,7 @@ void Game::UpdateGame(EngineCore& engine)
 		const float collisionEpsilon = .02f;
 		minRaycastCollector.Raycast(physicsWorld, playerEntity->position + V3_UP * collisionEpsilon, playerEntity->position - V3_UP * collisionEpsilon, CollisionLayers::Floor);
 		playerOnGround = minRaycastCollector.anyCollision;
+		debugLog.Log(playerOnGround ? "--- G" : "--- A");
 
 		if (playerOnGround)
 		{
@@ -344,7 +375,7 @@ void Game::UpdateGame(EngineCore& engine)
 				// Apply friction when no input
 				if (std::abs(horizontalInput) <= inputDeadzone && std::abs(verticalInput) <= inputDeadzone)
 				{
-					float speedDecrease = movementSettings->playerFriction * engine.m_updateDeltaTime;
+					float speedDecrease = movementSettings->playerFriction * clampedDeltaTime;
 					if (horizontalPlayerSpeed <= speedDecrease)
 					{
 						playerVelocity = V3_ZERO;
@@ -355,7 +386,7 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 		else
 		{
-			playerVelocity.m128_f32[1] -= engine.m_updateDeltaTime * movementSettings->playerGravity;
+			playerVelocity.m128_f32[1] -= clampedDeltaTime * movementSettings->playerGravity;
 		}
 
 		// Apply velocity
@@ -473,7 +504,9 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 	}
 
-	physicsWorld->update(std::min(engine.m_updateDeltaTime, MAX_PHYSICS_STEP));
+	debugLog.Log("Before Physics: {:.1f}, {:.1f}, {:.1f}", SPLIT_V3(XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity())));
+	physicsWorld->update(clampedDeltaTime);
+	debugLog.Log("After Physics: {:.1f}, {:.1f}, {:.1f}", SPLIT_V3(XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity())));
 
 	if (renderPhysics)
 	{
@@ -518,9 +551,9 @@ void Game::UpdateGame(EngineCore& engine)
 
 	CalculateDirectionVectors(camForward, camRight, camUp, engine.mainCamera->rotation);
 
-	for (uint32_t i = 0; i < engine.m_cameraCount; i++)
+	for (CameraData& camera : engine.m_cameras)
 	{
-		CameraConstantBuffer& cambuf = engine.m_cameras[i].constantBuffer.data;
+		CameraConstantBuffer& cambuf = camera.constantBuffer.data;
 		cambuf.postProcessing = { contrast, brightness, saturation, fog };
 		cambuf.fogColor = clearColor;
 	}
@@ -657,7 +690,7 @@ Entity* Game::CreateMeshEntity(EngineCore& engine, size_t materialIndex, D3D12_V
 Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical, CollisionInitType collisionInit, CollisionLayers collisionLayers)
 {
 	MeshFile file = vertical ? CreateQuadY(width, height, globalArena) : CreateQuad(width, height, globalArena);
-	auto meshView = engine.CreateMesh(materialIndex, file.vertices, file.vertexCount);
+	auto meshView = engine.CreateMesh(materialIndex, file.vertices, file.vertexCount, file.meshHash);
 	Entity* entity = CreateMeshEntity(engine, materialIndex, meshView);
 	entity->position = { -width / 2.f, 0.f, -height / 2.f };
 	if (collisionInit == CollisionInitType::CollisionBody)
@@ -679,7 +712,7 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, const s
 {
 	Entity* mainEntity = CreateEmptyEntity(engine);
 
-	GltfResult gltfResult = LoadGltfFromFile(path, log, globalArena);
+	GltfResult gltfResult = LoadGltfFromFile(path, log, levelArena);
 	if (gltfResult.transformHierachy != nullptr)
 	{
 		mainEntity->isSkinnedRoot = true;
@@ -704,7 +737,7 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, const s
 		RESET_TIMER(timer);
 
 		size_t materialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), textures, shaderName);
-		D3D12_VERTEX_BUFFER_VIEW meshView = engine.CreateMesh(materialIndex, meshFile.vertices, meshFile.vertexCount);
+		D3D12_VERTEX_BUFFER_VIEW meshView = engine.CreateMesh(materialIndex, meshFile.vertices, meshFile.vertexCount, meshFile.meshHash);
 		LOG_TIMER(timer, "Create material and mesh for model", debugLog);
 		RESET_TIMER(timer);
 
@@ -811,8 +844,8 @@ MAT_RMAJ CalculateShadowCamProjection(const MAT_RMAJ& camViewMatrix, const MAT_R
 	return XMMatrixOrthographicOffCenterLH(XMVectorGetX(lsMin), XMVectorGetX(lsMax), XMVectorGetY(lsMin), XMVectorGetY(lsMax), XMVectorGetZ(lsMin), XMVectorGetZ(lsMax));
 }
 
-IGame* CreateGame(MemoryArena& globalArena, MemoryArena& configArena)
+IGame* CreateGame(GAME_CREATION_PARAMS)
 {
-	Game* game = NewObject(globalArena, Game, globalArena, configArena);
+	Game* game = NewObject(globalArena, Game, globalArena, configArena, levelArena);
 	return game;
 }

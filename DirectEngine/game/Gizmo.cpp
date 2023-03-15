@@ -5,13 +5,13 @@ Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex)
 	Gizmo* gizmo = NewObject(game.globalArena, Gizmo);
 
 	MeshFile translateArrowMeshFile = LoadGltfFromFile("models/translate-arrow.glb", game.debugLog, game.globalArena).meshes[0];
-	gizmo->translateArrowMesh = engine.CreateMesh(materialIndex, translateArrowMeshFile.vertices, translateArrowMeshFile.vertexCount);
+	gizmo->translateArrowMesh = engine.CreateMesh(materialIndex, translateArrowMeshFile.vertices, translateArrowMeshFile.vertexCount, translateArrowMeshFile.meshHash);
 
 	MeshFile rotateArrowMeshFile = LoadGltfFromFile("models/rotate-arrow.glb", game.debugLog, game.globalArena).meshes[0];
-	gizmo->rotateArrowMesh = engine.CreateMesh(materialIndex, rotateArrowMeshFile.vertices, rotateArrowMeshFile.vertexCount);
+	gizmo->rotateArrowMesh = engine.CreateMesh(materialIndex, rotateArrowMeshFile.vertices, rotateArrowMeshFile.vertexCount, rotateArrowMeshFile.meshHash);
 
 	MeshFile scaleArrowMeshFile = LoadGltfFromFile("models/scale-arrow.glb", game.debugLog, game.globalArena).meshes[0];
-	gizmo->scaleArrowMesh = engine.CreateMesh(materialIndex, scaleArrowMeshFile.vertices, scaleArrowMeshFile.vertexCount);
+	gizmo->scaleArrowMesh = engine.CreateMesh(materialIndex, scaleArrowMeshFile.vertices, scaleArrowMeshFile.vertexCount, scaleArrowMeshFile.meshHash);
 
 	XMVECTOR xyzColors[3] = {
 		{ 1.f, 0.f, 0.f, 1.f },

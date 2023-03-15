@@ -27,7 +27,7 @@ EngineCore::EngineCore(UINT width, UINT height, CreateGameFunc gameFunc) :
     m_height(height),
     m_aspectRatio((float)width / (float)height)
 {
-    m_game = gameFunc(engineArena, configArena);
+    m_game = gameFunc(engineArena, configArena, levelArena);
 }
 
 void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
@@ -672,14 +672,21 @@ void EngineCore::LoadAssets()
     }
 }
 
+void EngineCore::ResetLevelData()
+{
+    WaitForGpu();
+    for (MaterialData& material : m_materials)
+    {
+        material.entityCount = 0;
+    }
+    comPointersLevel.Clear();
+    levelArena.Reset();
+}
+
 CameraData* EngineCore::CreateCamera()
 {
-    assert(m_cameraCount < MAX_CAMERAS);
-    CameraData& cam = m_cameras[m_cameraCount] = {};
-    m_cameraCount++;
-
+    CameraData& cam = m_cameras.NewElement();
     CreateConstantBuffers(cam.constantBuffer, L"Camera Constant Buffer");
-
     return &cam;
 }
 
@@ -747,16 +754,24 @@ RenderTexture* EngineCore::CreateRenderTexture(UINT width, UINT height)
     return renderTexture;
 }
 
-Texture* EngineCore::CreateTexture(const wchar_t* filePath)
+Texture* EngineCore::CreateTexture(const std::wstring& filePath)
 {
-	assert(m_textureCount < MAX_TEXTURE_UPLOADS);
-    Texture& texture = m_textures[m_textureCount];
-    m_textureCount++;
+    std::string textureId(filePath.begin(), filePath.end());
+    for (Texture& tex : m_textures)
+	{
+        if (tex.name == textureId)
+        {
+			return &tex;
+		}
+	}
 
-    TextureData header = ParseDDSHeader(filePath);
+    Texture& texture = m_textures.NewElement();
+    texture.name = textureId;
+
+    TextureData header = ParseDDSHeader(filePath.c_str());
     std::unique_ptr<uint8_t[]> data{};
     std::vector<D3D12_SUBRESOURCE_DATA> subresources{};
-    CHECK_HRCMD(LoadDDSTextureFromFile(m_device, filePath, &texture.buffer, data, subresources));
+    CHECK_HRCMD(LoadDDSTextureFromFile(m_device, filePath.c_str(), &texture.buffer, data, subresources));
     comPointers.AddPointer((void**)&texture.buffer);
     UploadTexture(header, subresources, texture);
 
@@ -811,10 +826,8 @@ size_t EngineCore::CreateMaterial(const size_t maxVertices, const size_t vertexS
 
     const size_t maxByteCount = vertexStride * maxVertices;
 
-    assert(m_materialCount < MAX_MATERIALS);
-    MaterialData& data = m_materials[m_materialCount];
-    size_t dataIndex = m_materialCount;
-    m_materialCount++;
+    size_t dataIndex = m_materials.size;
+    MaterialData& data = m_materials.NewElement();
 
     data.maxVertexCount = maxVertices;
     data.vertexStride = vertexStride;
@@ -852,10 +865,15 @@ size_t EngineCore::CreateMaterial(const size_t maxVertices, const size_t vertexS
     return dataIndex;
 }
 
-D3D12_VERTEX_BUFFER_VIEW EngineCore::CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount)
+D3D12_VERTEX_BUFFER_VIEW EngineCore::CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount, const uint64_t id)
 {
+    if (auto mesh = m_meshes.find(id); mesh != m_meshes.end())
+	{
+		return mesh->second;
+	}
+
     // Update material
-    MaterialData& data = m_materials[materialIndex];
+    MaterialData& data = m_materials.at(materialIndex);
     const size_t sizeInBytes = data.vertexStride * vertexCount;
     const size_t offsetInBuffer = data.vertexCount * data.vertexStride;
 
@@ -874,33 +892,34 @@ D3D12_VERTEX_BUFFER_VIEW EngineCore::CreateMesh(const size_t materialIndex, cons
     data.vertexUploadBuffer->Unmap(0, nullptr);
 
     data.vertexCount += vertexCount;
+    m_meshes.try_emplace(id, view);
+
     return view;
 }
 
 size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView)
 {
-    MaterialData& material = m_materials[materialIndex];
+    MaterialData& material = m_materials.at(materialIndex);
 
     assert(material.entityCount < MAX_ENTITIES_PER_MATERIAL);
-    EntityData* entity = material.entities[material.entityCount] = NewObject(engineArena, EntityData);
+    EntityData* entity = material.entities[material.entityCount] = NewObject(levelArena, EntityData);
     entity->entityIndex = material.entityCount;
     material.entityCount++;
 
     entity->materialIndex = materialIndex;
     entity->vertexBufferView = meshView;
 
-    CreateConstantBuffers<EntityConstantBuffer>(entity->constantBuffer, std::format(L"Entity {} Constant Buffer", entity->entityIndex).c_str());
-    CreateConstantBuffers<BoneMatricesBuffer>(entity->boneConstantBuffer, std::format(L"Entity {} Bone Buffer", entity->entityIndex).c_str());
-    CreateConstantBuffers<BoneMatricesBuffer>(entity->firstPersonBoneConstantBuffer, std::format(L"Entity {} First Person Bone Buffer", entity->entityIndex).c_str());
+    CreateConstantBuffers<EntityConstantBuffer>(entity->constantBuffer, std::format(L"Entity {} Constant Buffer", entity->entityIndex).c_str(), &comPointersLevel);
+    CreateConstantBuffers<BoneMatricesBuffer>(entity->boneConstantBuffer, std::format(L"Entity {} Bone Buffer", entity->entityIndex).c_str(), &comPointersLevel);
+    CreateConstantBuffers<BoneMatricesBuffer>(entity->firstPersonBoneConstantBuffer, std::format(L"Entity {} First Person Bone Buffer", entity->entityIndex).c_str(), &comPointersLevel);
 
     return entity->entityIndex;
 }
 
 void EngineCore::UploadVertices()
 {
-    for (int i = 0; i < m_materialCount; i++)
+    for (MaterialData& data : m_materials)
     {
-        MaterialData& data = m_materials[i];
         m_uploadCommandList->CopyResource(data.vertexBuffer, data.vertexUploadBuffer);
         CD3DX12_RESOURCE_BARRIER transition = CD3DX12_RESOURCE_BARRIER::Transition(data.vertexBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
         m_uploadCommandList->ResourceBarrier(1, &transition);
@@ -939,6 +958,12 @@ void EngineCore::OnUpdate()
 
     m_game->UpdateGame(*this);
     ThrowIfFailed(m_uploadCommandList->Close());
+
+    if (m_resetLevel)
+    {
+        m_resetLevel = false;
+        ResetLevelData();
+    }
 }
 
 void EngineCore::OnRender()
@@ -1001,20 +1026,19 @@ void EngineCore::PopulateCommandList()
     m_sceneConstantBuffer.UploadData(m_frameIndex);
     m_lightConstantBuffer.UploadData(m_frameIndex);
 
-    for (int matIndex = 0; matIndex < m_materialCount; matIndex++)
+    for (MaterialData& data : m_materials)
     {
-        for (int entityIndex = 0; entityIndex < m_materials[matIndex].entityCount; entityIndex++)
+        for (int entityIndex = 0; entityIndex < data.entityCount; entityIndex++)
         {
-            EntityData* entityData = m_materials[matIndex].entities[entityIndex];
+            EntityData* entityData = data.entities[entityIndex];
             entityData->constantBuffer.UploadData(m_frameIndex);
             entityData->boneConstantBuffer.UploadData(m_frameIndex);
         }
     }
 
     mainCamera->aspectRatio = m_aspectRatio;
-    for (uint32_t camIndex = 0; camIndex < m_cameraCount; camIndex++)
+    for (CameraData& cameraData : m_cameras)
 	{
-		CameraData& cameraData = m_cameras[camIndex];
         cameraData.constantBuffer.data.worldCameraPos = cameraData.position;
         cameraData.UpdateMatrices();
 		cameraData.constantBuffer.UploadData(m_frameIndex);
@@ -1085,11 +1109,11 @@ void EngineCore::PopulateCommandList()
 
     // Apply masked animations for first-person
     m_game->BeforeMainRender(*this);
-    for (int matIndex = 0; matIndex < m_materialCount; matIndex++)
+    for (MaterialData& material : m_materials)
     {
-        for (int entityIndex = 0; entityIndex < m_materials[matIndex].entityCount; entityIndex++)
+        for (int entityIndex = 0; entityIndex < material.entityCount; entityIndex++)
         {
-            EntityData* entityData = m_materials[matIndex].entities[entityIndex];
+            EntityData* entityData = material.entities[entityIndex];
             entityData->firstPersonBoneConstantBuffer.UploadData(m_frameIndex);
         }
     }
@@ -1148,10 +1172,8 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
     renderList->ClearDepthStencilView(m_shadowmap->depthStencilViewCPU, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    for (int drawIdx = 0; drawIdx < m_materialCount; drawIdx++)
+    for (MaterialData& data : m_materials)
     {
-        MaterialData& data = m_materials[drawIdx];
-
         for (int entityIndex = 0; entityIndex < data.entityCount; entityIndex++)
         {
             EntityData* entity = data.entities[entityIndex];
@@ -1174,10 +1196,8 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
     // Record commands.
     renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    for (int drawIdx = 0; drawIdx < m_materialCount; drawIdx++)
+    for (MaterialData& data : m_materials)
     {
-        MaterialData& data = m_materials[drawIdx];
-
         renderList->SetPipelineState(data.pipeline->pipelineState);
         renderList->SetGraphicsRootSignature(data.pipeline->rootSignature);
 
@@ -1242,10 +1262,8 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CP
     renderList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    for (int drawIdx = 0; drawIdx < m_materialCount; drawIdx++)
+    for (MaterialData& data : m_materials)
     {
-        MaterialData& data = m_materials[drawIdx];
-
         for (int entityIndex = 0; entityIndex < data.entityCount; entityIndex++)
         {
             EntityData* entity = data.entities[entityIndex];
@@ -1334,9 +1352,8 @@ void EngineCore::OnShaderReload()
 
     std::wstring_convert<std::codecvt_utf8<wchar_t>> utf8_conv;
 
-    for (int i = 0; i < m_materialCount; i++)
+    for (MaterialData& material : m_materials)
     {
-        MaterialData& material = m_materials[i];
         CreatePipelineState(material.pipeline, true);
 
         if (FAILED(material.pipeline->creationError))
@@ -1389,6 +1406,7 @@ void EngineCore::OnDestroy()
 
     DestroyImgui();
 
+    comPointersLevel.Clear();
     comPointersTextureUpload.Clear();
     comPointersSizeDependent.Clear();
     comPointers.Clear();

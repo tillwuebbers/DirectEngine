@@ -537,6 +537,12 @@ void Game::DrawDebugUI(EngineCore& engine)
 						rotationLock.z = zLocked ? 0.f : 1.f;
 						entity->rigidBody->setAngularLockAxisFactor(rotationLock);
 
+						int rigidBodyType = static_cast<int>(entity->rigidBody->getType());
+						if (ImGui::Combo("Body Type", &rigidBodyType, "Static\0Kinematic\0Dynamic\0\0"))
+						{
+							entity->rigidBody->setType(static_cast<reactphysics3d::BodyType>(rigidBodyType));
+						}
+
 						ImGui::DragFloat3("##ApplyForce", &physicsForceDebug.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f");
 						ImGui::SameLine();
 						if (ImGui::Button("Apply Force"))
@@ -556,6 +562,23 @@ void Game::DrawDebugUI(EngineCore& engine)
 							ImGui::Separator();
 							DisplayCollider(entity->rigidBody->getCollider(i));
 						}
+
+						ImGui::DragFloat3("##AddColliderSize", &physicsAddColliderDebug.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f");
+						if (ImGui::Button("Add Box Collider"))
+						{
+							auto boxShape = physicsCommon.createBoxShape(PhysicsVectorFromXM(physicsAddColliderDebug));
+							entity->rigidBody->addCollider(boxShape, {});
+						}
+					}
+					else
+					{
+						ImGui::Separator();
+						if (ImGui::Button("Add Rigidbody"))
+						{
+							entity->rigidBody = physicsWorld->createRigidBody(PhysicsTransformFromXM(entity->position, entity->rotation));
+							entity->rigidBody->updateMassPropertiesFromColliders();
+							entity->rigidBody->setType(reactphysics3d::BodyType::STATIC);
+						}
 					}
 
 					if (entity->collisionBody != nullptr)
@@ -569,7 +592,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 							DisplayCollider(entity->collisionBody->getCollider(i));
 						}
 					}
-
+					
 					if (entity->isSkinnedRoot && entity->transformHierachy->nodeCount > 0)
 					{
 						TransformHierachy* hierachy = entity->transformHierachy;
@@ -620,7 +643,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 				{
 					*out_text = ((EngineCore*)data)->m_materials[idx].name.c_str();
 					return true;
-				}, &engine, engine.m_materialCount);
+				}, &engine, engine.m_materials.size);
 		}
 		ImGui::End();
 	}
