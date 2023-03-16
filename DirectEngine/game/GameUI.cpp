@@ -173,6 +173,11 @@ void Game::DrawDebugUI(EngineCore& engine)
 			{
 				SaveConfig(configArena, CONFIG_PATH);
 			}
+			ImGui::SameLine();
+			if (ImGui::Button("Noclip"))
+			{
+				ToggleNoclip();
+			}
 
 			ImGui::Text("Camera Position: %.1f %.1f %.1f", SPLIT_V3(engine.mainCamera->position));
 			ImGui::Text("Camera Rotation: %.1f %.1f", playerPitch / XM_2PI * 360.f, playerYaw / XM_2PI * 360.f);
@@ -359,14 +364,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 	{
 		if (ImGui::Begin("Movement", &showMovementWindow))
 		{
-			ImGui::Checkbox("Noclip", &noclip);
-			ImGui::SameLine();
 			ImGui::Checkbox("Autojump", &movementSettings->autojump);
-			ImGui::SameLine();
-			if (ImGui::Button("Reset Player Look"))
-			{
-				playerLookEntity->position = defaultPlayerLookPosition;
-			}
 			ImGui::SameLine();
 
 			ImVec2 cursorPos = ImGui::GetCursorScreenPos();

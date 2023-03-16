@@ -10,27 +10,6 @@
 
 Game::Game(GAME_CREATION_PARAMS) : globalArena(globalArena), configArena(configArena), levelArena(levelArena) {}
 
-bool Game::LoadGameConfig()
-{
-	configArena.Reset();
-	if (!LoadConfig(configArena, CONFIG_PATH)) return false;
-
-	ConfigFile* configFile = LoadConfigEntry<ConfigFile>(configArena, 0, CONFIG_VERSION);
-	if (configFile == nullptr) return false;
-
-	movementSettings = LoadConfigEntry<MovementSettings>(configArena, configFile->movementSettingsOffset, MOVEMENT_SETTINGS_VERSION);
-	if (movementSettings == nullptr) return false;
-}
-
-void Game::ResetGameConfig()
-{
-	configArena.Reset();
-	ConfigFile* configFile = NewObject(configArena, ConfigFile);
-
-	configFile->movementSettingsOffset = configArena.used;
-	movementSettings = NewObject(configArena, MovementSettings);
-}
-
 void Game::StartGame(EngineCore& engine)
 {
 	INIT_TIMER(timer);
@@ -243,13 +222,9 @@ void Game::UpdateGame(EngineCore& engine)
 	{
 		showLog = !showLog;
 	}
-	if (input.KeyComboJustPressed(VK_KEY_P, VK_CONTROL))
+	if (input.KeyComboJustPressed(VK_KEY_N, VK_CONTROL))
 	{
-		showProfiler = !showProfiler;
-	}
-	if (input.KeyComboJustPressed(VK_KEY_T, VK_CONTROL))
-	{
-		showDebugImage = !showDebugImage;
+		ToggleNoclip();
 	}
 	if (input.KeyComboJustPressed(VK_TAB, VK_CONTROL))
 	{
@@ -282,16 +257,6 @@ void Game::UpdateGame(EngineCore& engine)
 	{
 		engine.m_resetLevel = true;
 		levelLoaded = false;
-	}
-
-	// Unlock camera in noclip
-	if (noclip && playerEntity->children.contains(playerLookEntity))
-	{
-		playerEntity->RemoveChild(playerLookEntity, true);
-	}
-	else if (!noclip && !playerEntity->children.contains(playerLookEntity))
-	{
-		playerEntity->AddChild(playerLookEntity, true);
 	}
 
 	// Player movement
@@ -362,12 +327,15 @@ void Game::UpdateGame(EngineCore& engine)
 		XMVECTOR groundRayEnd = playerEntity->position - V3_UP * collisionEpsilon;
 		minRaycastCollector.Raycast(physicsWorld, groundRayStart, groundRayEnd, CollisionLayers::Floor);
 		playerOnGround = minRaycastCollector.anyCollision;
+
+		/*
 		debugLog.Log(playerOnGround ? "--- G" : "--- A");
 		float ps = MAX_PHYSICS_STEP;
 		debugLog.Log("Delta: {}", engine.m_updateDeltaTime, ps, clampedDeltaTime);
 		debugLog.Log("Player Y: {}", playerEntity->position.m128_f32[1]);
 		debugLog.Log("Ray Y: {} -> {}", groundRayStart.m128_f32[1], groundRayEnd.m128_f32[1]);
 		if (minRaycastCollector.anyCollision) debugLog.Log("Ray hit: {}", minRaycastCollector.collision.worldPoint.m128_f32[1]);
+		*/
 
 		if (playerOnGround)
 		{
@@ -517,9 +485,9 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 	}
 
-	debugLog.Log("Before Physics: {:.1f}, {:.1f}, {:.1f}", SPLIT_V3(XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity())));
+	//debugLog.Log("Before Physics: {:.1f}, {:.1f}, {:.1f}", SPLIT_V3(XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity())));
 	physicsWorld->update(clampedDeltaTime);
-	debugLog.Log("After Physics: {:.1f}, {:.1f}, {:.1f}", SPLIT_V3(XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity())));
+	//debugLog.Log("After Physics: {:.1f}, {:.1f}, {:.1f}", SPLIT_V3(XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity())));
 
 	if (renderPhysics)
 	{
@@ -817,6 +785,42 @@ void Game::Warn(const std::string& message)
 void Game::Error(const std::string& message)
 {
 	if (!stopLog) debugLog.Error(message);
+}
+
+bool Game::LoadGameConfig()
+{
+	configArena.Reset();
+	if (!LoadConfig(configArena, CONFIG_PATH)) return false;
+
+	ConfigFile* configFile = LoadConfigEntry<ConfigFile>(configArena, 0, CONFIG_VERSION);
+	if (configFile == nullptr) return false;
+
+	movementSettings = LoadConfigEntry<MovementSettings>(configArena, configFile->movementSettingsOffset, MOVEMENT_SETTINGS_VERSION);
+	if (movementSettings == nullptr) return false;
+}
+
+void Game::ResetGameConfig()
+{
+	configArena.Reset();
+	ConfigFile* configFile = NewObject(configArena, ConfigFile);
+
+	configFile->movementSettingsOffset = configArena.used;
+	movementSettings = NewObject(configArena, MovementSettings);
+}
+
+void Game::ToggleNoclip()
+{
+	noclip = !noclip;
+	if (noclip)
+	{
+		playerEntity->rigidBody->setLinearVelocity({});
+		playerEntity->RemoveChild(playerLookEntity, true);
+	}
+	else
+	{
+		playerEntity->AddChild(playerLookEntity, true);
+		playerLookEntity->position = defaultPlayerLookPosition;
+	}
 }
 
 MAT_RMAJ CalculateShadowCamProjection(const MAT_RMAJ& camViewMatrix, const MAT_RMAJ& camProjectionMatrix, const MAT_RMAJ& lightViewMatrix)

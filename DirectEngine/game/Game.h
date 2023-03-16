@@ -188,6 +188,7 @@ public:
 
 	bool LoadGameConfig();
 	void ResetGameConfig();
+	void ToggleNoclip();
 
 	void Log(const std::string& message) override;
 	void Warn(const std::string& message) override;
