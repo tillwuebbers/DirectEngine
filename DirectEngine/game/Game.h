@@ -151,7 +151,7 @@ public:
 	AudioSource playerAudioSource{};
 	X3DAUDIO_EMITTER playerAudioEmitter{};
 	X3DAUDIO_LISTENER playerAudioListener{};
-	AudioBuffer* soundFiles[8];
+	CountingArray<AudioBuffer*, MAX_AUDIO_FILES> soundFiles{};
 
 	// Movement
 	MovementSettings* movementSettings = nullptr;

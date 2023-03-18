@@ -463,6 +463,7 @@ void Game::UpdateGame(EngineCore& engine)
 			Entity* targetPortal = portal1;// input.KeyJustPressed(VK_LBUTTON) ? portal1 : portal2;
 			targetPortal->position = minRaycastCollector.collision.worldPoint - camForward * 0.001f;
 			targetPortal->SetForwardDirection(minRaycastCollector.collision.worldNormal);
+			PlaySound(engine, &playerAudioSource, AudioFile::Shoot);
 		}
 	}
 
