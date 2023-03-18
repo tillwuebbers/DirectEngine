@@ -43,7 +43,7 @@ void Game::StartGame(EngineCore& engine)
 	materialIndices.try_emplace(Material::Ground, engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, groundShader));
 	materialIndices.try_emplace(Material::Laser, engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, laserShader));
 	materialIndices.try_emplace(Material::Portal1, engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTextures[0]->texture}, textureQuad));
-	materialIndices.try_emplace(Material::Portal2, engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTextures[1]->texture}, textureQuad));
+	materialIndices.try_emplace(Material::Portal2, engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTextures[0]->texture}, textureQuad));
 	materialIndices.try_emplace(Material::Crosshair, engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, crosshairShader));
 
 	LOG_TIMER(timer, "Materials", debugLog);
@@ -113,17 +113,17 @@ void Game::LoadLevel(EngineCore& engine)
 		portalRenderQuad->name = "PortalQuad";
 
 		Entity* portal = CreateEmptyEntity(engine);
-		portal->rotation = XMQuaternionRotationRollPitchYaw(0.f, XM_PI, 0.f);
 		portal->AddChild(portalRenderQuad, false);
 
 		return portal;
 	};
 	portal1 = createPortal(materialIndices[Material::Portal2]);
-	portal1->position = { 2.f, 2.f, 3.f };
+	portal1->position = { 0.f, 2.f, 0.f };
 	portal1->name = "Portal 1";
 
 	portal2 = createPortal(materialIndices[Material::Portal1]);
-	portal2->position = { -2.f, 2.f, 3.f };
+	portal2->position = { 2.f, 2.f, 0.f };
+	//portal2->rotation = XMQuaternionRotationRollPitchYaw(0.f, XM_PI, 0.f);
 	portal2->name = "Portal 2";
 
 	// Player
@@ -460,7 +460,7 @@ void Game::UpdateGame(EngineCore& engine)
 		minRaycastCollector.Raycast(physicsWorld, engine.mainCamera->position, engine.mainCamera->position + camForward * 1000.f, CollisionLayers::Floor);
 		if (minRaycastCollector.anyCollision)
 		{
-			Entity* targetPortal = input.KeyJustPressed(VK_LBUTTON) ? portal1 : portal2;
+			Entity* targetPortal = portal1;// input.KeyJustPressed(VK_LBUTTON) ? portal1 : portal2;
 			targetPortal->position = minRaycastCollector.collision.worldPoint - camForward * 0.001f;
 			targetPortal->SetForwardDirection(minRaycastCollector.collision.worldNormal);
 		}
@@ -524,11 +524,15 @@ void Game::UpdateGame(EngineCore& engine)
 	XMMatrixDecompose(&camScale, &camRotation, &camTranslation, cameraEntity->worldMatrix);
 	engine.mainCamera->position = camTranslation;
 	engine.mainCamera->rotation = camRotation;
+	engine.mainCamera->UpdateMatrices();
 
-	engine.m_renderTextures[0]->camera->position = portal1->position;
-	engine.m_renderTextures[0]->camera->rotation = portal1->rotation;
-	engine.m_renderTextures[1]->camera->position = portal2->position;
-	engine.m_renderTextures[1]->camera->rotation = portal2->rotation;
+	XMMATRIX portal2Mat = portal2->worldMatrix * XMMatrixInverse(nullptr, portal1->worldMatrix) * cameraEntity->worldMatrix;
+	XMVECTOR portal2Translation, portal2Rotation, portal2Scale;
+	XMMatrixDecompose(&portal2Scale, &portal2Rotation, &portal2Translation, portal2Mat);
+
+	engine.m_renderTextures[0]->camera->position = portal2Translation;
+	engine.m_renderTextures[0]->camera->rotation = portal2Rotation;
+	engine.m_renderTextures[0]->camera->UpdateMatrices();
 
 	CalculateDirectionVectors(camForward, camRight, camUp, engine.mainCamera->rotation);
 
@@ -542,7 +546,7 @@ void Game::UpdateGame(EngineCore& engine)
 	// Update light/shadowmap
 	light.rotation = XMQuaternionRotationRollPitchYaw(45.f / 360.f * XM_2PI, engine.TimeSinceStart(), 0.f);
 
-	MAT_RMAJ lightView = XMMatrixMultiply(XMMatrixTranslationFromVector(XMVectorScale(light.position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(light.rotation)));
+	MAT_RMAJ lightView = XMMatrixMultiply(XMMatrixTranslationFromVector(-light.position), XMMatrixRotationQuaternion(XMQuaternionInverse(light.rotation)));
 	engine.m_lightConstantBuffer.data.lightView = XMMatrixTranspose(lightView);
 
 	if (showLightPosition)

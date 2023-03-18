@@ -645,8 +645,8 @@ void EngineCore::LoadAssets()
     // Cameras
     mainCamera = CreateCamera();
 
-    // Render texture
-    for (int i = 0; i < 2; i++)
+    // Render textures
+    for (int i = 0; i < 1; i++)
     {
         RenderTexture* renderTexture = (m_renderTextures.newElement() = CreateRenderTexture(1024, 2048));
         renderTexture->camera->skipRenderTextures = true;
@@ -677,7 +677,7 @@ void EngineCore::ResetLevelData()
     WaitForGpu();
     for (MaterialData& material : m_materials)
     {
-        material.entityCount = 0;
+        material.entities.clear();
     }
     comPointersLevel.Clear();
     levelArena.Reset();
@@ -831,9 +831,9 @@ size_t EngineCore::CreateMaterial(const size_t maxVertices, const size_t vertexS
 
     data.maxVertexCount = maxVertices;
     data.vertexStride = vertexStride;
-    for (int i = 0; i < textures.size(); i++)
+    for (Texture* tex : textures)
     {
-        data.textures[i] = textures[i];
+        data.textures.newElement() = tex;
     }
     data.name = std::string(shaderName.begin(), shaderName.end());
 
@@ -901,11 +901,8 @@ size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_
 {
     MaterialData& material = m_materials.at(materialIndex);
 
-    assert(material.entityCount < MAX_ENTITIES_PER_MATERIAL);
-    EntityData* entity = material.entities[material.entityCount] = NewObject(levelArena, EntityData);
-    entity->entityIndex = material.entityCount;
-    material.entityCount++;
-
+    EntityData* entity = material.entities.newElement() = NewObject(levelArena, EntityData);
+    entity->entityIndex = material.entities.size - 1;
     entity->materialIndex = materialIndex;
     entity->vertexBufferView = meshView;
 
@@ -1028,9 +1025,8 @@ void EngineCore::PopulateCommandList()
 
     for (MaterialData& data : m_materials)
     {
-        for (int entityIndex = 0; entityIndex < data.entityCount; entityIndex++)
+        for (EntityData* entityData : data.entities)
         {
-            EntityData* entityData = data.entities[entityIndex];
             entityData->constantBuffer.UploadData(m_frameIndex);
             entityData->boneConstantBuffer.UploadData(m_frameIndex);
         }
@@ -1040,7 +1036,6 @@ void EngineCore::PopulateCommandList()
     for (CameraData& cameraData : m_cameras)
 	{
         cameraData.constantBuffer.data.worldCameraPos = cameraData.position;
-        cameraData.UpdateMatrices();
 		cameraData.constantBuffer.UploadData(m_frameIndex);
 	}
 
@@ -1054,11 +1049,6 @@ void EngineCore::PopulateCommandList()
     // Shadows
     BeginProfile("Render Shadows", ImColor::HSV(.5, .1, 1.));
     RenderShadows(m_renderCommandList);
-
-    Transition(m_renderCommandList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COPY_SOURCE);
-    CopyDebugImage(m_renderCommandList, m_shadowmap->textureResource);
-    Transition(m_renderCommandList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
     ExecCommandList(m_renderCommandList);
     EndProfile("Render Shadows");
 
@@ -1107,13 +1097,18 @@ void EngineCore::PopulateCommandList()
 
     BeginProfile("Render Main", ImColor::HSV(.7, .3, 1.));
 
+    ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
+    Transition(m_renderCommandList, m_renderTextures[0]->texture.buffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    CopyDebugImage(m_renderCommandList, m_renderTextures[0]->texture.buffer);
+    Transition(m_renderCommandList, m_renderTextures[0]->texture.buffer, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    ExecCommandList(m_renderCommandList);
+
     // Apply masked animations for first-person
     m_game->BeforeMainRender(*this);
     for (MaterialData& material : m_materials)
     {
-        for (int entityIndex = 0; entityIndex < material.entityCount; entityIndex++)
+        for (EntityData* entityData : material.entities)
         {
-            EntityData* entityData = material.entities[entityIndex];
             entityData->firstPersonBoneConstantBuffer.UploadData(m_frameIndex);
         }
     }
@@ -1163,9 +1158,7 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
 
-    // Barrier to transition shadow map
     Transition(renderList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
-
     renderList->OMSetRenderTargets(0, nullptr, FALSE, &m_shadowmap->depthStencilViewCPU);
 
     // Record commands.
@@ -1174,9 +1167,8 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
 
     for (MaterialData& data : m_materials)
     {
-        for (int entityIndex = 0; entityIndex < data.entityCount; entityIndex++)
+        for (EntityData* entity : data.entities)
         {
-            EntityData* entity = data.entities[entityIndex];
             if (!entity->visible || entity->wireframe) continue;
             renderList->IASetVertexBuffers(0, 1, &entity->vertexBufferView);
             renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
@@ -1184,6 +1176,8 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
             renderList->DrawInstanced(entity->vertexBufferView.SizeInBytes / entity->vertexBufferView.StrideInBytes, 1, 0, 0);
         }
     }
+
+    Transition(renderList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 }
 
 void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera)
@@ -1216,6 +1210,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
 
             if (!camera->skipRenderTextures || !isRenderTexture)
             {
+                assert(data.pipeline->textureSlotCount == data.textures.size);
                 renderList->SetGraphicsRootDescriptorTable(CUSTOM_START + textureIdx, data.textures[textureIdx]->handle.gpuHandle);
             }
             else
@@ -1226,9 +1221,8 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
 
         if (skipRender) continue;
 
-        for (int entityIndex = 0; entityIndex < data.entityCount; entityIndex++)
+        for (EntityData* entity : data.entities)
         {
-            EntityData* entity = data.entities[entityIndex];
             if (!entity->visible || entity->wireframe) continue;
             if (entity->mainOnly && camera != mainCamera) continue;
             renderList->IASetVertexBuffers(0, 1, &entity->vertexBufferView);
@@ -1264,10 +1258,8 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CP
 
     for (MaterialData& data : m_materials)
     {
-        for (int entityIndex = 0; entityIndex < data.entityCount; entityIndex++)
+        for (EntityData* entity : data.entities)
         {
-            EntityData* entity = data.entities[entityIndex];
-
             if (entity->visible && entity->wireframe)
             {
                 renderList->IASetVertexBuffers(0, 1, &entity->vertexBufferView);

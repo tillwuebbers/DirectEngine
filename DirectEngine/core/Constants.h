@@ -23,9 +23,6 @@
 
 #define SHADOWMAP_SIZE 4096
 
-#define IMGUI_DEBUG_TEXTURE_SIZE SHADOWMAP_SIZE
-#define IMGUI_DEBUG_TEXTURE_FORMAT DXGI_FORMAT_R32_FLOAT
-
 #define V3_ZERO    XMVECTOR{ 0.f,  0.f, 0.f }
 #define V3_ONE     XMVECTOR{ 1.f,  1.f, 1.f }
 #define V3_UP      XMVECTOR{ 0.f,  1.f, 0.f }

@@ -11,6 +11,6 @@ PSInputDefault VSMain(float4 position : POSITION, float4 vertColor : COLOR, floa
 
 float4 PSMain(PSInputDefault input) : SV_TARGET
 {
-	float4 diffuseColor = diffuseTexture.Sample(smoothSampler, input.uv);
+	float4 diffuseColor = diffuseTexture.Sample(smoothSampler, float2(1. - input.uv.x, input.uv.y));
 	return float4(PostProcess(diffuseColor.rgb, input.worldPosition.rgb), 1.);
 }

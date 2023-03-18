@@ -91,7 +91,7 @@ AudioBuffer* LoadAudioFile(const wchar_t* path, MemoryArena& arena)
 
     //fill out the audio data buffer with the contents of the fourccDATA chunk
     FindChunk(audioFile, fourccDATA, dwChunkSize, dwChunkPosition);
-    BYTE* pDataBuffer = new BYTE[dwChunkSize];
+    BYTE* pDataBuffer = new BYTE[dwChunkSize]; // @todo: fix alloc
     ReadChunkData(audioFile, pDataBuffer, dwChunkSize, dwChunkPosition);
 
     audioBuffer->buffer.AudioBytes = dwChunkSize;  //size of the audio buffer in bytes

@@ -46,11 +46,11 @@ void SetupImgui(HWND hwnd, EngineCore* engine, int framesInFlight)
 	ZeroMemory(&texDesc, sizeof(D3D12_RESOURCE_DESC));
 	texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	texDesc.Alignment = 0;
-	texDesc.Width = IMGUI_DEBUG_TEXTURE_SIZE;
-	texDesc.Height = IMGUI_DEBUG_TEXTURE_SIZE;
+	texDesc.Width = 1024;
+	texDesc.Height = 2048;
 	texDesc.DepthOrArraySize = 1;
-	texDesc.MipLevels = 1;
-	texDesc.Format = IMGUI_DEBUG_TEXTURE_FORMAT;
+	texDesc.MipLevels = 12;
+	texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 	texDesc.SampleDesc.Count = 1;
 	texDesc.SampleDesc.Quality = 0;
 	texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -61,9 +61,9 @@ void SetupImgui(HWND hwnd, EngineCore* engine, int framesInFlight)
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Format = IMGUI_DEBUG_TEXTURE_FORMAT;
+	srvDesc.Format = texDesc.Format;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Texture2D.MipLevels = texDesc.MipLevels;
 	engine->m_device->CreateShaderResourceView(g_debugTexture.buffer, &srvDesc, g_debugTexture.handle.cpuHandle);
 
 	// Load Fonts

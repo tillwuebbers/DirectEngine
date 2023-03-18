@@ -140,10 +140,8 @@ struct MaterialData
     size_t vertexStride = 0;
     ID3D12Resource* vertexUploadBuffer = nullptr;
     ID3D12Resource* vertexBuffer = nullptr;
-    EntityData* entities[MAX_ENTITIES_PER_MATERIAL] = {};
-    size_t entityCount = 0;
-    Texture* textures[MAX_TEXTURES_PER_MATERIAL] = {};
-    size_t textureCount = 0;
+    CountingArray<EntityData*, MAX_ENTITIES_PER_MATERIAL> entities = {};
+    CountingArray<Texture*, MAX_TEXTURES_PER_MATERIAL> textures = {};
     PipelineConfig* pipeline = nullptr;
     std::string name = "Material";
 };
@@ -187,7 +185,7 @@ struct CameraData
 
     void UpdateMatrices()
     {
-        constantBuffer.data.cameraView = XMMatrixTranspose(XMMatrixMultiply(XMMatrixTranslationFromVector(XMVectorScale(position, -1.f)), XMMatrixRotationQuaternion(XMQuaternionInverse(rotation))));
+        constantBuffer.data.cameraView = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(-position), XMMatrixRotationQuaternion(XMQuaternionInverse(rotation)));
         constantBuffer.data.cameraProjection = XMMatrixTranspose(XMMatrixPerspectiveFovLH(fovY, aspectRatio, nearClip, farClip));
     }
 };
