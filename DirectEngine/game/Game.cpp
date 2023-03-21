@@ -30,6 +30,7 @@ void Game::StartGame(EngineCore& engine)
 	std::wstring laserShader = L"laser";
 	std::wstring crosshairShader = L"crosshair";
 	std::wstring textureQuad = L"texturequad";
+	std::wstring portalShader = L"portal";
 
 	// Textures
 	diffuseTexture = engine.CreateTexture(L"textures/ground_D.dds");
@@ -39,11 +40,11 @@ void Game::StartGame(EngineCore& engine)
 	RESET_TIMER(timer);
 
 	// Materials
-	materialIndices.try_emplace(Material::Test, engine.CreateMaterial(1024 * 64, sizeof(Vertex), { memeTexture }, defaultShader));
-	materialIndices.try_emplace(Material::Ground, engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, groundShader));
-	materialIndices.try_emplace(Material::Laser, engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, laserShader));
-	materialIndices.try_emplace(Material::Portal1, engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTextures[0]->texture}, textureQuad));
-	materialIndices.try_emplace(Material::Portal2, engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTextures[0]->texture}, textureQuad));
+	materialIndices.try_emplace(Material::Test,      engine.CreateMaterial(1024 * 64, sizeof(Vertex), { memeTexture }, defaultShader));
+	materialIndices.try_emplace(Material::Ground,    engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, groundShader));
+	materialIndices.try_emplace(Material::Laser,     engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, laserShader));
+	materialIndices.try_emplace(Material::Portal1,   engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTextures[0]->texture}, portalShader));
+	materialIndices.try_emplace(Material::Portal2,   engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTextures[1]->texture}, portalShader));
 	materialIndices.try_emplace(Material::Crosshair, engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, crosshairShader));
 
 	LOG_TIMER(timer, "Materials", debugLog);
@@ -117,11 +118,11 @@ void Game::LoadLevel(EngineCore& engine)
 
 		return portal;
 	};
-	portal1 = createPortal(materialIndices[Material::Portal2]);
+	portal1 = createPortal(materialIndices[Material::Portal1]);
 	portal1->position = { 0.f, 2.f, 0.f };
 	portal1->name = "Portal 1";
 
-	portal2 = createPortal(materialIndices[Material::Portal1]);
+	portal2 = createPortal(materialIndices[Material::Portal2]);
 	portal2->position = { 2.f, 2.f, 0.f };
 	//portal2->rotation = XMQuaternionRotationRollPitchYaw(0.f, XM_PI, 0.f);
 	portal2->name = "Portal 2";
@@ -460,7 +461,7 @@ void Game::UpdateGame(EngineCore& engine)
 		minRaycastCollector.Raycast(physicsWorld, engine.mainCamera->position, engine.mainCamera->position + camForward * 1000.f, CollisionLayers::Floor);
 		if (minRaycastCollector.anyCollision)
 		{
-			Entity* targetPortal = portal1;// input.KeyJustPressed(VK_LBUTTON) ? portal1 : portal2;
+			Entity* targetPortal = input.KeyJustPressed(VK_LBUTTON) ? portal1 : portal2;
 			targetPortal->position = minRaycastCollector.collision.worldPoint - camForward * 0.001f;
 			targetPortal->SetForwardDirection(minRaycastCollector.collision.worldNormal);
 			PlaySound(engine, &playerAudioSource, AudioFile::Shoot);
@@ -526,16 +527,23 @@ void Game::UpdateGame(EngineCore& engine)
 	engine.mainCamera->position = camTranslation;
 	engine.mainCamera->rotation = camRotation;
 	engine.mainCamera->UpdateMatrices();
+	CalculateDirectionVectors(camForward, camRight, camUp, engine.mainCamera->rotation);
 
-	XMMATRIX portal2Mat = portal2->worldMatrix * XMMatrixInverse(nullptr, portal1->worldMatrix) * cameraEntity->worldMatrix;
+	MAT_RMAJ portal1Mat = portal1->worldMatrix * XMMatrixInverse(nullptr, portal2->worldMatrix) * cameraEntity->worldMatrix;
+	XMVECTOR portal1Translation, portal1Rotation, portal1Scale;
+	XMMatrixDecompose(&portal1Scale, &portal1Rotation, &portal1Translation, portal1Mat);
+
+	MAT_RMAJ portal2Mat = portal2->worldMatrix * XMMatrixInverse(nullptr, portal1->worldMatrix) * cameraEntity->worldMatrix;
 	XMVECTOR portal2Translation, portal2Rotation, portal2Scale;
 	XMMatrixDecompose(&portal2Scale, &portal2Rotation, &portal2Translation, portal2Mat);
 
-	engine.m_renderTextures[0]->camera->position = portal2Translation;
-	engine.m_renderTextures[0]->camera->rotation = portal2Rotation;
+	engine.m_renderTextures[0]->camera->position = portal1Translation;
+	engine.m_renderTextures[0]->camera->rotation = portal1Rotation;
 	engine.m_renderTextures[0]->camera->UpdateMatrices();
 
-	CalculateDirectionVectors(camForward, camRight, camUp, engine.mainCamera->rotation);
+	engine.m_renderTextures[1]->camera->position = portal2Translation;
+	engine.m_renderTextures[1]->camera->rotation = portal2Rotation;
+	engine.m_renderTextures[1]->camera->UpdateMatrices();
 
 	for (CameraData& camera : engine.m_cameras)
 	{

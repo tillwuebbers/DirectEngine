@@ -646,7 +646,7 @@ void EngineCore::LoadAssets()
     mainCamera = CreateCamera();
 
     // Render textures
-    for (int i = 0; i < 1; i++)
+    for (int i = 0; i < 2; i++)
     {
         RenderTexture* renderTexture = (m_renderTextures.newElement() = CreateRenderTexture(1024, 2048));
         renderTexture->camera->skipRenderTextures = true;

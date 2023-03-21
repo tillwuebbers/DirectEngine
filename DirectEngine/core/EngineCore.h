@@ -185,7 +185,7 @@ struct CameraData
 
     void UpdateMatrices()
     {
-        constantBuffer.data.cameraView = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(-position), XMMatrixRotationQuaternion(XMQuaternionInverse(rotation)));
+        constantBuffer.data.cameraView = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(-position), XMMatrixRotationQuaternion(XMQuaternionConjugate(rotation)));
         constantBuffer.data.cameraProjection = XMMatrixTranspose(XMMatrixPerspectiveFovLH(fovY, aspectRatio, nearClip, farClip));
     }
 };
