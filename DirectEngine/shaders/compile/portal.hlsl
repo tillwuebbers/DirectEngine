@@ -2,15 +2,26 @@
 
 Texture2D diffuseTexture : register(t6);
 
-PSInputDefault VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL, float2 uv : UV)
+struct PSInput
 {
-	PSInputDefault result = VSCalcDefault(position, normal, uv);
-	result.color = color;
+	float4 position : SV_POSITION;
+	float4 worldPosition : POSITION;
+	float4 screenPosition : TEXCOORD0;
+};
+
+PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL, float2 uv : UV)
+{
+	PSInput result;
+	result.worldPosition  = mul(position,             worldTransform);
+	result.position       = mul(result.worldPosition, VSGetVP());
+	result.screenPosition = CalcScreenPos(result.position.xyzw * float4(1., -1., 1., 1.));
+	
 	return result;
 }
 
-float4 PSMain(PSInputDefault input) : SV_TARGET
+float4 PSMain(PSInput input) : SV_TARGET
 {
-	float4 diffuseColor = diffuseTexture.Sample(smoothSampler, float2(1. - input.uv.x, input.uv.y));
-	return float4(PostProcess(diffuseColor.rgb, input.worldPosition.rgb), 1.);
+	float2 uv = input.screenPosition.xy / input.screenPosition.w;
+	float4 diffuseColor = diffuseTexture.Sample(smoothSampler, uv);
+	return float4(PostProcess(diffuseColor.rgb, input.worldPosition.xyz), 1.);
 }

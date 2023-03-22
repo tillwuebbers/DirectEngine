@@ -1074,7 +1074,7 @@ void EngineCore::PopulateCommandList()
                 Transition(m_renderCommandList, renderTexture->texture.buffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
             }
 
-            m_renderCommandList->ClearRenderTargetView(renderTexture->rtvHandle, m_renderTargetClearColor, 0, nullptr);
+            m_renderCommandList->ClearRenderTargetView(renderTexture->rtvHandle, m_game->GetClearColor(), 0, nullptr);
             m_renderCommandList->ClearDepthStencilView(renderTexture->dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
             RenderScene(m_renderCommandList, renderTexture->rtvHandle, renderTexture->dsvHandle, renderTexture->camera);
 

@@ -71,6 +71,14 @@ PSInputDefault VSCalcDefault(float4 position, float3 normal, float2 uv)
 	return result;
 }
 
+float4 CalcScreenPos(float4 clipPos)
+{
+	float4 screenPos = clipPos * .5f;
+	screenPos.xy += screenPos.w;
+	screenPos.zw = clipPos.zw;
+	return screenPos;
+}
+
 struct LightData
 {
 	float3 ambientLight;
