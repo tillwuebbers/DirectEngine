@@ -8,6 +8,26 @@
 #define SLIDER_MIN (-1000.f)
 #define SLIDER_MAX 1000.f
 
+XMVECTOR GetMatrixColumn(XMMATRIX& mat, size_t index)
+{
+	assert(index >= 0 && index < 4 && "Invalid matrix column index");
+	XMVECTOR result{};
+	for (int i = 0; i < 4; i++)
+	{
+		result.m128_f32[i] = mat.r[i].m128_f32[index];
+	}
+	return result;
+}
+
+void SetMatrixColumn(XMMATRIX& mat, size_t index, XMVECTOR& value)
+{
+	assert(index >= 0 && index < 4 && "Invalid matrix column index");
+	for (int i = 0; i < 4; i++)
+	{
+		mat.r[i].m128_f32[index] = value.m128_f32[i];
+	}
+}
+
 void DisplayMatrix(XMMATRIX& mat)
 {
 	XMVECTOR scale, rotation, translation;
@@ -104,6 +124,25 @@ void InputSizeT(const char* label, size_t* value)
 	size_t defaultStep = 1;
 	size_t defaultStepBig = 100;
 	ImGui::InputScalar(label, ImGuiDataType_U64, value, (void*)&defaultStep, (void*)&defaultStepBig, "%llu", 0);
+}
+
+void InputMatrix(XMMATRIX& mat, const char* id)
+{
+	XMVECTOR scale, rotation, translation;
+	XMMatrixDecompose(&scale, &rotation, &translation, mat);
+
+	ImGui::PushID(id);
+	ImGui::PushItemWidth(-FLT_MIN);
+	for (int i = 0; i < 4; i++)
+	{
+		XMVECTOR col = GetMatrixColumn(mat, i);
+		if (ImGui::InputFloat4(("##c" + std::to_string(i)).c_str(), &col.m128_f32[0]))
+		{
+			SetMatrixColumn(mat, i, col);
+		}
+	}
+	ImGui::PopItemWidth();
+	ImGui::PopID();
 }
 
 void Game::DrawUI(EngineCore& engine)
@@ -263,6 +302,11 @@ void Game::DrawDebugUI(EngineCore& engine)
 			{
 				showLightWindow = !showLightWindow;
 			}
+			ImGui::SameLine();
+			if (ImGui::Button("Matrix Calc"))
+			{
+				showMatrixCalculator = !showMatrixCalculator;
+			}
 		}
 		ImGui::End();
 	}
@@ -372,6 +416,16 @@ void Game::DrawDebugUI(EngineCore& engine)
 			ImGui::GetWindowDrawList()->AddLine({ cursorPos.x, cursorPos.y + 10.f }, { cursorPos.x + (playerDisplaySpeed * 30.f / movementSettings->playerMaxSpeed), cursorPos.y + 10.f }, ImColor(.1f, .2f, .9f), 10.f);
 			ImGui::SetCursorPosX(cursorPos.x + 35.f);
 			ImGui::Text("Vel: %.1f", playerDisplaySpeed);
+
+			ImGui::Text("Pitch");
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(80.f);
+			ImGui::DragFloat("##pitch", &playerPitch, .05f, -XMConvertToRadians(80.f), XMConvertToRadians(80.f), "%.1f");
+			ImGui::SameLine();
+			ImGui::Text("Yaw");
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(80.f);
+			ImGui::DragFloat("##yaw", &playerYaw, .05f, -XMConvertToRadians(360.f), XMConvertToRadians(360.f), "%.1f");
 
 			ImGui::SliderFloat("Acceleration", &movementSettings->playerAcceleration, 1., 200., "%.0f");
 			ImGui::SliderFloat("Friction", &movementSettings->playerFriction, 1., 200., "%.0f");
@@ -662,6 +716,69 @@ void Game::DrawDebugUI(EngineCore& engine)
 			// light position
 			ImGui::Text("Light Position: (%.1f %.1f %.1f)", light.position.m128_f32[0], light.position.m128_f32[1], light.position.m128_f32[2]);
 			ImGui::Text("Light Rotation: (%.1f %.1f %.1f %.1f)", light.rotation.m128_f32[0], light.rotation.m128_f32[1], light.rotation.m128_f32[2], light.rotation.m128_f32[3]);
+		}
+		ImGui::End();
+	}
+
+	if (showMatrixCalculator)
+	{
+		if (ImGui::Begin("Matrix Calc", &showMatrixCalculator))
+		{
+			if (ImGui::BeginCombo("Camera", matrixCalcSelectedCam == nullptr ? "-" : matrixCalcSelectedCam->name.str))
+			{
+				if (ImGui::Selectable("-", matrixCalcSelectedCam == nullptr))
+				{
+					matrixCalcSelectedCam = nullptr;
+					matrixCalcViewMatrix = XMMatrixIdentity();
+					matrixCalcProjectionMatrix = XMMatrixIdentity();
+				}
+
+				for (CameraData& cam : engine.m_cameras)
+				{
+					bool isSelected = matrixCalcSelectedCam == &cam;
+					if (ImGui::Selectable(cam.name.str, isSelected))
+					{
+						matrixCalcSelectedCam = &cam;
+					}
+					if (isSelected)
+					{
+						ImGui::SetItemDefaultFocus();
+					}
+				}
+				ImGui::EndCombo();
+			}
+			ImGui::Separator();
+
+			if (matrixCalcSelectedCam != nullptr)
+			{
+				matrixCalcViewMatrix = XMMatrixTranspose(matrixCalcSelectedCam->constantBuffer.data.cameraView);
+				matrixCalcProjectionMatrix = XMMatrixTranspose(matrixCalcSelectedCam->constantBuffer.data.cameraProjection);
+			}
+
+			ImGui::Text("Input Vector");
+			ImGui::SetNextItemWidth(-FLT_MIN);
+			ImGui::InputFloat4("##calcipnut", &matrixCalcInputVec.m128_f32[0]);
+			ImGui::Separator();
+
+			ImGui::Text("Model");
+			InputMatrix(matrixCalcModelMatrix, "Model");
+			XMVECTOR worldResult = XMVector3Transform(matrixCalcInputVec, matrixCalcModelMatrix);
+			ImGui::Text("Result (World): %.1f %.1f %.1f %.1f", SPLIT_V4(worldResult));
+			ImGui::Separator();
+
+			ImGui::Text("View");
+			InputMatrix(matrixCalcViewMatrix, "View");
+			XMVECTOR viewResult = XMVector3Transform(worldResult, matrixCalcViewMatrix);
+			ImGui::Text("Result (View): %.1f %.1f %.1f %.1f", SPLIT_V4(viewResult));
+			ImGui::Separator();
+
+			ImGui::Text("Projection");
+			InputMatrix(matrixCalcProjectionMatrix, "Projection");
+			XMVECTOR projectionResult = XMVector3Transform(viewResult, matrixCalcProjectionMatrix);
+			ImGui::Text("Result (Projection): %.1f %.1f %.1f %.1f", SPLIT_V4(projectionResult));
+
+			XMVECTOR ndcResult = projectionResult / projectionResult.m128_f32[3];
+			ImGui::Text("Result (NDC): %.1f %.1f %.1f %.1f", SPLIT_V4(ndcResult));
 		}
 		ImGui::End();
 	}

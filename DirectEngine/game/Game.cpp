@@ -527,6 +527,7 @@ void Game::UpdateGame(EngineCore& engine)
 	engine.mainCamera->position = camTranslation;
 	engine.mainCamera->rotation = camRotation;
 	engine.mainCamera->UpdateMatrices();
+
 	CalculateDirectionVectors(camForward, camRight, camUp, engine.mainCamera->rotation);
 
 	MAT_RMAJ portal1Mat = portal1->worldMatrix * XMMatrixInverse(nullptr, portal2->worldMatrix) * cameraEntity->worldMatrix;

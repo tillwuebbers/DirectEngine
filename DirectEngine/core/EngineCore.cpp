@@ -650,6 +650,7 @@ void EngineCore::LoadAssets()
     {
         RenderTexture* renderTexture = (m_renderTextures.newElement() = CreateRenderTexture(1024, 2048));
         renderTexture->camera->skipRenderTextures = true;
+        renderTexture->camera->name = ("Render Texture " + std::to_string(i)).c_str();
     }
 
     // Create synchronization objects and wait until assets have been uploaded to the GPU.

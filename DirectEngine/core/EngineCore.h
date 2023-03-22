@@ -182,6 +182,7 @@ struct CameraData
     float nearClip = .1f;
     float farClip = 100.f;
     bool skipRenderTextures = false;
+    FixedStr name = "Camera";
 
     void UpdateMatrices()
     {

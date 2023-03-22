@@ -90,6 +90,7 @@ public:
 	bool showInactiveEntities = false;
 	bool showLightSpaceDebug = false;
 	bool showLightPosition = false;
+	bool showMatrixCalculator = false;
 	bool keepDebugMenuVisibleInGame = ISDEBUG;
 
 	bool frameStep = false;
@@ -102,6 +103,12 @@ public:
 	XMVECTOR physicsForceDebug = {};
 	XMVECTOR physicsTorqueDebug = {};
 	XMVECTOR physicsAddColliderDebug = {};
+
+	CameraData* matrixCalcSelectedCam = nullptr;
+	XMVECTOR matrixCalcInputVec = {};
+	XMMATRIX matrixCalcModelMatrix = XMMatrixIdentity();
+	XMMATRIX matrixCalcViewMatrix = XMMatrixIdentity();
+	XMMATRIX matrixCalcProjectionMatrix = XMMatrixIdentity();
 
 	// Updates
 	WindowUpdate windowUpdateData{};

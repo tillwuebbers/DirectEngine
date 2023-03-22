@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../core/Memory.h"
 #include "../core/EngineCore.h"
 #include "../core/Audio.h"
 #include "../core/Collision.h"
@@ -9,44 +10,6 @@
 using namespace DirectX;
 
 #include <reactphysics3d/reactphysics3d.h>
-
-struct FixedStr
-{
-	constexpr static size_t SIZE = 128;
-	char str[SIZE]{};
-
-	FixedStr& operator=(const char* other)
-	{
-		strcpy_s((char*)str, SIZE, other);
-		return *this;
-	}
-
-	FixedStr(const char* other)
-	{
-		strcpy_s((char*)str, SIZE, other);
-	}
-
-	bool operator==(const FixedStr& other) const
-	{
-		return strcmp(str, other.str) == 0;
-	}
-
-	bool operator==(const char* other) const
-	{
-		return strcmp(str, other) == 0;
-	}
-};
-
-template <>
-struct std::formatter<FixedStr> {
-	constexpr auto parse(std::format_parse_context& ctx) {
-		return ctx.begin();
-	}
-
-	auto format(const FixedStr& obj, std::format_context& ctx) {
-		return std::format_to(ctx.out(), "{}", obj.str);
-	}
-};
 
 class Entity
 {
