@@ -129,13 +129,24 @@ struct ExtendedMatrix
 
     XMVECTOR translation = {};
     XMVECTOR rotation = XMQuaternionIdentity();
+    XMMATRIX rotationMatrix = XMMatrixIdentity();
     XMVECTOR scale = { 1.f, 1.f, 1.f };
+
+    XMVECTOR right = {};
+    XMVECTOR up = {};
+    XMVECTOR forward = {};
+
 
     void SetMatrix(const MAT_RMAJ mat)
     {
         matrix = mat;
         matrixT = XMMatrixTranspose(matrix);
         XMMatrixDecompose(&scale, &rotation, &translation, matrix);
+        
+        rotationMatrix = XMMatrixRotationQuaternion(rotation);
+        right   = XMVector3Transform(V3_RIGHT,   rotationMatrix);
+        up      = XMVector3Transform(V3_UP,      rotationMatrix);
+        forward = XMVector3Transform(V3_FORWARD, rotationMatrix);
 
         inverse = XMMatrixInverse(nullptr, matrix);
         inverseT = XMMatrixTranspose(inverse);

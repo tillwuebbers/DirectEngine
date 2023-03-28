@@ -201,9 +201,6 @@ void Game::UpdateGame(EngineCore& engine)
 	input.accessMutex.lock();
 	input.UpdateMousePosition();
 
-	// Read camera rotation into vectors
-	XMVECTOR camForward, camRight, camUp;
-	CalculateDirectionVectors(camForward, camRight, camUp, engine.mainCamera->worldMatrix.rotation);
 	float clampedDeltaTime = std::min(engine.m_updateDeltaTime, MAX_PHYSICS_STEP);
 
 	// Reset per frame values
@@ -248,7 +245,7 @@ void Game::UpdateGame(EngineCore& engine)
 	cameraEntity->SetLocalRotation(XMQuaternionRotationRollPitchYaw(playerPitch, 0.f, 0.f));
 	playerLookEntity->SetLocalRotation(XMQuaternionRotationRollPitchYaw(0.f, playerYaw, 0.f));
 
-	XMVECTOR horizontalCamForward = XMVectorSetY(camForward, 0.f);
+	XMVECTOR horizontalCamForward = XMVectorSetY(cameraEntity->worldMatrix.forward, 0.f);
 	if (XMVectorGetX(XMVector3AngleBetweenVectors(horizontalCamForward, playerModelEntity->GetForwardDirection())) > XMConvertToRadians(20.f))
 	{
 		playerModelEntity->SetForwardDirection(XMVector3Normalize(horizontalCamForward));
@@ -276,8 +273,8 @@ void Game::UpdateGame(EngineCore& engine)
 		if (input.KeyDown(VK_CONTROL)) camSpeed *= 5.f;
 
 		XMVECTOR lookPos = playerLookEntity->GetWorldPosition();
-		lookPos += camRight * horizontalInput * clampedDeltaTime * camSpeed;
-		lookPos += camForward * verticalInput * clampedDeltaTime * camSpeed;
+		lookPos += cameraEntity->worldMatrix.right * horizontalInput * clampedDeltaTime * camSpeed;
+		lookPos += cameraEntity->worldMatrix.forward * verticalInput * clampedDeltaTime * camSpeed;
 		playerLookEntity->SetWorldPosition(lookPos);
 	}
 	else
@@ -289,8 +286,8 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 
 		// Add input to velocity
-		XMVECTOR playerForward = XMVector3Normalize(XMVectorSetY(camForward, 0.f));
-		XMVECTOR playerRight = XMVector3Normalize(XMVectorSetY(camRight, 0.f));
+		XMVECTOR playerForward = XMVector3Normalize(XMVectorSetY(cameraEntity->worldMatrix.forward, 0.f));
+		XMVECTOR playerRight = XMVector3Normalize(XMVectorSetY(cameraEntity->worldMatrix.right, 0.f));
 
 		XMVECTOR wantedForward = XMVectorSetY(XMVectorScale(playerForward, verticalInput), 0.f);
 		XMVECTOR wantedSideways = XMVectorSetY(XMVectorScale(playerRight, horizontalInput), 0.f);
@@ -452,29 +449,33 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 
 	// Player Audio
-	XMStoreFloat3(&playerAudioListener.OrientFront, camForward);
-	XMStoreFloat3(&playerAudioListener.OrientTop, XMVector3Cross(camForward, camRight));
+	XMStoreFloat3(&playerAudioListener.OrientFront, cameraEntity->worldMatrix.forward);
+	XMStoreFloat3(&playerAudioListener.OrientTop, cameraEntity->worldMatrix.up);
 	XMStoreFloat3(&playerAudioListener.Position, engine.mainCamera->worldMatrix.translation);
 	XMStoreFloat3(&playerAudioListener.Velocity, XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity()));
 
 	// Shoot portal
 	if (input.KeyJustPressed(VK_LBUTTON) || input.KeyJustPressed(VK_RBUTTON))
 	{
-		minRaycastCollector.Raycast(physicsWorld, engine.mainCamera->worldMatrix.translation, engine.mainCamera->worldMatrix.translation + camForward * 1000.f, CollisionLayers::Floor);
+		minRaycastCollector.Raycast(physicsWorld, engine.mainCamera->worldMatrix.translation, engine.mainCamera->worldMatrix.translation + cameraEntity->worldMatrix.forward * 1000.f, CollisionLayers::Floor);
 		if (minRaycastCollector.anyCollision)
 		{
 			Entity* targetPortal = input.KeyJustPressed(VK_LBUTTON) ? portal1 : portal2;
-			targetPortal->SetWorldPosition(minRaycastCollector.collision.worldPoint - camForward * 0.001f);
+			targetPortal->SetWorldPosition(minRaycastCollector.collision.worldPoint - cameraEntity->worldMatrix.forward * 0.001f);
 			targetPortal->SetForwardDirection(minRaycastCollector.collision.worldNormal);
 			PlaySound(engine, &playerAudioSource, AudioFile::Shoot);
 		}
 	}
 
-	// Update entities
+	// Update animations: iteration order is not guaranteed to be parent->child, so do other things in a separate pass
 	for (Entity& entity : entityArena)
 	{
 		entity.UpdateAnimation(engine, false);
-		entity.UpdatePhysics();
+	}
+
+	for (Entity& entity : entityArena)
+	{
+		entity.WritePhysicsTransform();
 	}
 
 	//debugLog.Log("Before Physics: {:.1f}, {:.1f}, {:.1f}", SPLIT_V3(XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity())));
@@ -493,29 +494,13 @@ void Game::UpdateGame(EngineCore& engine)
 
 	for (Entity& entity : entityArena)
 	{
-		if (entity.rigidBody == nullptr) continue;
-		const reactphysics3d::Transform& rbTransform = entity.rigidBody->getTransform();
-		const reactphysics3d::Vector3& rbPosition = rbTransform.getPosition();
-		const reactphysics3d::Quaternion& rbOrientation = rbTransform.getOrientation();
-		entity.SetWorldPosition({rbPosition.x, rbPosition.y, rbPosition.z});
-		entity.SetWorldRotation({rbOrientation.x, rbOrientation.y, rbOrientation.z, rbOrientation.w});
-	}
-
-	// Update entity matrices
-	for (Entity& entity : entityArena)
-	{
-		if (entity.parent == nullptr)
-		{
-			entity.UpdateWorldMatrix();
-			entity.UpdateAudio(engine, &playerAudioListener);
-		}
+		entity.ReadPhysicsTransform();
+		entity.UpdateAudio(engine, &playerAudioListener);
 	}
 
 	// Update Camera
 	engine.mainCamera->UpdateViewMatrix(cameraEntity->worldMatrix.matrix);
 	engine.mainCamera->UpdateProjectionMatrix();
-
-	CalculateDirectionVectors(camForward, camRight, camUp, engine.mainCamera->worldMatrix.rotation);
 
 	MAT_RMAJ portal1Mat = portal1->worldMatrix.matrix * portal2->worldMatrix.inverse * cameraEntity->worldMatrix.matrix;
 	MAT_RMAJ portal2Mat = portal2->worldMatrix.matrix * portal1->worldMatrix.inverse * cameraEntity->worldMatrix.matrix;
@@ -544,8 +529,7 @@ void Game::UpdateGame(EngineCore& engine)
 		engine.m_debugLineData.AddLine(light.position, light.position + XMVector3TransformNormal({ 0.f, 0.f, 1.f }, XMMatrixRotationQuaternion(light.rotation)), { 0.f, 0.f, 0.f, 1.f }, { 1.f, 1.f, 1.f, 1.f });
 	}
 
-	XMVECTOR lightRight, lightUp;
-	CalculateDirectionVectors(engine.m_lightConstantBuffer.data.sunDirection, lightRight, lightUp, light.rotation);
+	engine.m_lightConstantBuffer.data.sunDirection = XMVector3TransformNormal({ 0.f, 0.f, 1.f }, XMMatrixRotationQuaternion(light.rotation));
 
 	MAT_RMAJ camView = XMMatrixTranspose(engine.mainCamera->constantBuffer.data.cameraView);
 	MAT_RMAJ camProj = XMMatrixTranspose(engine.mainCamera->constantBuffer.data.cameraProjection);

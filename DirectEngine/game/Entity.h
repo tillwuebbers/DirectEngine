@@ -60,7 +60,8 @@ public:
 	XMVECTOR GetForwardDirection();
 	void UpdateAudio(EngineCore& engine, const X3DAUDIO_LISTENER* audioListener);
 	void UpdateAnimation(EngineCore& engine, bool isMainRender);
-	void UpdatePhysics();
+	void WritePhysicsTransform();
+	void ReadPhysicsTransform();
 	void SetActive(bool newState, bool affectSelf = true);
 	bool IsActive();
 
@@ -84,7 +85,5 @@ private:
 	bool isParentActive = true;
 	bool isSelfActive = true;
 };
-
-void CalculateDirectionVectors(XMVECTOR& outForward, XMVECTOR& outRight, XMVECTOR& outUp, XMVECTOR inRotation);
 
 XMVECTOR SampleAnimation(AnimationData& animData, float animationTime, XMVECTOR(__vectorcall* interp)(XMVECTOR a, XMVECTOR b, float t));

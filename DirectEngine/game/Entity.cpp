@@ -155,15 +155,12 @@ XMVECTOR Entity::GetForwardDirection()
 
 void Entity::UpdateAudio(EngineCore& engine, const X3DAUDIO_LISTENER* audioListener)
 {
-	XMVECTOR entityForwards, entityRight, entityUp;
-	CalculateDirectionVectors(entityForwards, entityRight, entityUp, worldMatrix.rotation);
-
 	IXAudio2SourceVoice* audioSourceVoice = audioSource.source;
 	if (audioSourceVoice != nullptr)
 	{
 		X3DAUDIO_EMITTER& emitter = audioSource.audioEmitter;
-		XMStoreFloat3(&emitter.OrientFront, entityForwards);
-		XMStoreFloat3(&emitter.OrientTop, entityUp);
+		XMStoreFloat3(&emitter.OrientFront, worldMatrix.forward);
+		XMStoreFloat3(&emitter.OrientTop, worldMatrix.up);
 		XMStoreFloat3(&emitter.Position, worldMatrix.translation);
 
 		if (rigidBody != nullptr)
@@ -264,7 +261,7 @@ void Entity::UpdateAnimation(EngineCore& engine, bool isMainRender)
 	}
 }
 
-void Entity::UpdatePhysics()
+void Entity::WritePhysicsTransform()
 {
 	if (collisionBody != nullptr)
 	{
@@ -274,6 +271,17 @@ void Entity::UpdatePhysics()
 	{
 		rigidBody->setTransform(GetPhysicsTransform());
 	}
+}
+
+void Entity::ReadPhysicsTransform()
+{
+	if (rigidBody == nullptr) return;
+
+	const reactphysics3d::Transform& rbTransform = rigidBody->getTransform();
+	const reactphysics3d::Vector3& rbPosition = rbTransform.getPosition();
+	const reactphysics3d::Quaternion& rbOrientation = rbTransform.getOrientation();
+	SetWorldPosition({ rbPosition.x, rbPosition.y, rbPosition.z });
+	SetWorldRotation({ rbOrientation.x, rbOrientation.y, rbOrientation.z, rbOrientation.w });
 }
 
 void Entity::SetActive(bool newState, bool affectSelf)
@@ -300,14 +308,6 @@ void Entity::SetActive(bool newState, bool affectSelf)
 bool Entity::IsActive()
 {
 	return isParentActive && isSelfActive;
-}
-
-void CalculateDirectionVectors(XMVECTOR& outForward, XMVECTOR& outRight, XMVECTOR& outUp, XMVECTOR inRotation)
-{
-	XMMATRIX rotationMatrix = XMMatrixRotationQuaternion(inRotation);
-	outForward = XMVector3Transform(V3_FORWARD, rotationMatrix);
-	outRight = XMVector3Transform(V3_RIGHT, rotationMatrix);
-	outUp = XMVector3Cross(outForward, outRight);
 }
 
 XMVECTOR SampleAnimation(AnimationData& animData, float animationTime, XMVECTOR(__vectorcall* interp)(XMVECTOR a, XMVECTOR b, float t))
