@@ -14,7 +14,7 @@ PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 norm
 	PSInput result;
 	result.worldPosition  = mul(position,             worldTransform);
 	result.position       = mul(result.worldPosition, VSGetVP());
-	result.screenPosition = CalcScreenPos(result.position.xyzw * float4(1., -1., 1., 1.));
+	result.screenPosition = CalcScreenPos(result.position * float4(1., -1., 1., 1.)); 
 	
 	return result;
 }

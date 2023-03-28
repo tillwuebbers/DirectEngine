@@ -73,8 +73,8 @@ PSInputDefault VSCalcDefault(float4 position, float3 normal, float2 uv)
 
 float4 CalcScreenPos(float4 clipPos)
 {
-	float4 screenPos = clipPos * .5f;
-	screenPos.xy += screenPos.w;
+	float4 screenPos = clipPos * .5;
+	screenPos.xy = float2(screenPos.x, screenPos.y) + screenPos.w;
 	screenPos.zw = clipPos.zw;
 	return screenPos;
 }
