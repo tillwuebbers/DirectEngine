@@ -46,10 +46,10 @@ void SetupImgui(HWND hwnd, EngineCore* engine, int framesInFlight)
 	ZeroMemory(&texDesc, sizeof(D3D12_RESOURCE_DESC));
 	texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	texDesc.Alignment = 0;
-	texDesc.Width = 1024;
-	texDesc.Height = 2048;
+	texDesc.Width = engine->m_width;
+	texDesc.Height = engine->m_height;
 	texDesc.DepthOrArraySize = 1;
-	texDesc.MipLevels = 12;
+	texDesc.MipLevels = 1;
 	texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 	texDesc.SampleDesc.Count = 1;
 	texDesc.SampleDesc.Quality = 0;

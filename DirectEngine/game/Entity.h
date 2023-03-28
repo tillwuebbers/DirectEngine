@@ -14,13 +14,9 @@ using namespace DirectX;
 class Entity
 {
 public:
-	XMVECTOR position{ 0.f, 0.f, 0.f };
-	XMVECTOR rotation{ 0.f, 0.f, 0.f, 1.f };
-	XMVECTOR scale{ 1.f, 1.f, 1.f };
-
-	MAT_RMAJ localMatrix = XMMatrixIdentity();
-	MAT_RMAJ worldMatrix = XMMatrixIdentity();
-
+	ExtendedMatrix localMatrix;
+	ExtendedMatrix worldMatrix;
+	
 	FixedStr name = "Entity";
 
 	EngineCore* engine;
@@ -53,7 +49,6 @@ public:
 	void AddChild(Entity* child, bool keepWorldPosition);
 	void RemoveChild(Entity* child, bool keepWorldPosition);
 
-	reactphysics3d::Transform GetPhysicsTransform();
 	void InitRigidBody(reactphysics3d::PhysicsWorld* physicsWorld, reactphysics3d::BodyType type = reactphysics3d::BodyType::DYNAMIC);
 	void InitCollisionBody(reactphysics3d::PhysicsWorld* physicsWorld);
 	reactphysics3d::Collider* InitBoxCollider(reactphysics3d::PhysicsCommon& physicsCommon, XMVECTOR boxExtents, XMVECTOR boxOffset, CollisionLayers collisionLayers, float bounciness = 0.1f, float friction = 0.5f, float density = 1.0f);
@@ -65,8 +60,25 @@ public:
 	XMVECTOR GetForwardDirection();
 	void UpdateAudio(EngineCore& engine, const X3DAUDIO_LISTENER* audioListener);
 	void UpdateAnimation(EngineCore& engine, bool isMainRender);
+	void UpdatePhysics();
 	void SetActive(bool newState, bool affectSelf = true);
 	bool IsActive();
+
+	void SetLocalPosition(const XMVECTOR localPos);
+	void SetLocalRotation(const XMVECTOR localRot);
+	void SetLocalScale(const XMVECTOR localScale);
+	XMVECTOR GetLocalPosition();
+	XMVECTOR GetLocalRotation();
+	XMVECTOR GetLocalScale();
+
+	void SetWorldPosition(const XMVECTOR worldPos);
+	void SetWorldRotation(const XMVECTOR worldRot);
+	void SetWorldScale(const XMVECTOR worldScale);
+	XMVECTOR GetWorldPosition();
+	XMVECTOR GetWorldRotation();
+	XMVECTOR GetWorldScale();
+
+	reactphysics3d::Transform GetPhysicsTransform();
 
 private:
 	bool isParentActive = true;

@@ -109,8 +109,8 @@ void Game::LoadLevel(EngineCore& engine)
 	// Portals
 	auto createPortal = [&](size_t matIndex) {
 		Entity* portalRenderQuad = CreateQuadEntity(engine, matIndex, 2.f, 4.f);
-		portalRenderQuad->position = { -1.f, 2.f, 0.f };
-		portalRenderQuad->rotation = XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f);
+		portalRenderQuad->SetLocalPosition({-1.f, 2.f, 0.f});
+		portalRenderQuad->SetLocalRotation(XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f));
 		portalRenderQuad->name = "PortalQuad";
 
 		Entity* portal = CreateEmptyEntity(engine);
@@ -119,18 +119,18 @@ void Game::LoadLevel(EngineCore& engine)
 		return portal;
 	};
 	portal1 = createPortal(materialIndices[Material::Portal1]);
-	portal1->position = { 0.f, 2.f, 0.f };
+	portal1->SetLocalPosition({ 0.f, 2.f, 0.f });
 	portal1->name = "Portal 1";
 
 	portal2 = createPortal(materialIndices[Material::Portal2]);
-	portal2->position = { 2.f, 2.f, 0.f };
+	portal2->SetLocalPosition({ 2.f, 2.f, 0.f });
 	//portal2->rotation = XMQuaternionRotationRollPitchYaw(0.f, XM_PI, 0.f);
 	portal2->name = "Portal 2";
 
 	// Player
 	playerEntity = CreateEmptyEntity(engine);
 	playerEntity->name = "Player";
-	playerEntity->position = { 0.f, 1.f, 0.f };
+	playerEntity->SetLocalPosition({ 0.f, 1.f, 0.f });
 	playerEntity->InitRigidBody(physicsWorld, reactphysics3d::BodyType::DYNAMIC);
 	playerEntity->InitBoxCollider(physicsCommon, { .5f, 1.f, .5f }, { 0.f, 1.f, 0.f }, CollisionLayers::Player);
 	playerEntity->rigidBody->setAngularLockAxisFactor({ 0.f, 0.f, 0.f });
@@ -138,12 +138,12 @@ void Game::LoadLevel(EngineCore& engine)
 
 	playerLookEntity = CreateEmptyEntity(engine);
 	playerLookEntity->name = "PlayerLook";
-	playerLookEntity->position = defaultPlayerLookPosition;
+	playerLookEntity->SetLocalPosition(defaultPlayerLookPosition);
 	playerEntity->AddChild(playerLookEntity, false);
 
 	cameraEntity = CreateEmptyEntity(engine);
 	cameraEntity->name = "Camera";
-	cameraEntity->position = { 0.f, 0.f, 0.15f };
+	cameraEntity->SetLocalPosition({ 0.f, 0.f, 0.15f });
 	playerLookEntity->AddChild(cameraEntity, false);
 
 	playerModelEntity = CreateEntityFromGltf(engine, "models/kaiju.glb", L"entity", debugLog);
@@ -159,14 +159,14 @@ void Game::LoadLevel(EngineCore& engine)
 	Entity* groundEntity = CreateQuadEntity(engine, materialIndices[Material::Ground], 100.f, 100.f, false, CollisionInitType::RigidBody, CollisionLayers::Floor);
 	groundEntity->name = "Ground";
 	groundEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
-	groundEntity->position = XMVectorSetY(groundEntity->position, -.01f);
+	groundEntity->SetLocalPosition(XMVectorSetY(groundEntity->localMatrix.translation, -.01f));
 	groundEntity->rigidBody->setType(reactphysics3d::BodyType::STATIC);
 
 	for (int i = 0; i < 16; i++)
 	{
 		Entity* yea = CreateMeshEntity(engine, materialIndices[Material::Ground], engine.cubeVertexView);
 		yea->name = "Yea";
-		yea->position = { 3.f, 0.5f + i * 16.f, 0.f };
+		yea->SetLocalPosition({ 3.f, 0.5f + i * 16.f, 0.f });
 		yea->InitRigidBody(physicsWorld);
 		yea->InitBoxCollider(physicsCommon, { .5f, .5f, .5f }, {}, CollisionLayers::Floor);
 	}
@@ -203,7 +203,7 @@ void Game::UpdateGame(EngineCore& engine)
 
 	// Read camera rotation into vectors
 	XMVECTOR camForward, camRight, camUp;
-	CalculateDirectionVectors(camForward, camRight, camUp, engine.mainCamera->rotation);
+	CalculateDirectionVectors(camForward, camRight, camUp, engine.mainCamera->worldMatrix.rotation);
 	float clampedDeltaTime = std::min(engine.m_updateDeltaTime, MAX_PHYSICS_STEP);
 
 	// Reset per frame values
@@ -245,8 +245,8 @@ void Game::UpdateGame(EngineCore& engine)
 		if (playerPitch < -maxPitch) playerPitch = -maxPitch;
 	}
 
-	cameraEntity->rotation = XMQuaternionRotationRollPitchYaw(playerPitch, 0.f, 0.f);
-	playerLookEntity->rotation = XMQuaternionRotationRollPitchYaw(0.f, playerYaw, 0.f);
+	cameraEntity->SetLocalRotation(XMQuaternionRotationRollPitchYaw(playerPitch, 0.f, 0.f));
+	playerLookEntity->SetLocalRotation(XMQuaternionRotationRollPitchYaw(0.f, playerYaw, 0.f));
 
 	XMVECTOR horizontalCamForward = XMVectorSetY(camForward, 0.f);
 	if (XMVectorGetX(XMVector3AngleBetweenVectors(horizontalCamForward, playerModelEntity->GetForwardDirection())) > XMConvertToRadians(20.f))
@@ -275,8 +275,10 @@ void Game::UpdateGame(EngineCore& engine)
 		if (input.KeyDown(VK_SHIFT)) camSpeed *= .1f;
 		if (input.KeyDown(VK_CONTROL)) camSpeed *= 5.f;
 
-		playerLookEntity->position += camRight * horizontalInput * clampedDeltaTime * camSpeed;
-		playerLookEntity->position += camForward * verticalInput * clampedDeltaTime * camSpeed;
+		XMVECTOR lookPos = playerLookEntity->GetWorldPosition();
+		lookPos += camRight * horizontalInput * clampedDeltaTime * camSpeed;
+		lookPos += camForward * verticalInput * clampedDeltaTime * camSpeed;
+		playerLookEntity->SetWorldPosition(lookPos);
 	}
 	else
 	{
@@ -324,8 +326,8 @@ void Game::UpdateGame(EngineCore& engine)
 		// Ground collision
 		const float maxPlayerSpeedEstimate = std::max(10.f, playerEntity->rigidBody->getLinearVelocity().y);
 		const float collisionEpsilon = maxPlayerSpeedEstimate * clampedDeltaTime;
-		XMVECTOR groundRayStart = playerEntity->position + V3_UP * collisionEpsilon;
-		XMVECTOR groundRayEnd = playerEntity->position - V3_UP * collisionEpsilon;
+		XMVECTOR groundRayStart = playerEntity->GetWorldPosition() + V3_UP * collisionEpsilon;
+		XMVECTOR groundRayEnd = playerEntity->GetWorldPosition() - V3_UP * collisionEpsilon;
 		minRaycastCollector.Raycast(physicsWorld, groundRayStart, groundRayEnd, CollisionLayers::Floor);
 		playerOnGround = minRaycastCollector.anyCollision;
 
@@ -341,7 +343,7 @@ void Game::UpdateGame(EngineCore& engine)
 		if (playerOnGround)
 		{
 			// Move player on ground
-			playerEntity->rigidBody->setTransform(PhysicsTransformFromXM(minRaycastCollector.collision.worldPoint, playerEntity->rotation));
+			playerEntity->rigidBody->setTransform(PhysicsTransformFromXM(minRaycastCollector.collision.worldPoint, playerEntity->GetWorldRotation()));
 
 			// Stop falling speed
 			playerVelocity = XMVectorSetY(playerVelocity, 0.);
@@ -402,15 +404,15 @@ void Game::UpdateGame(EngineCore& engine)
 
 			if (selectedGizmo->isGizmoTranslationArrow)
 			{
-				gizmoDragEntityStart = selectedGizmoTarget->position;
+				gizmoDragEntityStart = selectedGizmoTarget->GetLocalPosition();
 			}
 			else if (selectedGizmo->isGizmoRotationRing)
 			{
-				gizmoDragEntityStart = selectedGizmoTarget->rotation;
+				gizmoDragEntityStart = selectedGizmoTarget->GetLocalRotation();
 			}
 			else if (selectedGizmo->isGizmoScaleCube)
 			{
-				gizmoDragEntityStart = selectedGizmoTarget->scale;
+				gizmoDragEntityStart = selectedGizmoTarget->GetLocalScale();
 			}
 		}
 	}
@@ -424,16 +426,16 @@ void Game::UpdateGame(EngineCore& engine)
 		if (selectedGizmoElement->isGizmoTranslationArrow)
 		{
 			XMVECTOR projectedMovement = XMVector3Dot(cursorMovement, selectedGizmoElement->gizmoTranslationAxis) * selectedGizmoElement->gizmoTranslationAxis;
-			selectedGizmoTarget->position = gizmoDragEntityStart + projectedMovement;
+			selectedGizmoTarget->SetLocalPosition(gizmoDragEntityStart + projectedMovement);
 		}
 		if (selectedGizmoElement->isGizmoRotationRing)
 		{
-			selectedGizmoTarget->rotation = XMQuaternionMultiply(gizmoDragEntityStart, XMQuaternionRotationAxis(selectedGizmoElement->gizmoRotationAxis, XMVectorGetX(dragOffsetScreen) * .01f));
+			selectedGizmoTarget->SetLocalRotation(XMQuaternionMultiply(gizmoDragEntityStart, XMQuaternionRotationAxis(selectedGizmoElement->gizmoRotationAxis, XMVectorGetX(dragOffsetScreen) * .01f)));
 		}
 		if (selectedGizmoElement->isGizmoScaleCube)
 		{
 			XMVECTOR projectedMovement = XMVector3Dot(cursorMovement, selectedGizmoElement->gizmoScaleAxis) * selectedGizmoElement->gizmoScaleAxis;
-			selectedGizmoTarget->scale = gizmoDragEntityStart + projectedMovement;
+			selectedGizmoTarget->SetLocalScale(gizmoDragEntityStart + projectedMovement);
 		}
 
 		if (!editMode)
@@ -452,17 +454,17 @@ void Game::UpdateGame(EngineCore& engine)
 	// Player Audio
 	XMStoreFloat3(&playerAudioListener.OrientFront, camForward);
 	XMStoreFloat3(&playerAudioListener.OrientTop, XMVector3Cross(camForward, camRight));
-	XMStoreFloat3(&playerAudioListener.Position, engine.mainCamera->position);
+	XMStoreFloat3(&playerAudioListener.Position, engine.mainCamera->worldMatrix.translation);
 	XMStoreFloat3(&playerAudioListener.Velocity, XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity()));
 
 	// Shoot portal
 	if (input.KeyJustPressed(VK_LBUTTON) || input.KeyJustPressed(VK_RBUTTON))
 	{
-		minRaycastCollector.Raycast(physicsWorld, engine.mainCamera->position, engine.mainCamera->position + camForward * 1000.f, CollisionLayers::Floor);
+		minRaycastCollector.Raycast(physicsWorld, engine.mainCamera->worldMatrix.translation, engine.mainCamera->worldMatrix.translation + camForward * 1000.f, CollisionLayers::Floor);
 		if (minRaycastCollector.anyCollision)
 		{
 			Entity* targetPortal = input.KeyJustPressed(VK_LBUTTON) ? portal1 : portal2;
-			targetPortal->position = minRaycastCollector.collision.worldPoint - camForward * 0.001f;
+			targetPortal->SetWorldPosition(minRaycastCollector.collision.worldPoint - camForward * 0.001f);
 			targetPortal->SetForwardDirection(minRaycastCollector.collision.worldNormal);
 			PlaySound(engine, &playerAudioSource, AudioFile::Shoot);
 		}
@@ -472,19 +474,7 @@ void Game::UpdateGame(EngineCore& engine)
 	for (Entity& entity : entityArena)
 	{
 		entity.UpdateAnimation(engine, false);
-	}
-
-	// Update physics
-	for (Entity& entity : entityArena)
-	{
-		if (entity.collisionBody != nullptr)
-		{
-			entity.collisionBody->setTransform(PhysicsTransformFromXM(entity.position, entity.rotation));
-		}
-		if (entity.rigidBody != nullptr && entity.rigidBody->getType() == reactphysics3d::BodyType::STATIC)
-		{
-			entity.rigidBody->setTransform(PhysicsTransformFromXM(entity.position, entity.rotation));
-		}
+		entity.UpdatePhysics();
 	}
 
 	//debugLog.Log("Before Physics: {:.1f}, {:.1f}, {:.1f}", SPLIT_V3(XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity())));
@@ -507,8 +497,8 @@ void Game::UpdateGame(EngineCore& engine)
 		const reactphysics3d::Transform& rbTransform = entity.rigidBody->getTransform();
 		const reactphysics3d::Vector3& rbPosition = rbTransform.getPosition();
 		const reactphysics3d::Quaternion& rbOrientation = rbTransform.getOrientation();
-		entity.position = { rbPosition.x, rbPosition.y, rbPosition.z };
-		entity.rotation = { rbOrientation.x, rbOrientation.y, rbOrientation.z, rbOrientation.w };
+		entity.SetWorldPosition({rbPosition.x, rbPosition.y, rbPosition.z});
+		entity.SetWorldRotation({rbOrientation.x, rbOrientation.y, rbOrientation.z, rbOrientation.w});
 	}
 
 	// Update entity matrices
@@ -522,29 +512,19 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 
 	// Update Camera
-	XMVECTOR camTranslation, camRotation, camScale;
-	XMMatrixDecompose(&camScale, &camRotation, &camTranslation, cameraEntity->worldMatrix);
-	engine.mainCamera->position = camTranslation;
-	engine.mainCamera->rotation = camRotation;
-	engine.mainCamera->UpdateMatrices();
+	engine.mainCamera->UpdateViewMatrix(cameraEntity->worldMatrix.matrix);
+	engine.mainCamera->UpdateProjectionMatrix();
 
-	CalculateDirectionVectors(camForward, camRight, camUp, engine.mainCamera->rotation);
+	CalculateDirectionVectors(camForward, camRight, camUp, engine.mainCamera->worldMatrix.rotation);
 
-	MAT_RMAJ portal1Mat = portal1->worldMatrix * XMMatrixInverse(nullptr, portal2->worldMatrix) * cameraEntity->worldMatrix;
-	XMVECTOR portal1Translation, portal1Rotation, portal1Scale;
-	XMMatrixDecompose(&portal1Scale, &portal1Rotation, &portal1Translation, portal1Mat);
+	MAT_RMAJ portal1Mat = portal1->worldMatrix.matrix * portal2->worldMatrix.inverse * cameraEntity->worldMatrix.matrix;
+	MAT_RMAJ portal2Mat = portal2->worldMatrix.matrix * portal1->worldMatrix.inverse * cameraEntity->worldMatrix.matrix;
 
-	MAT_RMAJ portal2Mat = portal2->worldMatrix * XMMatrixInverse(nullptr, portal1->worldMatrix) * cameraEntity->worldMatrix;
-	XMVECTOR portal2Translation, portal2Rotation, portal2Scale;
-	XMMatrixDecompose(&portal2Scale, &portal2Rotation, &portal2Translation, portal2Mat);
+	engine.m_renderTextures[0]->camera->UpdateViewMatrix(portal1Mat);
+	engine.m_renderTextures[0]->camera->UpdateProjectionMatrix();
 
-	engine.m_renderTextures[0]->camera->position = portal1Translation;
-	engine.m_renderTextures[0]->camera->rotation = portal1Rotation;
-	engine.m_renderTextures[0]->camera->UpdateMatrices();
-
-	engine.m_renderTextures[1]->camera->position = portal2Translation;
-	engine.m_renderTextures[1]->camera->rotation = portal2Rotation;
-	engine.m_renderTextures[1]->camera->UpdateMatrices();
+	engine.m_renderTextures[1]->camera->UpdateViewMatrix(portal2Mat);
+	engine.m_renderTextures[1]->camera->UpdateProjectionMatrix();
 
 	for (CameraData& camera : engine.m_cameras)
 	{
@@ -624,7 +604,7 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 
 	// Post Processing
-	XMVECTOR camPos2d = engine.mainCamera->position;
+	XMVECTOR camPos2d = engine.mainCamera->worldMatrix.translation;
 	camPos2d.m128_f32[1] = 0.f;
 	float distanceFromSpawn = XMVector3Length(camPos2d).m128_f32[0];
 	float maxDistance = 40.f;
@@ -687,7 +667,7 @@ Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float w
 	MeshFile file = vertical ? CreateQuadY(width, height, globalArena) : CreateQuad(width, height, globalArena);
 	auto meshView = engine.CreateMesh(materialIndex, file.vertices, file.vertexCount, file.meshHash);
 	Entity* entity = CreateMeshEntity(engine, materialIndex, meshView);
-	entity->position = { -width / 2.f, 0.f, -height / 2.f };
+	entity->SetLocalPosition({-width / 2.f, 0.f, -height / 2.f});
 	if (collisionInit == CollisionInitType::CollisionBody)
 	{
 		entity->InitCollisionBody(physicsWorld);
@@ -782,7 +762,7 @@ XMVECTOR Game::ScreenToWorldPosition(EngineCore& engine, CameraData& cameraData,
 void Game::RaycastScreenPosition(EngineCore& engine, CameraData& cameraData, XMVECTOR screenPos, EngineRaycastCallback* callback, CollisionLayers layers)
 {
 	XMVECTOR rayOriginWorld = ScreenToWorldPosition(engine, cameraData, screenPos);
-	XMVECTOR rayDirection = XMVector3Normalize(rayOriginWorld - cameraData.position);
+	XMVECTOR rayDirection = XMVector3Normalize(rayOriginWorld - cameraData.worldMatrix.translation);
 	callback->Raycast(physicsWorld, rayOriginWorld, rayOriginWorld + rayDirection * 1000.f);
 }
 
@@ -833,7 +813,7 @@ void Game::ToggleNoclip()
 	else
 	{
 		playerEntity->AddChild(playerLookEntity, true);
-		playerLookEntity->position = defaultPlayerLookPosition;
+		playerLookEntity->SetLocalPosition(defaultPlayerLookPosition);
 	}
 }
 

@@ -648,7 +648,7 @@ void EngineCore::LoadAssets()
     // Render textures
     for (int i = 0; i < 2; i++)
     {
-        RenderTexture* renderTexture = (m_renderTextures.newElement() = CreateRenderTexture(1024, 2048));
+        RenderTexture* renderTexture = (m_renderTextures.newElement() = CreateRenderTexture(m_width, m_height));
         renderTexture->camera->skipRenderTextures = true;
         renderTexture->camera->name = ("Render Texture " + std::to_string(i)).c_str();
     }
@@ -1036,7 +1036,6 @@ void EngineCore::PopulateCommandList()
     mainCamera->aspectRatio = m_aspectRatio;
     for (CameraData& cameraData : m_cameras)
 	{
-        cameraData.constantBuffer.data.worldCameraPos = cameraData.position;
 		cameraData.constantBuffer.UploadData(m_frameIndex);
 	}
 
@@ -1100,7 +1099,7 @@ void EngineCore::PopulateCommandList()
 
     ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
     Transition(m_renderCommandList, m_renderTextures[0]->texture.buffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
-    CopyDebugImage(m_renderCommandList, m_renderTextures[0]->texture.buffer);
+    //CopyDebugImage(m_renderCommandList, m_renderTextures[0]->texture.buffer);
     Transition(m_renderCommandList, m_renderTextures[0]->texture.buffer, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     ExecCommandList(m_renderCommandList);
 

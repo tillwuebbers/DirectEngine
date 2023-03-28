@@ -218,7 +218,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 				ToggleNoclip();
 			}
 
-			ImGui::Text("Camera Position: %.1f %.1f %.1f", SPLIT_V3(engine.mainCamera->position));
+			ImGui::Text("Camera Position: %.1f %.1f %.1f", SPLIT_V3(engine.mainCamera->worldMatrix.translation));
 			ImGui::Text("Camera Rotation: %.1f %.1f", playerPitch / XM_2PI * 360.f, playerYaw / XM_2PI * 360.f);
 			ImGui::Text("Player on Ground: %s", playerOnGround ? "true" : "false");
 
@@ -510,24 +510,33 @@ void Game::DrawDebugUI(EngineCore& engine)
 					ImGui::Separator();
 
 					ImGui::Text("TRANSFORM");
-					ImGui::DragFloat3("Position", &entity->position.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
+					XMVECTOR pos = entity->GetLocalPosition();
+					if (ImGui::DragFloat3("Position", &pos.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat))
+					{
+						entity->SetLocalPosition(pos);
+					}
 
-					XMVECTOR rot = QuaternionToEuler(entity->rotation);
+					XMVECTOR rot = QuaternionToEuler(entity->GetLocalRotation());
 					if (ImGui::DragFloat3("Rotation", &rot.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat))
 					{
-						entity->rotation = XMQuaternionRotationRollPitchYaw(XMVectorGetX(rot), XMVectorGetY(rot), XMVectorGetZ(rot));
+						entity->SetLocalRotation(XMQuaternionRotationRollPitchYaw(XMVectorGetX(rot), XMVectorGetY(rot), XMVectorGetZ(rot)));
 					}
-					ImGui::DragFloat3("Scale", &entity->scale.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat);
+
+					XMVECTOR scale = entity->GetLocalScale();
+					if (ImGui::DragFloat3("Scale", &scale.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat))
+					{
+						entity->SetLocalScale(scale);
+					}
 
 					ImGui::BeginTabBar("Transform");
 					if (ImGui::BeginTabItem("Local"))
 					{
-						DisplayMatrix(entity->localMatrix);
+						DisplayMatrix(entity->localMatrix.matrix);
 						ImGui::EndTabItem();
 					}
 					if (ImGui::BeginTabItem("Global"))
 					{
-						DisplayMatrix(entity->worldMatrix);
+						DisplayMatrix(entity->worldMatrix.matrix);
 						ImGui::EndTabItem();
 					}
 					ImGui::EndTabBar();
@@ -632,7 +641,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 						ImGui::Separator();
 						if (ImGui::Button("Add Rigidbody"))
 						{
-							entity->rigidBody = physicsWorld->createRigidBody(PhysicsTransformFromXM(entity->position, entity->rotation));
+							entity->rigidBody = physicsWorld->createRigidBody(entity->GetPhysicsTransform());
 							entity->rigidBody->updateMassPropertiesFromColliders();
 							entity->rigidBody->setType(reactphysics3d::BodyType::STATIC);
 						}
@@ -679,8 +688,8 @@ void Game::DrawDebugUI(EngineCore& engine)
 						}
 					}
 
-					XMVECTOR scale;
-					XMMatrixDecompose(&scale, &gizmo->root->rotation, &gizmo->root->position, entity->worldMatrix);
+					gizmo->root->SetLocalPosition(entity->worldMatrix.translation);
+					gizmo->root->SetLocalRotation(entity->worldMatrix.rotation);
 					gizmo->root->SetActive(editMode);
 					editElement = entity;
 				}

@@ -48,7 +48,7 @@ Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex)
 		translateArrow->GetBuffer().color = xyzColors[i];
 		translateArrow->InitCollisionBody(game.physicsWorld);
 		translateArrow->InitBoxCollider(game.physicsCommon, { 0.1f, 1.f, 0.1f }, { 0.f, .5f, 0.f }, CollisionLayers::GizmoClick);
-		translateArrow->rotation = xyzRotations[i];
+		translateArrow->SetLocalRotation(xyzRotations[i]);
 		translateArrow->name = std::format("TranslateArrow{}", xyzNames[i]).c_str();
 		translateArrow->isGizmoTranslationArrow = true;
 		translateArrow->gizmoTranslationAxis = transformAxis[i];
@@ -59,7 +59,7 @@ Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex)
 		rotateArrow->GetBuffer().color = xyzColors[i];
 		rotateArrow->InitCollisionBody(game.physicsWorld);
 		rotateArrow->InitBoxCollider(game.physicsCommon, { 2.f, .05f, 2.f }, { 0.f, 0.f, 0.f }, CollisionLayers::GizmoClick);
-		rotateArrow->rotation = xyzRotations[i];
+		rotateArrow->SetLocalRotation(xyzRotations[i]);
 		rotateArrow->name = std::format("RotateArrow{}", xyzNames[i]).c_str();
 		rotateArrow->isGizmoRotationRing = true;
 		rotateArrow->gizmoRotationAxis = transformAxis[i];
@@ -70,7 +70,7 @@ Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex)
 		scaleArrow->GetBuffer().color = xyzColors[i];
 		scaleArrow->InitCollisionBody(game.physicsWorld);
 		scaleArrow->InitBoxCollider(game.physicsCommon, { .15f, .5f, .15f }, { .0f, .25f, .0f }, CollisionLayers::GizmoClick);
-		scaleArrow->rotation = xyzRotations[i];
+		scaleArrow->SetLocalRotation(xyzRotations[i]);
 		scaleArrow->name = std::format("ScaleArrow{}", xyzNames[i]).c_str();
 		scaleArrow->isGizmoScaleCube = true;
 		scaleArrow->gizmoScaleAxis = transformAxis[i];

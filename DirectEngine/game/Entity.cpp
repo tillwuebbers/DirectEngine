@@ -18,12 +18,7 @@ void Entity::AddChild(Entity* child, bool keepWorldPosition)
 
 	if (keepWorldPosition)
 	{
-		XMVECTOR scale;
-		XMVECTOR rotation;
-		XMVECTOR position;
-		XMMatrixDecompose(&scale, &rotation, &position, child->worldMatrix);
-
-		child->position = XMVector3Transform(position, XMMatrixInverse(nullptr, worldMatrix));
+		child->SetLocalPosition(XMVector3Transform(child->worldMatrix.translation, worldMatrix.inverse));
 	}
 }
 
@@ -37,17 +32,10 @@ void Entity::RemoveChild(Entity* child, bool keepWorldPosition)
 
 	if (keepWorldPosition)
 	{
-		XMVECTOR scale;
-		XMVECTOR rotation;
-		XMMatrixDecompose(&scale, &rotation, &child->position, child->worldMatrix);
+		child->SetLocalPosition(child->worldMatrix.translation);
 	}
 
 	children.removeAllEqual(child);
-}
-
-reactphysics3d::Transform Entity::GetPhysicsTransform()
-{
-	return PhysicsTransformFromXM(position, rotation);
 }
 
 void Entity::InitRigidBody(reactphysics3d::PhysicsWorld* physicsWorld, reactphysics3d::BodyType type)
@@ -115,21 +103,18 @@ EntityConstantBuffer& Entity::GetBuffer()
 
 void Entity::UpdateWorldMatrix()
 {
-	localMatrix = DirectX::XMMatrixAffineTransformation(scale, XMVECTOR{}, rotation, position);
-
 	if (parent == nullptr)
 	{
-		worldMatrix = localMatrix;
+		worldMatrix.SetMatrix(localMatrix.matrix);
 	}
 	else
 	{
-		MAT_RMAJ parentTransform = DirectX::XMMatrixAffineTransformation(parent->scale, XMVECTOR{}, parent->rotation, parent->position);
-		worldMatrix = localMatrix * parent->worldMatrix;
+		worldMatrix.SetMatrix(localMatrix.matrix * parent->worldMatrix.matrix);
 	}
 
 	if (isRendered)
 	{
-		GetBuffer().worldTransform = DirectX::XMMatrixTranspose(worldMatrix);
+		GetBuffer().worldTransform = worldMatrix.matrixT;
 	}
 
 	for (Entity* child : children)
@@ -160,19 +145,18 @@ void Entity::SetForwardDirection(XMVECTOR direction, XMVECTOR up, XMVECTOR altUp
 		SPLIT_V3(realUp), 0.f,
 		SPLIT_V3(direction), 0.f,
 		0.f, 0.f, 0.f, 1.f);
-	rotation = XMQuaternionRotationMatrix(matrix);
-	UpdateWorldMatrix();
+	SetWorldRotation(XMQuaternionRotationMatrix(matrix));
 }
 
 XMVECTOR Entity::GetForwardDirection()
 {
-	return XMVector3TransformNormal(V3_FORWARD, worldMatrix);
+	return XMVector3TransformNormal(V3_FORWARD, worldMatrix.matrix);
 }
 
 void Entity::UpdateAudio(EngineCore& engine, const X3DAUDIO_LISTENER* audioListener)
 {
 	XMVECTOR entityForwards, entityRight, entityUp;
-	CalculateDirectionVectors(entityForwards, entityRight, entityUp, rotation);
+	CalculateDirectionVectors(entityForwards, entityRight, entityUp, worldMatrix.rotation);
 
 	IXAudio2SourceVoice* audioSourceVoice = audioSource.source;
 	if (audioSourceVoice != nullptr)
@@ -180,7 +164,7 @@ void Entity::UpdateAudio(EngineCore& engine, const X3DAUDIO_LISTENER* audioListe
 		X3DAUDIO_EMITTER& emitter = audioSource.audioEmitter;
 		XMStoreFloat3(&emitter.OrientFront, entityForwards);
 		XMStoreFloat3(&emitter.OrientTop, entityUp);
-		XMStoreFloat3(&emitter.Position, position);
+		XMStoreFloat3(&emitter.Position, worldMatrix.translation);
 
 		if (rigidBody != nullptr)
 		{
@@ -280,6 +264,18 @@ void Entity::UpdateAnimation(EngineCore& engine, bool isMainRender)
 	}
 }
 
+void Entity::UpdatePhysics()
+{
+	if (collisionBody != nullptr)
+	{
+		collisionBody->setTransform(GetPhysicsTransform());
+	}
+	if (rigidBody != nullptr && rigidBody->getType() == reactphysics3d::BodyType::STATIC)
+	{
+		rigidBody->setTransform(GetPhysicsTransform());
+	}
+}
+
 void Entity::SetActive(bool newState, bool affectSelf)
 {
 	if (affectSelf)
@@ -334,4 +330,93 @@ XMVECTOR SampleAnimation(AnimationData& animData, float animationTime, XMVECTOR(
 		}
 	}
 	return animData.data[animData.frameCount - 1];
+}
+
+void Entity::SetLocalPosition(XMVECTOR localPos)
+{
+	localMatrix.SetMatrix(XMMatrixAffineTransformation(localMatrix.scale, XMVectorZero(), localMatrix.rotation, localPos));
+	UpdateWorldMatrix();
+}
+
+void Entity::SetLocalRotation(XMVECTOR localRot)
+{
+	localMatrix.SetMatrix(XMMatrixAffineTransformation(localMatrix.scale, XMVectorZero(), localRot, localMatrix.translation));
+	UpdateWorldMatrix();
+}
+
+void Entity::SetLocalScale(XMVECTOR localScale)
+{
+	localMatrix.SetMatrix(XMMatrixAffineTransformation(localScale, XMVectorZero(), localMatrix.rotation, localMatrix.translation));
+	UpdateWorldMatrix();
+}
+
+XMVECTOR Entity::GetLocalPosition()
+{
+	return localMatrix.translation;
+}
+
+XMVECTOR Entity::GetLocalRotation()
+{
+	return localMatrix.rotation;
+}
+
+XMVECTOR Entity::GetLocalScale()
+{
+	return localMatrix.scale;
+}
+
+void Entity::SetWorldPosition(XMVECTOR worldPos)
+{
+	if (parent == nullptr)
+	{
+		SetLocalPosition(worldPos);
+	}
+	else
+	{
+		SetLocalPosition(XMVector3Transform(worldPos, parent->worldMatrix.inverse));
+	}
+}
+
+void Entity::SetWorldRotation(XMVECTOR worldRot)
+{
+	if (parent == nullptr)
+	{
+		SetLocalRotation(worldRot);
+	}
+	else
+	{
+		SetLocalRotation(XMQuaternionMultiply(XMQuaternionInverse(parent->worldMatrix.rotation), worldRot));
+	}
+}
+
+void Entity::SetWorldScale(XMVECTOR worldScale)
+{
+	if (parent == nullptr)
+	{
+		SetLocalScale(worldScale);
+	}
+	else
+	{
+		SetLocalScale(XMVectorDivide(worldScale, parent->worldMatrix.scale));
+	}
+}
+
+XMVECTOR Entity::GetWorldPosition()
+{
+	return worldMatrix.translation;
+}
+
+XMVECTOR Entity::GetWorldRotation()
+{
+	return worldMatrix.rotation;
+}
+
+XMVECTOR Entity::GetWorldScale()
+{
+	return worldMatrix.scale;
+}
+
+reactphysics3d::Transform Entity::GetPhysicsTransform()
+{
+	return PhysicsTransformFromXM(worldMatrix.translation, worldMatrix.rotation);
 }

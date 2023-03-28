@@ -120,6 +120,28 @@ struct BoneMatricesBuffer
 };
 static_assert((sizeof(BoneMatricesBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
+struct ExtendedMatrix
+{
+    MAT_RMAJ matrix = XMMatrixIdentity();
+    MAT_CMAJ matrixT = XMMatrixIdentity();
+    MAT_RMAJ inverse = XMMatrixIdentity();
+    MAT_CMAJ inverseT = XMMatrixIdentity();
+
+    XMVECTOR translation = {};
+    XMVECTOR rotation = XMQuaternionIdentity();
+    XMVECTOR scale = { 1.f, 1.f, 1.f };
+
+    void SetMatrix(const MAT_RMAJ mat)
+    {
+        matrix = mat;
+        matrixT = XMMatrixTranspose(matrix);
+        XMMatrixDecompose(&scale, &rotation, &translation, matrix);
+
+        inverse = XMMatrixInverse(nullptr, matrix);
+        inverseT = XMMatrixTranspose(inverse);
+    }
+};
+
 struct EntityData
 {
     bool visible = true;
@@ -175,8 +197,7 @@ public:
 struct CameraData
 {
     ConstantBuffer<CameraConstantBuffer> constantBuffer = {};
-    XMVECTOR position{ 0.f, 0.f, 0.f };
-    XMVECTOR rotation{ 0.f, 0.f, 0.f, 1.f };
+    ExtendedMatrix worldMatrix = {};
     float fovY = 45.f;
     float aspectRatio = 1.f;
     float nearClip = .1f;
@@ -184,9 +205,15 @@ struct CameraData
     bool skipRenderTextures = false;
     FixedStr name = "Camera";
 
-    void UpdateMatrices()
+    void UpdateViewMatrix(MAT_RMAJ& cameraEntityWorldMatrix)
     {
-        constantBuffer.data.cameraView = XMMatrixMultiplyTranspose(XMMatrixTranslationFromVector(-position), XMMatrixRotationQuaternion(XMQuaternionConjugate(rotation)));
+        worldMatrix.SetMatrix(cameraEntityWorldMatrix);
+        constantBuffer.data.worldCameraPos = worldMatrix.translation;
+        constantBuffer.data.cameraView = XMMatrixTranspose(worldMatrix.inverse);
+    }
+
+    void UpdateProjectionMatrix()
+    {
         constantBuffer.data.cameraProjection = XMMatrixTranspose(XMMatrixPerspectiveFovLH(fovY, aspectRatio, nearClip, farClip));
     }
 };
