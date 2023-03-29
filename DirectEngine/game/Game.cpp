@@ -502,8 +502,18 @@ void Game::UpdateGame(EngineCore& engine)
 	engine.mainCamera->UpdateViewMatrix(cameraEntity->worldMatrix.matrix);
 	engine.mainCamera->UpdateProjectionMatrix();
 
-	MAT_RMAJ portal1Mat = portal1->worldMatrix.matrix * portal2->worldMatrix.inverse * cameraEntity->worldMatrix.matrix;
-	MAT_RMAJ portal2Mat = portal2->worldMatrix.matrix * portal1->worldMatrix.inverse * cameraEntity->worldMatrix.matrix;
+	XMVECTOR t1;
+	XMVECTOR r1;
+	XMVECTOR s1;
+	XMMatrixDecompose(&s1, &r1, &t1, portal1->worldMatrix.inverse);
+
+	XMVECTOR t2;
+	XMVECTOR r2;
+	XMVECTOR s2;
+	XMMatrixDecompose(&s2, &r2, &t2, portal2->worldMatrix.inverse);
+
+	MAT_RMAJ portal1Mat = cameraEntity->worldMatrix.matrix * portal2->worldMatrix.inverse * portal1->worldMatrix.matrix;
+	MAT_RMAJ portal2Mat = cameraEntity->worldMatrix.matrix * portal1->worldMatrix.inverse * portal2->worldMatrix.matrix;
 
 	engine.m_renderTextures[0]->camera->UpdateViewMatrix(portal1Mat);
 	engine.m_renderTextures[0]->camera->UpdateProjectionMatrix();
