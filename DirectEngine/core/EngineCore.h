@@ -25,6 +25,8 @@
 #include "../imgui/imgui.h"
 #include "../imgui/ProfilerTask.h"
 
+#include "UI.h"
+
 #include "../Helpers.h"
 #include "Constants.h"
 #include "Common.h"
@@ -277,7 +279,6 @@ public:
     // Window Handle
     HWND m_hwnd;
     std::wstring m_windowName = L"DirectEngine";
-    ImGuiContext* m_imguiContext = nullptr;
 
     // Pipeline objects
     CD3DX12_VIEWPORT m_viewport;
@@ -327,6 +328,7 @@ public:
     FixedList<CameraData> m_cameras = { engineArena, MAX_CAMERAS };
     std::unordered_map<uint64_t, D3D12_VERTEX_BUFFER_VIEW> m_meshes{};
 
+    ImGuiUI m_imgui = {};
     CameraData* mainCamera = nullptr;
     FixedList<RenderTexture*> m_renderTextures{ engineArena, 2 };
 

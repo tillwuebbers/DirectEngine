@@ -14,7 +14,7 @@ void Game::StartGame(EngineCore& engine)
 {
 	INIT_TIMER(timer);
 
-	ImGui::SetCurrentContext(engine.m_imguiContext);
+	ImGui::SetCurrentContext(engine.m_imgui.imGuiContext);
 	LoadUIStyle();
 
 	// Config

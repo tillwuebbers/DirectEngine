@@ -263,11 +263,6 @@ void Game::DrawDebugUI(EngineCore& engine)
 				showDemoWindow = !showDemoWindow;
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("Debug Image"))
-			{
-				showDebugImage = !showDebugImage;
-			}
-
 			if (ImGui::Button("Log"))
 			{
 				showLog = !showLog;
@@ -277,12 +272,12 @@ void Game::DrawDebugUI(EngineCore& engine)
 			{
 				showProfiler = !showProfiler;
 			}
-			ImGui::SameLine();
+
 			if (ImGui::Button("Movement"))
 			{
 				showMovementWindow = !showMovementWindow;
 			}
-
+			ImGui::SameLine();
 			if (ImGui::Button("Graphics"))
 			{
 				showPostProcessWindow = !showPostProcessWindow;
@@ -292,17 +287,22 @@ void Game::DrawDebugUI(EngineCore& engine)
 			{
 				showAudioWindow = !showAudioWindow;
 			}
-			ImGui::SameLine();
+
 			if (ImGui::Button("Entities"))
 			{
 				showEntityList = !showEntityList;
 			}
-
+			ImGui::SameLine();
+			if (ImGui::Button("Materials"))
+			{
+				showMaterialList = !showMaterialList;
+			}
+			ImGui::SameLine();
 			if (ImGui::Button("Lighting"))
 			{
 				showLightWindow = !showLightWindow;
 			}
-			ImGui::SameLine();
+
 			if (ImGui::Button("Matrix Calc"))
 			{
 				showMatrixCalculator = !showMatrixCalculator;
@@ -346,18 +346,6 @@ void Game::DrawDebugUI(EngineCore& engine)
 		ImGui::End();
 	}
 	ImGui::PopStyleVar();
-
-	// Debug Image
-	if (showDebugImage)
-	{
-		if (ImGui::Begin("Debug Image", &showDebugImage))
-		{
-			ImVec2 availableSize = ImGui::GetContentRegionAvail();
-			float minSize = std::min(availableSize.x, availableSize.y);
-			DrawDebugImage({ minSize, minSize });
-		}
-		ImGui::End();
-	}
 
 	// Graphics
 	if (showPostProcessWindow)
@@ -711,6 +699,43 @@ void Game::DrawDebugUI(EngineCore& engine)
 					return true;
 				}, &engine, engine.m_materials.size);
 		}
+		ImGui::End();
+	}
+
+	if (showMaterialList)
+	{
+		if (ImGui::Begin("Materials", &showMaterialList))
+		{
+			for (MaterialData& mat : engine.m_materials)
+			{
+				ImGui::PushID(&mat);
+				if (ImGui::CollapsingHeader(mat.name.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+				{
+					ImGui::Text("Shader: %s", std::string(mat.pipeline->shaderName.begin(), mat.pipeline->shaderName.end()).c_str());
+					ImGui::SameLine(0.f, 10.f);
+					ImGui::Text("Entities: %d", mat.entities.size);
+					ImGui::SameLine(0.f, 10.f);
+					ImGui::Text("Vertices: %d/%d", mat.vertexCount, mat.maxVertexCount);
+
+					for (Texture* tex : mat.textures)
+					{
+						ImGui::PushID(tex);
+						if (ImGui::TreeNode(tex->name.empty() ? "texture" : tex->name.c_str()))
+						{
+							auto desc = tex->buffer->GetDesc();
+							float aspectRatio = static_cast<float>(desc.Width) / static_cast<float>(desc.Height);
+							engine.m_imgui.UIImage(engine.m_device, tex, { 128 , 128 * aspectRatio });
+							ImGui::TreePop();
+						}
+						ImGui::PopID();
+					}
+
+					ImGui::NewLine();
+				}
+				ImGui::PopID();
+			}
+		}
+
 		ImGui::End();
 	}
 

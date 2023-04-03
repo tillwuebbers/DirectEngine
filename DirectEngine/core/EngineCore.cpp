@@ -252,7 +252,7 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
 
     LoadSizeDependentResources();
 
-    SetupImgui(m_hwnd, this, FrameCount);
+    m_imgui.SetupImgui(m_hwnd, m_device, FrameCount);
 }
 
 void EngineCore::LoadSizeDependentResources()
@@ -770,6 +770,7 @@ Texture* EngineCore::CreateTexture(const std::wstring& filePath)
     texture.name = textureId;
 
     TextureData header = ParseDDSHeader(filePath.c_str());
+
     std::unique_ptr<uint8_t[]> data{};
     std::vector<D3D12_SUBRESOURCE_DATA> subresources{};
     CHECK_HRCMD(LoadDDSTextureFromFile(m_device, filePath.c_str(), &texture.buffer, data, subresources));
@@ -935,8 +936,19 @@ void EngineCore::OnUpdate()
 
     m_sceneConstantBuffer.data.time = { static_cast<float>(secondsSinceStart) };
 
-    NewImguiFrame();
-    UpdateImgui(this);
+    m_imgui.NewImguiFrame();
+    if (!m_shaderError.empty())
+    {
+        bool staysOpen = true;
+        ImGui::Begin("Shader Error", &staysOpen);
+        ImGui::Text(m_shaderError.c_str());
+        ImGui::End();
+
+        if (!staysOpen)
+        {
+            m_shaderError.clear();
+        }
+    }
 
     if (!m_gameStarted)
     {
@@ -1097,12 +1109,6 @@ void EngineCore::PopulateCommandList()
 
     BeginProfile("Render Main", ImColor::HSV(.7, .3, 1.));
 
-    ThrowIfFailed(m_renderCommandList->Reset(m_renderCommandAllocators[m_frameIndex], nullptr));
-    Transition(m_renderCommandList, m_renderTextures[0]->texture.buffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
-    //CopyDebugImage(m_renderCommandList, m_renderTextures[0]->texture.buffer);
-    Transition(m_renderCommandList, m_renderTextures[0]->texture.buffer, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    ExecCommandList(m_renderCommandList);
-
     // Apply masked animations for first-person
     m_game->BeforeMainRender(*this);
     for (MaterialData& material : m_materials)
@@ -1136,7 +1142,7 @@ void EngineCore::PopulateCommandList()
         Transition(m_renderCommandList, renderTargetWindow, D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
     }
 
-    DrawImgui(m_renderCommandList, &m_swapchainRtvHandles[m_frameIndex]);
+    m_imgui.DrawImgui(m_renderCommandList, &m_swapchainRtvHandles[m_frameIndex]);
 
     Transition(m_renderCommandList, renderTargetWindow, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
     ExecCommandList(m_renderCommandList);
@@ -1396,7 +1402,7 @@ void EngineCore::OnDestroy()
     ApplyWindowMode();
     CloseHandle(m_fenceEvent);
 
-    DestroyImgui();
+    m_imgui.DestroyImgui();
 
     comPointersLevel.Clear();
     comPointersTextureUpload.Clear();

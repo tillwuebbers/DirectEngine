@@ -78,11 +78,11 @@ public:
 	bool showDemoWindow = false;
 	bool showEscMenu = false;
 	bool showDebugUI = ISDEBUG;
-	bool showDebugImage = false;
 	bool showPostProcessWindow = ISDEBUG;
 	bool showMovementWindow = false;
 	bool showAudioWindow = false;
 	bool showEntityList = ISDEBUG;
+	bool showMaterialList = false;
 	bool showLightWindow = false;
 	bool scrollLog = true;
 	bool noclip = false;

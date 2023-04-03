@@ -7,14 +7,14 @@ using namespace DirectX;
 
 struct DescriptorHandle
 {
-    CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle;
-    CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle = {};
+    CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle = {};
 };
 
 struct Texture
 {
     ID3D12Resource* buffer = nullptr;
-    DescriptorHandle handle;
+    DescriptorHandle handle = {};
     std::string name = {};
 };
 

@@ -145,45 +145,45 @@ namespace ArrayFunc
 	}
 }
 
-template <typename T, std::size_t capacity>
+template <typename T, std::size_t CAPACITY>
 class CountingArray
 {
 public:
     T& operator[](const size_t index)
     {
-        return ArrayFunc::OpArray(base, capacity, index);
+        return ArrayFunc::OpArray(base, CAPACITY, index);
     }
 
     const T& operator[](const size_t index) const
     {
-        return ArrayFunc::OpArrayConst(base, capacity, index);
+        return ArrayFunc::OpArrayConst(base, CAPACITY, index);
     }
 
     T& at(const size_t index)
     {
-        return ArrayFunc::At(base, capacity, size, index);
+        return ArrayFunc::At(base, CAPACITY, size, index);
     }
 
     const T& at(const size_t index) const
     {
-        return ArrayFunc::AtConst(base, capacity, size, index);
+        return ArrayFunc::AtConst(base, CAPACITY, size, index);
     }
 
     template <typename... Args>
     T& newElement()
     {
-        assert(size < capacity);
+        assert(size < CAPACITY);
         return *new(reinterpret_cast<void*>(&base[size++])) T(Args...);
     }
 
     bool removeAt(const size_t removeIndex)
     {
-        ArrayFunc::RemoveAt(base, capacity, size, removeIndex);
+        ArrayFunc::RemoveAt(base, CAPACITY, size, removeIndex);
     }
 
     void removeAllEqual(const T& element)
     {
-        ArrayFunc::RemoveAllEqual(base, capacity, size, element);
+        ArrayFunc::RemoveAllEqual(base, CAPACITY, size, element);
     }
 
     bool contains(const T& element)
@@ -196,8 +196,9 @@ public:
         size = 0;
     }
 
-    T base[capacity]{};
+    T base[CAPACITY]{};
     size_t size = 0;
+    size_t capacity = CAPACITY;
 
     struct Iterator
     {
