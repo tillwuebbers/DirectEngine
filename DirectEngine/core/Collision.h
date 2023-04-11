@@ -54,7 +54,6 @@ struct CollisionRecord
 	XMVECTOR worldNormal = {};
 	reactphysics3d::decimal hitFraction = 0.f;
 	reactphysics3d::decimal distance = 0.f;
-	int meshSubpart = 0;
 	int triangleIndex = 0;
 	reactphysics3d::CollisionBody* body = nullptr;
 	reactphysics3d::Collider* collider = nullptr;

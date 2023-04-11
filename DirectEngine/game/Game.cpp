@@ -89,14 +89,38 @@ void Game::LoadLevel(EngineCore& engine)
 	entityArena.Reset();
 
 	// Physics
-	if (physicsWorld != nullptr) physicsCommon.destroyPhysicsWorld(physicsWorld);
-	physicsWorld = physicsCommon.createPhysicsWorld();
+	physicsCommon = NewObjectAligned(globalArena, reactphysics3d::PhysicsCommon, 16);
+	if (physicsWorld != nullptr) physicsCommon->destroyPhysicsWorld(physicsWorld);
+	physicsWorld = physicsCommon->createPhysicsWorld();
+	physicsWorld->setEventListener(&physicsEvents);
 	physicsWorld->setIsDebugRenderingEnabled(true);
 	reactphysics3d::DebugRenderer& debugRenderer = physicsWorld->getDebugRenderer();
 	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::COLLIDER_AABB, true);
 	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::COLLISION_SHAPE, true);
 	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::CONTACT_POINT, true);
 	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::CONTACT_NORMAL, true);
+
+	// Portals
+	auto createPortal = [&](size_t matIndex, XMVECTOR pos, const char* name) {
+		Entity* portalRenderQuad = CreateQuadEntity(engine, matIndex, 2.f, 4.f);
+		portalRenderQuad->SetLocalPosition({ -1.f, 2.f, 0.f });
+		portalRenderQuad->SetLocalRotation(XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f));
+		portalRenderQuad->name = "PortalQuad";
+
+		Entity* portal = CreateEmptyEntity(engine);
+		portal->SetLocalPosition(pos);
+		portal->name = name;
+
+		portal->AddChild(portalRenderQuad, false);
+
+		portal->InitCollisionBody(physicsWorld);
+		reactphysics3d::Collider* triggerCollider = portal->InitBoxCollider(physicsCommon, { 1.f, 2.f, .25f }, { 0.f, 0.f, .25f }, CollisionLayers::Floor);
+		triggerCollider->setIsTrigger(true);
+
+		return portal;
+	};
+	portal1 = createPortal(materialIndices[Material::Portal1], { 0.f, 2.f, 10.f }, "Portal 1");
+	portal2 = createPortal(materialIndices[Material::Portal2], { 2.f, 2.f, 10.f }, "Portal 2");
 
 	// Gizmo
 	gizmo = LoadGizmo(engine, *this, materialIndices[Material::Laser]);
@@ -106,33 +130,12 @@ void Game::LoadLevel(EngineCore& engine)
 	crosshair->GetData().mainOnly = true;
 	crosshair->GetBuffer().color = { 1.f, .3f, .1f, 1.f };
 
-	// Portals
-	auto createPortal = [&](size_t matIndex) {
-		Entity* portalRenderQuad = CreateQuadEntity(engine, matIndex, 2.f, 4.f);
-		portalRenderQuad->SetLocalPosition({-1.f, 2.f, 0.f});
-		portalRenderQuad->SetLocalRotation(XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f));
-		portalRenderQuad->name = "PortalQuad";
-
-		Entity* portal = CreateEmptyEntity(engine);
-		portal->AddChild(portalRenderQuad, false);
-
-		return portal;
-	};
-	portal1 = createPortal(materialIndices[Material::Portal1]);
-	portal1->SetLocalPosition({ 0.f, 2.f, 0.f });
-	portal1->name = "Portal 1";
-
-	portal2 = createPortal(materialIndices[Material::Portal2]);
-	portal2->SetLocalPosition({ 2.f, 2.f, 0.f });
-	//portal2->rotation = XMQuaternionRotationRollPitchYaw(0.f, XM_PI, 0.f);
-	portal2->name = "Portal 2";
-
 	// Player
 	playerEntity = CreateEmptyEntity(engine);
 	playerEntity->name = "Player";
 	playerEntity->SetLocalPosition({ 0.f, 1.f, 0.f });
 	playerEntity->InitRigidBody(physicsWorld, reactphysics3d::BodyType::DYNAMIC);
-	playerEntity->InitBoxCollider(physicsCommon, { .5f, 1.f, .5f }, { 0.f, 1.f, 0.f }, CollisionLayers::Player);
+	playerEntity->InitCapsuleCollider(physicsCommon, .5f, 1.f, XMVECTOR{}, CollisionLayers::Player);
 	playerEntity->rigidBody->setAngularLockAxisFactor({ 0.f, 0.f, 0.f });
 	playerEntity->rigidBody->enableGravity(false);
 
@@ -473,14 +476,53 @@ void Game::UpdateGame(EngineCore& engine)
 		entity.UpdateAnimation(engine, false);
 	}
 
+	// Apply portal transition
+	for (Entity& entity : entityArena)
+	{
+		if (entity.isNearPortal1)
+		{
+			XMVECTOR dot = XMVector3Dot(portal1->GetForwardDirection(), XMVector3Normalize(entity.GetWorldPosition() - portal1->GetWorldPosition()));
+			if (XMVectorGetX(dot) < 0.f)
+			{
+				debugLog.Log("prtl1");
+			}
+		}
+		if (entity.isNearPortal2)
+		{
+			XMVECTOR dot = XMVector3Dot(portal2->GetForwardDirection(), XMVector3Normalize(entity.GetWorldPosition() - portal2->GetWorldPosition()));
+			if (XMVectorGetX(dot) < 0.f)
+			{
+				debugLog.Log("prtl2");
+			}
+		}
+	}
+
 	for (Entity& entity : entityArena)
 	{
 		entity.WritePhysicsTransform();
 	}
 
-	//debugLog.Log("Before Physics: {:.1f}, {:.1f}, {:.1f}", SPLIT_V3(XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity())));
+	physicsEvents.collisionEvents.clear();
+	physicsEvents.triggerEvents.clear();
+
 	physicsWorld->update(clampedDeltaTime);
-	//debugLog.Log("After Physics: {:.1f}, {:.1f}, {:.1f}", SPLIT_V3(XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity())));
+	
+	for (GameTriggerEvent& triggerEvent : physicsEvents.triggerEvents)
+	{
+		assert(triggerEvent.triggerBody != nullptr && triggerEvent.otherEntity != nullptr);
+		if (triggerEvent.triggerBody == nullptr || triggerEvent.otherEntity == nullptr) continue;
+
+		if (triggerEvent.triggerBody == portal1->rigidBody)
+		{
+			triggerEvent.otherEntity->isNearPortal1 = triggerEvent.type != reactphysics3d::OverlapCallback::OverlapPair::EventType::OverlapExit;
+			if (triggerEvent.otherEntity == playerEntity && triggerEvent.type == reactphysics3d::OverlapCallback::OverlapPair::EventType::OverlapStart) debugLog.Log("Player near portal 1");
+		}
+		if (triggerEvent.triggerBody == portal2->rigidBody)
+		{
+			triggerEvent.otherEntity->isNearPortal2 = triggerEvent.type != reactphysics3d::OverlapCallback::OverlapPair::EventType::OverlapExit;
+			if (triggerEvent.otherEntity == playerEntity && triggerEvent.type == reactphysics3d::OverlapCallback::OverlapPair::EventType::OverlapStart) debugLog.Log("Player near portal 2");
+		}
+	}
 
 	if (renderPhysics)
 	{
@@ -808,6 +850,69 @@ void Game::ToggleNoclip()
 	{
 		playerEntity->AddChild(playerLookEntity, true);
 		playerLookEntity->SetLocalPosition(defaultPlayerLookPosition);
+	}
+}
+
+void GamePhysicsEvents::onTrigger(const reactphysics3d::OverlapCallback::CallbackData& callbackData)
+{
+	for (int i = 0; i < callbackData.getNbOverlappingPairs(); i++)
+	{
+		auto pair = callbackData.getOverlappingPair(i);
+
+		GameTriggerEvent& triggerEvent = triggerEvents.newElement();
+
+		assert(pair.getCollider1()->getIsTrigger() != pair.getCollider2()->getIsTrigger());
+		if (pair.getCollider1()->getIsTrigger())
+		{
+			triggerEvent.triggerCollider = pair.getCollider1();
+			triggerEvent.triggerBody = pair.getBody1();
+			triggerEvent.otherCollider = pair.getCollider2();
+			triggerEvent.otherBody = pair.getBody2();
+		}
+		else
+		{
+			triggerEvent.triggerCollider = pair.getCollider2();
+			triggerEvent.triggerBody = pair.getBody2();
+			triggerEvent.otherCollider = pair.getCollider1();
+			triggerEvent.otherBody = pair.getBody1();
+		}
+
+		void* triggerUserData = triggerEvent.triggerBody->getUserData();
+		if (triggerUserData != nullptr) triggerEvent.triggerEntity = reinterpret_cast<Entity*>(triggerUserData);
+
+		void* otherUserData = triggerEvent.otherBody->getUserData();
+		if (otherUserData != nullptr) triggerEvent.otherEntity = reinterpret_cast<Entity*>(otherUserData);
+
+		triggerEvent.type = pair.getEventType();
+	}
+}
+
+void GamePhysicsEvents::onContact(const reactphysics3d::CollisionCallback::CallbackData& callbackData)
+{
+	for (int i = 0; i < callbackData.getNbContactPairs(); i++)
+	{
+		auto pair = callbackData.getContactPair(i);
+
+		GameCollisionEvent& collisionEvent = collisionEvents.newElement();
+
+		collisionEvent.bodyA = pair.getBody1();
+		collisionEvent.bodyB = pair.getBody2();
+		collisionEvent.colliderA = pair.getCollider1();
+		collisionEvent.colliderB = pair.getCollider2();
+		collisionEvent.entityA = reinterpret_cast<Entity*>(pair.getBody1()->getUserData());
+		collisionEvent.entityB = reinterpret_cast<Entity*>(pair.getBody2()->getUserData());
+
+		for (int i = 0; i < pair.getNbContactPoints(); i++)
+		{
+			GameContactPoint& gamePoint = collisionEvent.contactPoints.newElement();
+
+			auto physicsContactPoint = pair.getContactPoint(i);
+			gamePoint.worldNormal = XMVectorFromPhysics(physicsContactPoint.getWorldNormal());
+			gamePoint.penetrationDepth = physicsContactPoint.getPenetrationDepth();
+			gamePoint.localPointOnShapeA = XMVectorFromPhysics(physicsContactPoint.getLocalPointOnCollider1());
+			gamePoint.localPointOnShapeB = XMVectorFromPhysics(physicsContactPoint.getLocalPointOnCollider2());
+		}
+		collisionEvent.type = pair.getEventType();
 	}
 }
 

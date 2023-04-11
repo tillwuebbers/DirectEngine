@@ -620,7 +620,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 						ImGui::DragFloat3("##AddColliderSize", &physicsAddColliderDebug.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f");
 						if (ImGui::Button("Add Box Collider"))
 						{
-							auto boxShape = physicsCommon.createBoxShape(PhysicsVectorFromXM(physicsAddColliderDebug));
+							auto boxShape = physicsCommon->createBoxShape(PhysicsVectorFromXM(physicsAddColliderDebug));
 							entity->rigidBody->addCollider(boxShape, {});
 						}
 					}
@@ -702,6 +702,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 		ImGui::End();
 	}
 
+	// Materials
 	if (showMaterialList)
 	{
 		if (ImGui::Begin("Materials", &showMaterialList))
@@ -711,10 +712,10 @@ void Game::DrawDebugUI(EngineCore& engine)
 				ImGui::PushID(&mat);
 				if (ImGui::CollapsingHeader(mat.name.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
 				{
-					ImGui::Text("Shader: %s", std::string(mat.pipeline->shaderName.begin(), mat.pipeline->shaderName.end()).c_str());
-					ImGui::SameLine(0.f, 10.f);
+					float availableX = ImGui::GetContentRegionAvail().x;
 					ImGui::Text("Entities: %d", mat.entities.size);
-					ImGui::SameLine(0.f, 10.f);
+					ImGui::SameLine();
+					ImGui::SetCursorPosX(availableX / 2.f);
 					ImGui::Text("Vertices: %d/%d", mat.vertexCount, mat.maxVertexCount);
 
 					for (Texture* tex : mat.textures)

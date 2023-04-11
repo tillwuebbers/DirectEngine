@@ -41,6 +41,9 @@ public:
 	bool isGizmoScaleCube = false;
 	XMVECTOR gizmoScaleAxis{};
 
+	bool isNearPortal1 = false;
+	bool isNearPortal2 = false;
+
 	reactphysics3d::RigidBody* rigidBody = nullptr;
 	reactphysics3d::CollisionBody* collisionBody = nullptr;
 
@@ -51,7 +54,8 @@ public:
 
 	void InitRigidBody(reactphysics3d::PhysicsWorld* physicsWorld, reactphysics3d::BodyType type = reactphysics3d::BodyType::DYNAMIC);
 	void InitCollisionBody(reactphysics3d::PhysicsWorld* physicsWorld);
-	reactphysics3d::Collider* InitBoxCollider(reactphysics3d::PhysicsCommon& physicsCommon, XMVECTOR boxExtents, XMVECTOR boxOffset, CollisionLayers collisionLayers, float bounciness = 0.1f, float friction = 0.5f, float density = 1.0f);
+	reactphysics3d::Collider* InitBoxCollider(reactphysics3d::PhysicsCommon* physicsCommon, XMVECTOR boxExtents, XMVECTOR boxOffset, CollisionLayers collisionLayers);
+	reactphysics3d::Collider* InitCapsuleCollider(reactphysics3d::PhysicsCommon* physicsCommon, float radius, float height, XMVECTOR offset, CollisionLayers collisionLayers);
 
 	EntityData& GetData();
 	EntityConstantBuffer& GetBuffer();

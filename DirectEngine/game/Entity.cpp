@@ -51,12 +51,19 @@ void Entity::InitCollisionBody(reactphysics3d::PhysicsWorld* physicsWorld)
 	collisionBody->setUserData(this);
 }
 
-reactphysics3d::Collider* Entity::InitBoxCollider(reactphysics3d::PhysicsCommon& physicsCommon, XMVECTOR boxExtents, XMVECTOR boxOffset, CollisionLayers collisionLayers, float bounciness, float friction, float density)
+void SetDefaultMaterial(reactphysics3d::Material& mat)
+{
+	mat.setBounciness(.1f);
+	mat.setFrictionCoefficient(.5f);
+	mat.setMassDensity(1.f);
+}
+
+reactphysics3d::Collider* Entity::InitBoxCollider(reactphysics3d::PhysicsCommon* physicsCommon, XMVECTOR boxExtents, XMVECTOR boxOffset, CollisionLayers collisionLayers)
 {
 	assert(rigidBody != nullptr || collisionBody != nullptr);
 	assert(rigidBody == nullptr || collisionBody == nullptr);
 
-	reactphysics3d::BoxShape* boxShape = physicsCommon.createBoxShape(PhysicsVectorFromXM(boxExtents));
+	reactphysics3d::BoxShape* boxShape = physicsCommon->createBoxShape(PhysicsVectorFromXM(boxExtents));
 	reactphysics3d::Transform boxTransform = PhysicsTransformFromXM(boxOffset, XMQuaternionIdentity());
 
 	reactphysics3d::Collider* collider = nullptr;
@@ -74,11 +81,41 @@ reactphysics3d::Collider* Entity::InitBoxCollider(reactphysics3d::PhysicsCommon&
 	{
 		collider->setCollisionCategoryBits(static_cast<uint32_t>(collisionLayers));
 		collider->setUserData(this);
+		SetDefaultMaterial(collider->getMaterial());
+	}
 
-		reactphysics3d::Material& mat = collider->getMaterial();
-		mat.setBounciness(bounciness);
-		mat.setFrictionCoefficient(friction);
-		mat.setMassDensity(density);
+	if (rigidBody != nullptr)
+	{
+		rigidBody->updateMassPropertiesFromColliders();
+	}
+
+	return collider;
+}
+
+reactphysics3d::Collider* Entity::InitCapsuleCollider(reactphysics3d::PhysicsCommon* physicsCommon, float radius, float height, XMVECTOR offset, CollisionLayers collisionLayers)
+{
+	assert(rigidBody != nullptr || collisionBody != nullptr);
+	assert(rigidBody == nullptr || collisionBody == nullptr);
+	
+	reactphysics3d::CapsuleShape* capsuleShape = physicsCommon->createCapsuleShape(radius, height);
+	reactphysics3d::Transform capsuleTransform = PhysicsTransformFromXM(offset, XMQuaternionIdentity());
+
+	reactphysics3d::Collider* collider = nullptr;
+
+	if (rigidBody != nullptr)
+	{
+		collider = rigidBody->addCollider(capsuleShape, capsuleTransform);
+	}
+	if (collisionBody != nullptr)
+	{
+		collider = collisionBody->addCollider(capsuleShape, capsuleTransform);
+	}
+
+	if (collider != nullptr)
+	{
+		collider->setCollisionCategoryBits(static_cast<uint32_t>(collisionLayers));
+		collider->setUserData(this);
+		SetDefaultMaterial(collider->getMaterial());
 	}
 
 	if (rigidBody != nullptr)

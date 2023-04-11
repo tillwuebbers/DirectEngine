@@ -6,7 +6,6 @@ void SetCollisionRecord(CollisionRecord& collision, const reactphysics3d::Raycas
 	collision.worldNormal = XMVectorFromPhysics(info.worldNormal);
 	collision.hitFraction = info.hitFraction;
 	collision.distance = rayLength * info.hitFraction;
-	collision.meshSubpart = info.meshSubpart;
 	collision.triangleIndex = info.triangleIndex;
 	collision.body = info.body;
 	collision.collider = info.collider;
