@@ -6,7 +6,6 @@ set(XAUDIO2_DIR ${CMAKE_CURRENT_SOURCE_DIR}/xaudio2)
 set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
 set(DX_HEADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/directx/headers)
 set(GLM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/glm)
-set(METADESK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/metadesk/source)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(REACTPHYSICS_DIR "E:/Code/ReactPhysics3DInstallDebug")
@@ -40,8 +39,7 @@ function(DEPS PROJ)
     target_include_directories(${PROJ}
                                 PRIVATE ${IMGUI_DIR}
                                 PRIVATE ${IMGUI_DIR}/backends
-                                PRIVATE ${GLM_DIR}
-                                PRIVATE ${METADESK_DIR})
+                                PRIVATE ${GLM_DIR})
 
     target_sources(${PROJ}
                     PRIVATE
