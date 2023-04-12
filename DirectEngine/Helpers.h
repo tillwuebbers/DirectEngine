@@ -9,6 +9,8 @@
 #define SPLIT_V3(v) v.m128_f32[0], v.m128_f32[1], v.m128_f32[2]
 #define SPLIT_V4(v) v.m128_f32[0], v.m128_f32[1], v.m128_f32[2], v.m128_f32[3]
 
+#define SPLIT_V3_BT(v) v.x(), v.y(), v.z()
+
 #include <chrono>
 #include <format>
 #include <stdexcept>

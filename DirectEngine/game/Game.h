@@ -3,6 +3,7 @@
 #include "Log.h"
 #include "Mesh.h"
 #include "Config.h"
+#include "Physics.h"
 #include "../core/IGame.h"
 #include "../core/EngineCore.h"
 
@@ -12,10 +13,6 @@
 #include <string>
 #include <vector>
 #include <mutex>
-
-#define BT_NO_SIMD_OPERATOR_OVERLOADS
-#include "btBulletCollisionCommon.h"
-#include "btBulletDynamicsCommon.h"
 
 #include <DirectXMath.h>
 using namespace DirectX;
@@ -166,6 +163,7 @@ public:
 	btBroadphaseInterface* broadphase = nullptr;
 	btSequentialImpulseConstraintSolver* solver = nullptr;
 	btDiscreteDynamicsWorld* dynamicsWorld = nullptr;
+	PhysicsDebugDrawer physicsDebug{};
 
 	//reactphysics3d::PhysicsWorld* physicsWorld = nullptr;
 	//MinimumRaycastCallback minRaycastCollector{};
@@ -233,7 +231,8 @@ public:
 
 	Entity* CreateEmptyEntity(EngineCore& engine);
 	Entity* CreateMeshEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView);
-	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical = false, CollisionInitType collisionInit = CollisionInitType::None, CollisionLayers collisionLayers = CollisionLayers::All);
+	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical = false);
+	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, PhysicsInit& physicsInit, bool vertical = false);
 	Entity* CreateEntityFromGltf(EngineCore& engine, const char* path, const std::wstring& shaderName, RingLog& log);
 	void UpdateCursorState();
 

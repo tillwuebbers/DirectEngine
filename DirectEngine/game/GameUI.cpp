@@ -477,56 +477,39 @@ void Game::DrawDebugUI(EngineCore& engine)
 					}
 					ImGui::EndTabBar();
 
-					/*if (entity->rigidBody != nullptr)
+					if (entity->rigidBody != nullptr)
 					{
 						ImGui::Separator();
-
 						const char* bodyTypeIcon = nullptr;
-						switch (entity->rigidBody->getType())
+
+						if (entity->rigidBody->isStaticOrKinematicObject())
 						{
-						case reactphysics3d::BodyType::STATIC:    bodyTypeIcon = ICON_HOME_2_LINE; break;
-						case reactphysics3d::BodyType::KINEMATIC: bodyTypeIcon = ICON_DRAG_MOVE_2_LINE; break;
-						case reactphysics3d::BodyType::DYNAMIC:   bodyTypeIcon = ICON_SEND_PLANE_LINE; break;
+							if (entity->rigidBody->isStaticObject())
+							{
+								bodyTypeIcon = ICON_HOME_2_LINE;
+							}
+							else
+							{
+								bodyTypeIcon = ICON_DRAG_MOVE_2_LINE;
+							}
+						}
+						else
+						{
+							bodyTypeIcon = ICON_SEND_PLANE_LINE;
 						}
 
-						ImGui::Text("%s RIGIDBODY %s", bodyTypeIcon, entity->rigidBody->isSleeping() ? ICON_ZZZ_FILL : "");
-
-						ImGui::Text("Velocity: %.1f %.1f %.1f", entity->rigidBody->getLinearVelocity().x, entity->rigidBody->getLinearVelocity().y, entity->rigidBody->getLinearVelocity().z);
-						ImGui::Text("Angular Velocity: %.1f %.1f %.1f", entity->rigidBody->getAngularVelocity().x, entity->rigidBody->getAngularVelocity().y, entity->rigidBody->getAngularVelocity().z);
-						ImGui::Text("Inertia: %.1f %.1f %.1f", entity->rigidBody->getLocalInertiaTensor().x, entity->rigidBody->getLocalInertiaTensor().y, entity->rigidBody->getLocalInertiaTensor().z);
-
+						ImGui::Text("%s RIGIDBODY %s", bodyTypeIcon, entity->rigidBody->isActive() ? "" : ICON_ZZZ_FILL);
+						ImGui::Text("In World: %s", entity->rigidBody->isInWorld() ? "yes" : "no");
+						ImGui::Text("Velocity: %.1f %.1f %.1f", SPLIT_V3_BT(entity->rigidBody->getLinearVelocity()));
+						ImGui::Text("Angular Velocity: %.1f %.1f %.1f", SPLIT_V3_BT(entity->rigidBody->getAngularVelocity()));
+						ImGui::Text("Inertia: %.1f %.1f %.1f", SPLIT_V3_BT(entity->rigidBody->getLocalInertia()));
 						ImGui::Text("Mass: %.1f", entity->rigidBody->getMass());
-						ImGui::SameLine();
-						if (ImGui::Button("Recalculate")) entity->rigidBody->updateMassPropertiesFromColliders();
-
-						bool isActive = entity->rigidBody->isActive();
-						if (ImGui::Checkbox("Active", &isActive)) entity->rigidBody->setIsActive(isActive);
-
-						ImGui::SameLine();
-
-						bool hasGravity = entity->rigidBody->isGravityEnabled();
-						if (ImGui::Checkbox("Gravity", &hasGravity)) entity->rigidBody->enableGravity(hasGravity);
+						ImGui::Text("Gravity: %.1f %.1f %.1f", SPLIT_V3_BT(entity->rigidBody->getGravity()));
 						
-						reactphysics3d::Vector3 linearLock = entity->rigidBody->getLinearLockAxisFactor();
-						bool xLocked = linearLock.x < 0.01f;
-						bool yLocked = linearLock.y < 0.01f;
-						bool zLocked = linearLock.z < 0.01f;
-						ImGui::Text("Lock Movement: ");
-						ImGui::SameLine();
-						ImGui::Checkbox("X##linearlockx", &xLocked);
-						ImGui::SameLine();
-						ImGui::Checkbox("Y##linearlocky", &yLocked);
-						ImGui::SameLine();
-						ImGui::Checkbox("Z##linearlockz", &zLocked);
-						linearLock.x = xLocked ? 0.f : 1.f;
-						linearLock.y = yLocked ? 0.f : 1.f;
-						linearLock.z = zLocked ? 0.f : 1.f;
-						entity->rigidBody->setLinearLockAxisFactor(linearLock);
-
-						reactphysics3d::Vector3 rotationLock = entity->rigidBody->getAngularLockAxisFactor();
-						xLocked = rotationLock.x < 0.01f;
-						yLocked = rotationLock.y < 0.01f;
-						zLocked = rotationLock.z < 0.01f;
+						btVector3 rotationLock = entity->rigidBody->getAngularFactor();
+						bool xLocked = rotationLock.x() < 0.01f;
+						bool yLocked = rotationLock.y() < 0.01f;
+						bool zLocked = rotationLock.z() < 0.01f;
 						ImGui::Text("Lock Rotation: ");
 						ImGui::SameLine();
 						ImGui::Checkbox("X##rotationlockx", &xLocked);
@@ -534,11 +517,14 @@ void Game::DrawDebugUI(EngineCore& engine)
 						ImGui::Checkbox("Y##rotationlocky", &yLocked);
 						ImGui::SameLine();
 						ImGui::Checkbox("Z##rotationlockz", &zLocked);
-						rotationLock.x = xLocked ? 0.f : 1.f;
-						rotationLock.y = yLocked ? 0.f : 1.f;
-						rotationLock.z = zLocked ? 0.f : 1.f;
-						entity->rigidBody->setAngularLockAxisFactor(rotationLock);
+						rotationLock.setX(xLocked ? 0.f : 1.f);
+						rotationLock.setY(yLocked ? 0.f : 1.f);
+						rotationLock.setZ(zLocked ? 0.f : 1.f);
+						entity->rigidBody->setAngularFactor(rotationLock);
+					}
 
+					/*if (entity->rigidBody != nullptr)
+					{
 						int rigidBodyType = static_cast<int>(entity->rigidBody->getType());
 						if (ImGui::Combo("Body Type", &rigidBodyType, "Static\0Kinematic\0Dynamic\0\0"))
 						{

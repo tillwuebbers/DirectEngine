@@ -3,13 +3,13 @@
 #include "../core/Memory.h"
 #include "../core/EngineCore.h"
 #include "../core/Audio.h"
-#include "../core/Collision.h"
 #include "Mesh.h"
+#include "Physics.h"
 
 #include <DirectXMath.h>
 using namespace DirectX;
 
-class Entity
+class Entity : btMotionState
 {
 public:
 	ExtendedMatrix localMatrix;
@@ -42,38 +42,43 @@ public:
 	bool isNearPortal1 = false;
 	bool isNearPortal2 = false;
 
-	//reactphysics3d::RigidBody* rigidBody = nullptr;
+	btRigidBody* rigidBody = nullptr;
+	btDynamicsWorld* rigidBodyWorld = nullptr;
+	XMVECTOR physicsShapeOffset = {};
 
 	AudioSource audioSource;
 
 	void AddChild(Entity* child, bool keepWorldPosition);
 	void RemoveChild(Entity* child, bool keepWorldPosition);
 
+	void AddRigidBody(MemoryArena& arena, btDynamicsWorld* world, btCollisionShape* shape, PhysicsInit& physicsInit);
+
 	EntityData& GetData();
 	EntityConstantBuffer& GetBuffer();
 	void UpdateWorldMatrix();
 	void SetForwardDirection(XMVECTOR direction, XMVECTOR up = V3_UP, XMVECTOR altUp = V3_RIGHT);
-	XMVECTOR GetForwardDirection();
+	XMVECTOR GetForwardDirection() const;
 	void UpdateAudio(EngineCore& engine, const X3DAUDIO_LISTENER* audioListener);
 	void UpdateAnimation(EngineCore& engine, bool isMainRender);
-	void WritePhysicsTransform();
-	void ReadPhysicsTransform();
 	void SetActive(bool newState, bool affectSelf = true);
 	bool IsActive();
 
 	void SetLocalPosition(const XMVECTOR localPos);
 	void SetLocalRotation(const XMVECTOR localRot);
 	void SetLocalScale(const XMVECTOR localScale);
-	XMVECTOR GetLocalPosition();
-	XMVECTOR GetLocalRotation();
-	XMVECTOR GetLocalScale();
+	XMVECTOR GetLocalPosition() const;
+	XMVECTOR GetLocalRotation() const;
+	XMVECTOR GetLocalScale() const;
 
 	void SetWorldPosition(const XMVECTOR worldPos);
 	void SetWorldRotation(const XMVECTOR worldRot);
 	void SetWorldScale(const XMVECTOR worldScale);
-	XMVECTOR GetWorldPosition();
-	XMVECTOR GetWorldRotation();
-	XMVECTOR GetWorldScale();
+	XMVECTOR GetWorldPosition() const;
+	XMVECTOR GetWorldRotation() const;
+	XMVECTOR GetWorldScale() const;
+
+	void getWorldTransform(btTransform& worldTrans) const;
+	void setWorldTransform(const btTransform& worldTrans);
 
 private:
 	bool isParentActive = true;

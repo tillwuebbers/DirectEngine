@@ -77,6 +77,8 @@ void Game::StartGame(EngineCore& engine)
 	dispatcher = NewObject(globalArena, btCollisionDispatcher, collisionConfiguration);
 	broadphase = NewObject(globalArena, btDbvtBroadphase);
 	solver = NewObject(globalArena, btSequentialImpulseConstraintSolver);
+	physicsDebug.log = &debugLog;
+	physicsDebug.engine = &engine;
 
 	// Finish setup
 	LoadLevel(engine);
@@ -97,6 +99,7 @@ void Game::LoadLevel(EngineCore& engine)
 	// Physics
 	dynamicsWorld = NewObject(levelArena, btDiscreteDynamicsWorld, dispatcher, broadphase, solver, collisionConfiguration);
 	dynamicsWorld->setGravity(btVector3(0.f, -10.f, 0.f));
+	dynamicsWorld->setDebugDrawer(&physicsDebug);
 
 	// Portals
 	auto createPortal = [&](size_t matIndex, XMVECTOR pos, const char* name) {
@@ -129,6 +132,11 @@ void Game::LoadLevel(EngineCore& engine)
 	playerEntity->name = "Player";
 	playerEntity->SetLocalPosition({ 0.f, 1.f, 0.f });
 
+	btBoxShape* playerPhysicsShape = NewObject(levelArena, btBoxShape, ToBulletVec3({ .5f, 1.f, .5f }));
+	playerEntity->physicsShapeOffset = { 0.f, 1.f, 0.f };
+	PhysicsInit playerPhysics{ 10.f, PhysicsInitType::RigidBodyDynamic };
+	playerEntity->AddRigidBody(levelArena, dynamicsWorld, playerPhysicsShape, playerPhysics);
+
 	playerLookEntity = CreateEmptyEntity(engine);
 	playerLookEntity->name = "PlayerLook";
 	playerLookEntity->SetLocalPosition(defaultPlayerLookPosition);
@@ -149,19 +157,20 @@ void Game::LoadLevel(EngineCore& engine)
 	playerEntity->AddChild(playerModelEntity, false);
 
 	// Ground
-	Entity* groundEntity = CreateQuadEntity(engine, materialIndices[Material::Ground], 100.f, 100.f, false, CollisionInitType::RigidBody, CollisionLayers::Floor);
+	PhysicsInit groundPhysics{ 0.f, PhysicsInitType::RigidBodyStatic };
+	Entity* groundEntity = CreateQuadEntity(engine, materialIndices[Material::Ground], 100.f, 100.f, groundPhysics);
 	groundEntity->name = "Ground";
 	groundEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
 	groundEntity->SetLocalPosition(XMVectorSetY(groundEntity->localMatrix.translation, -.01f));
-	//groundEntity->rigidBody->setType(reactphysics3d::BodyType::STATIC);
 
 	for (int i = 0; i < 16; i++)
 	{
 		Entity* yea = CreateMeshEntity(engine, materialIndices[Material::Ground], engine.cubeVertexView);
 		yea->name = "Yea";
 		yea->SetLocalPosition({ 3.f, 0.5f + i * 16.f, 0.f });
-		//yea->InitRigidBody(physicsWorld);
-		//yea->InitBoxCollider(physicsCommon, { .5f, .5f, .5f }, {}, CollisionLayers::Floor);
+		btBoxShape* boxShape = NewObject(levelArena, btBoxShape, ToBulletVec3({ .5f, .5f, .5f }));
+		PhysicsInit yeaPhysics{ 1.f, PhysicsInitType::RigidBodyDynamic };
+		yea->AddRigidBody(levelArena, dynamicsWorld, boxShape, yeaPhysics);
 	}
 }
 
@@ -285,7 +294,7 @@ void Game::UpdateGame(EngineCore& engine)
 		XMVECTOR wantedDirection = XMVector3Normalize(wantedForward + wantedSideways);
 		bool playerWantsDirection = XMVectorGetX(XMVector3LengthSq(wantedForward) + XMVector3LengthSq(wantedSideways)) > 0.01f;
 
-		/*XMVECTOR playerVelocity = XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity());
+		XMVECTOR playerVelocity = ToXMVec(playerEntity->rigidBody->getLinearVelocity());
 		float verticalPlayerVelocity = XMVectorGetY(playerVelocity);
 		XMVECTOR horizontalPlayerVelocity = XMVectorSetY(playerVelocity, 0.f);
 		XMVECTOR horizontalPlayerDirection = XMVector3Normalize(XMVectorSetY(playerVelocity, 0.f));
@@ -301,7 +310,7 @@ void Game::UpdateGame(EngineCore& engine)
 				resultScale = std::max(0.f, XMVectorGetX(XMVector3Dot(XMVector3Normalize(horizontalPlayerVelocity), wantedDirection)));
 			}
 
-			horizontalPlayerSpeed = horizontalPlayerSpeed * resultScale + movementSettings->playerAcceleration * clampedDeltaTime;
+			horizontalPlayerSpeed = horizontalPlayerSpeed * resultScale + movementSettings->playerAcceleration * engine.m_updateDeltaTime;
 			if (horizontalPlayerSpeed > movementSettings->playerMaxSpeed)
 			{
 				horizontalPlayerSpeed = movementSettings->playerMaxSpeed;
@@ -309,29 +318,23 @@ void Game::UpdateGame(EngineCore& engine)
 
 			playerVelocity = XMVectorScale(resultDirection, horizontalPlayerSpeed);
 			playerVelocity = XMVectorSetY(playerVelocity, verticalPlayerVelocity);
-		}*/
+		}
 
 		// Ground collision
-		/*const float maxPlayerSpeedEstimate = std::max(10.f, playerEntity->rigidBody->getLinearVelocity().y);
-		const float collisionEpsilon = maxPlayerSpeedEstimate * clampedDeltaTime;
+		const float maxPlayerSpeedEstimate = std::max(10.f, playerEntity->rigidBody->getLinearVelocity().y());
+		const float collisionEpsilon = maxPlayerSpeedEstimate * engine.m_updateDeltaTime;
 		XMVECTOR groundRayStart = playerEntity->GetWorldPosition() + V3_UP * collisionEpsilon;
 		XMVECTOR groundRayEnd = playerEntity->GetWorldPosition() - V3_UP * collisionEpsilon;
-		minRaycastCollector.Raycast(physicsWorld, groundRayStart, groundRayEnd, CollisionLayers::Floor);
-		playerOnGround = minRaycastCollector.anyCollision;*/
 
-		/*
-		debugLog.Log(playerOnGround ? "--- G" : "--- A");
-		float ps = MAX_PHYSICS_STEP;
-		debugLog.Log("Delta: {}", engine.m_updateDeltaTime, ps, clampedDeltaTime);
-		debugLog.Log("Player Y: {}", playerEntity->position.m128_f32[1]);
-		debugLog.Log("Ray Y: {} -> {}", groundRayStart.m128_f32[1], groundRayEnd.m128_f32[1]);
-		if (minRaycastCollector.anyCollision) debugLog.Log("Ray hit: {}", minRaycastCollector.collision.worldPoint.m128_f32[1]);
+		btCollisionWorld::ClosestRayResultCallback callback{ ToBulletVec3(groundRayStart), ToBulletVec3(groundRayEnd) };
+		dynamicsWorld->rayTest(ToBulletVec3(groundRayStart), ToBulletVec3(groundRayEnd), callback);
+		playerOnGround = callback.hasHit();
+		if (callback.hasHit()) debugLog.Log("Ray hit: {} {} {}", SPLIT_V3_BT(callback.m_hitPointWorld));
 		
-
 		if (playerOnGround)
 		{
 			// Move player on ground
-			//playerEntity->rigidBody->setTransform(PhysicsTransformFromXM(minRaycastCollector.collision.worldPoint, playerEntity->GetWorldRotation()));
+			playerEntity->SetWorldPosition(ToXMVec(callback.m_hitPointWorld));
 
 			// Stop falling speed
 			playerVelocity = XMVectorSetY(playerVelocity, 0.);
@@ -347,7 +350,7 @@ void Game::UpdateGame(EngineCore& engine)
 				// Apply friction when no input
 				if (std::abs(horizontalInput) <= inputDeadzone && std::abs(verticalInput) <= inputDeadzone)
 				{
-					float speedDecrease = movementSettings->playerFriction * clampedDeltaTime;
+					float speedDecrease = movementSettings->playerFriction * engine.m_updateDeltaTime;
 					if (horizontalPlayerSpeed <= speedDecrease)
 					{
 						playerVelocity = V3_ZERO;
@@ -358,11 +361,11 @@ void Game::UpdateGame(EngineCore& engine)
 		}
 		else
 		{
-			playerVelocity.m128_f32[1] -= clampedDeltaTime * movementSettings->playerGravity;
-		}*/
+			playerVelocity.m128_f32[1] -= engine.m_updateDeltaTime * movementSettings->playerGravity;
+		}
 
 		// Apply velocity
-		//playerEntity->rigidBody->setLinearVelocity(PhysicsVectorFromXM(playerVelocity));
+		playerEntity->rigidBody->setLinearVelocity(ToBulletVec3(playerVelocity));
 	}
 
 	// Gizmo
@@ -443,7 +446,7 @@ void Game::UpdateGame(EngineCore& engine)
 	XMStoreFloat3(&playerAudioListener.OrientFront, cameraEntity->worldMatrix.forward);
 	XMStoreFloat3(&playerAudioListener.OrientTop, cameraEntity->worldMatrix.up);
 	XMStoreFloat3(&playerAudioListener.Position, engine.mainCamera->worldMatrix.translation);
-	//XMStoreFloat3(&playerAudioListener.Velocity, XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity()));
+	if (playerEntity->rigidBody != nullptr) XMStoreFloat3(&playerAudioListener.Velocity, ToXMVec(playerEntity->rigidBody->getLinearVelocity()));
 
 	// Shoot portal
 	if (input.KeyJustPressed(VK_LBUTTON) || input.KeyJustPressed(VK_RBUTTON))
@@ -487,10 +490,20 @@ void Game::UpdateGame(EngineCore& engine)
 
 	for (Entity& entity : entityArena)
 	{
-		entity.WritePhysicsTransform();
+		//entity.WritePhysicsTransform();
 	}
 
 	dynamicsWorld->stepSimulation(engine.m_updateDeltaTime, 3, MAX_PHYSICS_STEP);
+
+	if (renderPhysics)
+	{
+		physicsDebug.setDebugMode(btIDebugDraw::DBG_DrawAabb | btIDebugDraw::DBG_DrawContactPoints);
+	}
+	else
+	{
+		physicsDebug.setDebugMode(btIDebugDraw::DBG_NoDebug);
+	}
+	dynamicsWorld->debugDrawWorld();
 	
 	if (renderPhysics)
 	{
@@ -504,7 +517,7 @@ void Game::UpdateGame(EngineCore& engine)
 
 	for (Entity& entity : entityArena)
 	{
-		entity.ReadPhysicsTransform();
+		//entity.ReadPhysicsTransform();
 		entity.UpdateAudio(engine, &playerAudioListener);
 	}
 
@@ -666,24 +679,27 @@ Entity* Game::CreateMeshEntity(EngineCore& engine, size_t materialIndex, D3D12_V
 	return entity;
 }
 
-Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical, CollisionInitType collisionInit, CollisionLayers collisionLayers)
+Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical)
 {
 	MeshFile file = vertical ? CreateQuadY(width, height, globalArena) : CreateQuad(width, height, globalArena);
 	auto meshView = engine.CreateMesh(materialIndex, file.vertices, file.vertexCount, file.meshHash);
 	Entity* entity = CreateMeshEntity(engine, materialIndex, meshView);
 	entity->SetLocalPosition({-width / 2.f, 0.f, -height / 2.f});
-	/*if (collisionInit == CollisionInitType::CollisionBody)
+
+	return entity;
+}
+
+Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, PhysicsInit& physicsInit, bool vertical)
+{
+	Entity* entity = CreateQuadEntity(engine, materialIndex, width, height, vertical);
+
+	if (physicsInit.type != PhysicsInitType::None)
 	{
-		entity->InitCollisionBody(physicsWorld);
+		btBoxShape* physicsShape = NewObject(levelArena, btBoxShape, ToBulletVec3({ width / 2.f, 0.05f, height / 2.f }));
+		entity->physicsShapeOffset = XMVECTOR{ width / 2.f, -.05f, height / 2.f };
+		entity->AddRigidBody(levelArena, dynamicsWorld, physicsShape, physicsInit);
 	}
-	if (collisionInit == CollisionInitType::RigidBody)
-	{
-		entity->InitRigidBody(physicsWorld);
-	}
-	if (collisionInit != CollisionInitType::None)
-	{
-		reactphysics3d::Collider* collider = entity->InitBoxCollider(physicsCommon, { width / 2.f, .2f, height / 2.f }, { width / 2.f, -.2f, height / 2.f }, collisionLayers);
-	}*/
+
 	return entity;
 }
 
