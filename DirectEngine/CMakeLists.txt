@@ -7,6 +7,14 @@ set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
 set(DX_HEADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/directx/headers)
 set(GLM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/glm)
 
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+	set(BULLET_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/bullet3/out/build/lib/Debug)
+else()
+	set(BULLET_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/bullet3/out/build/lib/Release)
+endif()
+set(BULLET_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/bullet3/src)
+
+
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(REACTPHYSICS_DIR "E:/Code/ReactPhysics3DInstallDebug")
 else()
@@ -56,14 +64,25 @@ function(DEPS PROJ)
 
     # xaudio2
     target_include_directories(${PROJ} PRIVATE ${XAUDIO2_DIR}/include)
+	
+	# bullet
+	target_include_directories(${PROJ} PRIVATE ${BULLET_INCLUDE_DIR})
 
     # libs
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
         file(COPY "${XAUDIO2_DIR}/debug/bin/x64/xaudio2_9redist.dll" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-        target_link_libraries(${PROJ} "${XAUDIO2_DIR}/debug/lib/x64/xaudio2_9redist.lib")
+        target_link_libraries(${PROJ}
+        "${XAUDIO2_DIR}/debug/lib/x64/xaudio2_9redist.lib"
+        "${BULLET_LIB_DIR}/LinearMath_Debug.lib"
+        "${BULLET_LIB_DIR}/Bullet3Common_Debug.lib"
+        "${BULLET_LIB_DIR}/BulletCollision_Debug.lib")
     else()
         file(COPY "${XAUDIO2_DIR}/release/bin/x64/xaudio2_9redist.dll" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-        target_link_libraries(${PROJ} "${XAUDIO2_DIR}/release/lib/x64/xaudio2_9redist.lib")
+        target_link_libraries(${PROJ}
+        "${XAUDIO2_DIR}/release/lib/x64/xaudio2_9redist.lib"
+        "${BULLET_LIB_DIR}/LinearMath.lib"
+        "${BULLET_LIB_DIR}/Bullet3Common.lib"
+        "${BULLET_LIB_DIR}/BulletCollision.lib")
     endif()
     target_link_libraries(${PROJ} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib")
     

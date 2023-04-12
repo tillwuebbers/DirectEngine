@@ -8,6 +8,9 @@
 #include "../core/vkcodes.h"
 #include "remixicon.h"
 
+#define BT_NO_SIMD_OPERATOR_OVERLOADS
+#include "btBulletCollisionCommon.h"
+
 Game::Game(GAME_CREATION_PARAMS) : globalArena(globalArena), configArena(configArena), levelArena(levelArena) {}
 
 void Game::StartGame(EngineCore& engine)

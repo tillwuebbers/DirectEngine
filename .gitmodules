@@ -13,3 +13,6 @@
 [submodule "DirectEngine/metadesk"]
 	path = DirectEngine/metadesk
 	url = https://github.com/Dion-Systems/metadesk
+[submodule "DirectEngine/bullet3"]
+	path = DirectEngine/bullet3
+	url = https://github.com/bulletphysics/bullet3
