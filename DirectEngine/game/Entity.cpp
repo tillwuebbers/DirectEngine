@@ -38,94 +38,6 @@ void Entity::RemoveChild(Entity* child, bool keepWorldPosition)
 	children.removeAllEqual(child);
 }
 
-void Entity::InitRigidBody(reactphysics3d::PhysicsWorld* physicsWorld, reactphysics3d::BodyType type)
-{
-	rigidBody = physicsWorld->createRigidBody(GetPhysicsTransform());
-	rigidBody->setType(type);
-	rigidBody->setUserData(this);
-}
-
-void Entity::InitCollisionBody(reactphysics3d::PhysicsWorld* physicsWorld)
-{
-	collisionBody = physicsWorld->createCollisionBody(GetPhysicsTransform());
-	collisionBody->setUserData(this);
-}
-
-void SetDefaultMaterial(reactphysics3d::Material& mat)
-{
-	mat.setBounciness(.1f);
-	mat.setFrictionCoefficient(.5f);
-	mat.setMassDensity(1.f);
-}
-
-reactphysics3d::Collider* Entity::InitBoxCollider(reactphysics3d::PhysicsCommon* physicsCommon, XMVECTOR boxExtents, XMVECTOR boxOffset, CollisionLayers collisionLayers)
-{
-	assert(rigidBody != nullptr || collisionBody != nullptr);
-	assert(rigidBody == nullptr || collisionBody == nullptr);
-
-	reactphysics3d::BoxShape* boxShape = physicsCommon->createBoxShape(PhysicsVectorFromXM(boxExtents));
-	reactphysics3d::Transform boxTransform = PhysicsTransformFromXM(boxOffset, XMQuaternionIdentity());
-
-	reactphysics3d::Collider* collider = nullptr;
-
-	if (rigidBody != nullptr)
-	{
-		collider = rigidBody->addCollider(boxShape, boxTransform);
-	}
-	if (collisionBody != nullptr)
-	{
-		collider = collisionBody->addCollider(boxShape, boxTransform);
-	}
-
-	if (collider != nullptr)
-	{
-		collider->setCollisionCategoryBits(static_cast<uint32_t>(collisionLayers));
-		collider->setUserData(this);
-		SetDefaultMaterial(collider->getMaterial());
-	}
-
-	if (rigidBody != nullptr)
-	{
-		rigidBody->updateMassPropertiesFromColliders();
-	}
-
-	return collider;
-}
-
-reactphysics3d::Collider* Entity::InitCapsuleCollider(reactphysics3d::PhysicsCommon* physicsCommon, float radius, float height, XMVECTOR offset, CollisionLayers collisionLayers)
-{
-	assert(rigidBody != nullptr || collisionBody != nullptr);
-	assert(rigidBody == nullptr || collisionBody == nullptr);
-	
-	reactphysics3d::CapsuleShape* capsuleShape = physicsCommon->createCapsuleShape(radius, height);
-	reactphysics3d::Transform capsuleTransform = PhysicsTransformFromXM(offset, XMQuaternionIdentity());
-
-	reactphysics3d::Collider* collider = nullptr;
-
-	if (rigidBody != nullptr)
-	{
-		collider = rigidBody->addCollider(capsuleShape, capsuleTransform);
-	}
-	if (collisionBody != nullptr)
-	{
-		collider = collisionBody->addCollider(capsuleShape, capsuleTransform);
-	}
-
-	if (collider != nullptr)
-	{
-		collider->setCollisionCategoryBits(static_cast<uint32_t>(collisionLayers));
-		collider->setUserData(this);
-		SetDefaultMaterial(collider->getMaterial());
-	}
-
-	if (rigidBody != nullptr)
-	{
-		rigidBody->updateMassPropertiesFromColliders();
-	}
-
-	return collider;
-}
-
 EntityData& Entity::GetData()
 {
 	assert(isRendered);
@@ -200,14 +112,14 @@ void Entity::UpdateAudio(EngineCore& engine, const X3DAUDIO_LISTENER* audioListe
 		XMStoreFloat3(&emitter.OrientTop, worldMatrix.up);
 		XMStoreFloat3(&emitter.Position, worldMatrix.translation);
 
-		if (rigidBody != nullptr)
+		/*if (rigidBody != nullptr)
 		{
 			XMStoreFloat3(&emitter.Velocity, XMVectorFromPhysics(rigidBody->getLinearVelocity()));
 		}
 		else
-		{
+		{*/
 			XMStoreFloat3(&emitter.Velocity, {});
-		}
+		//}
 
 		XAUDIO2_VOICE_DETAILS audioSourceDetails;
 		audioSourceVoice->GetVoiceDetails(&audioSourceDetails);
@@ -300,25 +212,25 @@ void Entity::UpdateAnimation(EngineCore& engine, bool isMainRender)
 
 void Entity::WritePhysicsTransform()
 {
-	if (collisionBody != nullptr)
+	/*if (collisionBody != nullptr)
 	{
 		collisionBody->setTransform(GetPhysicsTransform());
 	}
 	if (rigidBody != nullptr && rigidBody->getType() == reactphysics3d::BodyType::STATIC)
 	{
 		rigidBody->setTransform(GetPhysicsTransform());
-	}
+	}*/
 }
 
 void Entity::ReadPhysicsTransform()
 {
-	if (rigidBody == nullptr) return;
+	/*if (rigidBody == nullptr) return;
 
 	const reactphysics3d::Transform& rbTransform = rigidBody->getTransform();
 	const reactphysics3d::Vector3& rbPosition = rbTransform.getPosition();
 	const reactphysics3d::Quaternion& rbOrientation = rbTransform.getOrientation();
 	SetWorldPosition({ rbPosition.x, rbPosition.y, rbPosition.z });
-	SetWorldRotation({ rbOrientation.x, rbOrientation.y, rbOrientation.z, rbOrientation.w });
+	SetWorldRotation({ rbOrientation.x, rbOrientation.y, rbOrientation.z, rbOrientation.w });*/
 }
 
 void Entity::SetActive(bool newState, bool affectSelf)
@@ -333,8 +245,8 @@ void Entity::SetActive(bool newState, bool affectSelf)
 	}
 
 	if (isRendered) GetData().visible = newState;
-	if (rigidBody != nullptr) rigidBody->setIsActive(newState);
-	if (collisionBody != nullptr) collisionBody->setIsActive(newState);
+	//if (rigidBody != nullptr) rigidBody->setIsActive(newState);
+	//if (collisionBody != nullptr) collisionBody->setIsActive(newState);
 
 	for (Entity* child : children)
 	{
@@ -451,9 +363,4 @@ XMVECTOR Entity::GetWorldRotation()
 XMVECTOR Entity::GetWorldScale()
 {
 	return worldMatrix.scale;
-}
-
-reactphysics3d::Transform Entity::GetPhysicsTransform()
-{
-	return PhysicsTransformFromXM(worldMatrix.translation, worldMatrix.rotation);
 }

@@ -14,19 +14,8 @@ else()
 endif()
 set(BULLET_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/bullet3/src)
 
-
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(REACTPHYSICS_DIR "E:/Code/ReactPhysics3DInstallDebug")
-else()
-    set(REACTPHYSICS_DIR "E:/Code/ReactPhysics3DInstallRelease")
-endif()
-
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
-
-include_directories("${REACTPHYSICS_DIR}/include")
-list(APPEND CMAKE_PREFIX_PATH ${REACTPHYSICS_DIR})
-find_package(reactphysics3d CONFIG REQUIRED)
 
 # code groups
 file (GLOB CORE_CODE core/*.h core/*.cpp)
@@ -75,14 +64,18 @@ function(DEPS PROJ)
         "${XAUDIO2_DIR}/debug/lib/x64/xaudio2_9redist.lib"
         "${BULLET_LIB_DIR}/LinearMath_Debug.lib"
         "${BULLET_LIB_DIR}/Bullet3Common_Debug.lib"
-        "${BULLET_LIB_DIR}/BulletCollision_Debug.lib")
+        "${BULLET_LIB_DIR}/BulletCollision_Debug.lib"
+        "${BULLET_LIB_DIR}/BulletDynamics_Debug.lib"
+        )
     else()
         file(COPY "${XAUDIO2_DIR}/release/bin/x64/xaudio2_9redist.dll" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
         target_link_libraries(${PROJ}
         "${XAUDIO2_DIR}/release/lib/x64/xaudio2_9redist.lib"
         "${BULLET_LIB_DIR}/LinearMath.lib"
         "${BULLET_LIB_DIR}/Bullet3Common.lib"
-        "${BULLET_LIB_DIR}/BulletCollision.lib")
+        "${BULLET_LIB_DIR}/BulletCollision.lib"
+        "${BULLET_LIB_DIR}/BUlletDynamics.lib"
+        )
     endif()
     target_link_libraries(${PROJ} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib")
     

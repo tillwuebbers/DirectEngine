@@ -67,58 +67,6 @@ void DisplayTransformNode(TransformNode* node)
 	}
 }
 
-void DisplayCollider(reactphysics3d::Collider* collider)
-{
-	const char* colliderIcon;
-	switch (collider->getCollisionShape()->getName())
-	{
-	case reactphysics3d::CollisionShapeName::TRIANGLE:      colliderIcon = ICON_ARROW_DROP_UP_FILL; break;
-	case reactphysics3d::CollisionShapeName::SPHERE:        colliderIcon = ICON_CHECKBOX_BLANK_CIRCLE_LINE; break;
-	case reactphysics3d::CollisionShapeName::CAPSULE:       colliderIcon = ICON_CAPSULE_LINE; break;
-	case reactphysics3d::CollisionShapeName::BOX:           colliderIcon = ICON_CHECKBOX_BLANK_LINE; break;
-	case reactphysics3d::CollisionShapeName::CONVEX_MESH:   colliderIcon = ICON_MAGIC_LINE; break;
-	case reactphysics3d::CollisionShapeName::TRIANGLE_MESH: colliderIcon = ICON_VIP_DIAMOND_LINE; break;
-	case reactphysics3d::CollisionShapeName::HEIGHTFIELD:   colliderIcon = ICON_LINE_CHART_LINE; break;
-	default: colliderIcon = "?"; break;
-	}
-	ImGui::Text("%s COLLIDER", colliderIcon);
-
-	for (uint32_t i = 0; i < collisionLayerNames.size(); i++)
-	{
-		uint32_t bit = 1 << i;
-		uint32_t comparisonBits = collider->getCollisionCategoryBits();
-		bool checked = (comparisonBits & bit) != 0;
-		if (ImGui::Checkbox(collisionLayerNames[i], &checked))
-		{
-			if (checked)
-			{
-				collider->setCollisionCategoryBits(comparisonBits | bit);
-			}
-			else
-			{
-				collider->setCollisionCategoryBits(comparisonBits & ~bit);
-			}
-		}
-
-		if (i < collisionLayerNames.size() - 1) ImGui::SameLine();
-	}
-
-	reactphysics3d::Material& mat = collider->getMaterial();
-	float bounciness = mat.getBounciness();
-	float friction = mat.getFrictionCoefficient();
-	float density = mat.getMassDensity();
-
-	if (ImGui::DragFloat("Bounciness", &bounciness, SLIDER_SPEED, 0.f, 1.f, "%.2f", ImGuiSliderFlags_NoRoundToFormat)) mat.setBounciness(bounciness);
-	if (ImGui::DragFloat("Friction", &friction, SLIDER_SPEED, 0.f, 1.f, "%.2f", ImGuiSliderFlags_NoRoundToFormat)) mat.setFrictionCoefficient(friction);
-	if (ImGui::DragFloat("Density", &density, SLIDER_SPEED, 0.f, 1.f, "%.2f", ImGuiSliderFlags_NoRoundToFormat)) mat.setMassDensity(density);
-
-	bool isTrigger = collider->getIsTrigger();
-	if (ImGui::Checkbox("Is Trigger", &isTrigger))
-	{
-		collider->setIsTrigger(isTrigger);
-	}
-}
-
 void InputSizeT(const char* label, size_t* value)
 {
 	size_t defaultStep = 1;
@@ -400,7 +348,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 			ImGui::SameLine();
 
 			ImVec2 cursorPos = ImGui::GetCursorScreenPos();
-			float playerDisplaySpeed = XMVectorGetX(XMVector3Length(XMVectorSetY(XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity()), 0.)));
+			float playerDisplaySpeed = 0.f;// XMVectorGetX(XMVector3Length(XMVectorSetY(XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity()), 0.)));
 			ImGui::GetWindowDrawList()->AddLine({ cursorPos.x, cursorPos.y + 10.f }, { cursorPos.x + (playerDisplaySpeed * 30.f / movementSettings->playerMaxSpeed), cursorPos.y + 10.f }, ImColor(.1f, .2f, .9f), 10.f);
 			ImGui::SetCursorPosX(cursorPos.x + 35.f);
 			ImGui::Text("Vel: %.1f", playerDisplaySpeed);
@@ -529,7 +477,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 					}
 					ImGui::EndTabBar();
 
-					if (entity->rigidBody != nullptr)
+					/*if (entity->rigidBody != nullptr)
 					{
 						ImGui::Separator();
 
@@ -633,9 +581,9 @@ void Game::DrawDebugUI(EngineCore& engine)
 							entity->rigidBody->updateMassPropertiesFromColliders();
 							entity->rigidBody->setType(reactphysics3d::BodyType::STATIC);
 						}
-					}
+					}*/
 
-					if (entity->collisionBody != nullptr)
+					/*if (entity->collisionBody != nullptr)
 					{
 						ImGui::Separator();
 						ImGui::Text("COLLISION BODY");
@@ -645,7 +593,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 							ImGui::Separator();
 							DisplayCollider(entity->collisionBody->getCollider(i));
 						}
-					}
+					}*/
 					
 					if (entity->isSkinnedRoot && entity->transformHierachy->nodeCount > 0)
 					{

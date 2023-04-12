@@ -46,8 +46,8 @@ Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex)
 		Entity* translateArrow = gizmo->translateArrows[i];
 		translateArrow = game.CreateMeshEntity(engine, materialIndex, gizmo->translateArrowMesh);
 		translateArrow->GetBuffer().color = xyzColors[i];
-		translateArrow->InitCollisionBody(game.physicsWorld);
-		translateArrow->InitBoxCollider(game.physicsCommon, { 0.1f, 1.f, 0.1f }, { 0.f, .5f, 0.f }, CollisionLayers::GizmoClick);
+		//translateArrow->InitCollisionBody(game.physicsWorld);
+		//translateArrow->InitBoxCollider(game.physicsCommon, { 0.1f, 1.f, 0.1f }, { 0.f, .5f, 0.f }, CollisionLayers::GizmoClick);
 		translateArrow->SetLocalRotation(xyzRotations[i]);
 		translateArrow->name = std::format("TranslateArrow{}", xyzNames[i]).c_str();
 		translateArrow->isGizmoTranslationArrow = true;
@@ -57,8 +57,8 @@ Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex)
 		Entity* rotateArrow = gizmo->rotateArrows[i];
 		rotateArrow = game.CreateMeshEntity(engine, materialIndex, gizmo->rotateArrowMesh);
 		rotateArrow->GetBuffer().color = xyzColors[i];
-		rotateArrow->InitCollisionBody(game.physicsWorld);
-		rotateArrow->InitBoxCollider(game.physicsCommon, { 2.f, .05f, 2.f }, { 0.f, 0.f, 0.f }, CollisionLayers::GizmoClick);
+		//rotateArrow->InitCollisionBody(game.physicsWorld);
+		//rotateArrow->InitBoxCollider(game.physicsCommon, { 2.f, .05f, 2.f }, { 0.f, 0.f, 0.f }, CollisionLayers::GizmoClick);
 		rotateArrow->SetLocalRotation(xyzRotations[i]);
 		rotateArrow->name = std::format("RotateArrow{}", xyzNames[i]).c_str();
 		rotateArrow->isGizmoRotationRing = true;
@@ -68,8 +68,8 @@ Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex)
 		Entity* scaleArrow = gizmo->scaleArrows[i];
 		scaleArrow = game.CreateMeshEntity(engine, materialIndex, gizmo->scaleArrowMesh);
 		scaleArrow->GetBuffer().color = xyzColors[i];
-		scaleArrow->InitCollisionBody(game.physicsWorld);
-		scaleArrow->InitBoxCollider(game.physicsCommon, { .15f, .5f, .15f }, { .0f, .25f, .0f }, CollisionLayers::GizmoClick);
+		//scaleArrow->InitCollisionBody(game.physicsWorld);
+		//scaleArrow->InitBoxCollider(game.physicsCommon, { .15f, .5f, .15f }, { .0f, .25f, .0f }, CollisionLayers::GizmoClick);
 		scaleArrow->SetLocalRotation(xyzRotations[i]);
 		scaleArrow->name = std::format("ScaleArrow{}", xyzNames[i]).c_str();
 		scaleArrow->isGizmoScaleCube = true;

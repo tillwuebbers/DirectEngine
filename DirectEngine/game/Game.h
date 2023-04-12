@@ -13,10 +13,12 @@
 #include <vector>
 #include <mutex>
 
+#define BT_NO_SIMD_OPERATOR_OVERLOADS
+#include "btBulletCollisionCommon.h"
+#include "btBulletDynamicsCommon.h"
+
 #include <DirectXMath.h>
 using namespace DirectX;
-
-#include <reactphysics3d/reactphysics3d.h>
 
 struct DirectionalLight
 {
@@ -52,7 +54,7 @@ enum class Material
 	Crosshair,
 };
 
-struct GameTriggerEvent
+/*struct GameTriggerEvent
 {
 	reactphysics3d::Collider* triggerCollider = nullptr;
 	reactphysics3d::CollisionBody* triggerBody = nullptr;
@@ -62,7 +64,7 @@ struct GameTriggerEvent
 	Entity* otherEntity = nullptr;
 
 	reactphysics3d::OverlapCallback::OverlapPair::EventType type;
-};
+};*/
 
 struct GameContactPoint
 {
@@ -72,7 +74,7 @@ struct GameContactPoint
 	XMVECTOR localPointOnShapeB = {};
 };
 
-struct GameCollisionEvent
+/*struct GameCollisionEvent
 {
 	reactphysics3d::Collider* colliderA = nullptr;
 	reactphysics3d::CollisionBody* bodyA = nullptr;
@@ -83,9 +85,9 @@ struct GameCollisionEvent
 
 	CountingArray<GameContactPoint, MAX_CONTACT_POINTS> contactPoints = {};
 	reactphysics3d::CollisionCallback::ContactPair::EventType type;
-};
+};*/
 
-class GamePhysicsEvents : public reactphysics3d::EventListener
+/*class GamePhysicsEvents : public reactphysics3d::EventListener
 {
 public:
 	virtual void onTrigger(const reactphysics3d::OverlapCallback::CallbackData& callbackData) override;
@@ -93,7 +95,7 @@ public:
 
 	CountingArray<GameTriggerEvent, MAX_COLLISION_EVENTS> triggerEvents{};
 	CountingArray<GameCollisionEvent, MAX_COLLISION_EVENTS> collisionEvents{};
-};
+};*/
 
 class Game : public IGame
 {
@@ -159,11 +161,16 @@ public:
 	EngineInput input{ globalArena };
 
 	// Physics
-	reactphysics3d::PhysicsCommon* physicsCommon = nullptr;
-	reactphysics3d::PhysicsWorld* physicsWorld = nullptr;
-	MinimumRaycastCallback minRaycastCollector{};
-	AllRaycastCallback allRaycastCollector{ globalArena };
-	GamePhysicsEvents physicsEvents{};
+	btDefaultCollisionConfiguration* collisionConfiguration = nullptr;
+	btCollisionDispatcher* dispatcher = nullptr;
+	btBroadphaseInterface* broadphase = nullptr;
+	btSequentialImpulseConstraintSolver* solver = nullptr;
+	btDiscreteDynamicsWorld* dynamicsWorld = nullptr;
+
+	//reactphysics3d::PhysicsWorld* physicsWorld = nullptr;
+	//MinimumRaycastCallback minRaycastCollector{};
+	//AllRaycastCallback allRaycastCollector{ globalArena };
+	//GamePhysicsEvents physicsEvents{};
 
 	// Materials and Lighting
 	std::unordered_map<Material, size_t> materialIndices{};
@@ -232,7 +239,7 @@ public:
 
 	void PlaySound(EngineCore& engine, AudioSource* audioSource, AudioFile file);
 	XMVECTOR ScreenToWorldPosition(EngineCore& engine, CameraData& cameraData, XMVECTOR screenPos);
-	void RaycastScreenPosition(EngineCore& engine, CameraData& cameraData, XMVECTOR screenPos, EngineRaycastCallback* callback, CollisionLayers layers = CollisionLayers::All);
+	//void RaycastScreenPosition(EngineCore& engine, CameraData& cameraData, XMVECTOR screenPos, EngineRaycastCallback* callback, CollisionLayers layers = CollisionLayers::All);
 
 	float* GetClearColor() override;
 	EngineInput& GetInput() override;

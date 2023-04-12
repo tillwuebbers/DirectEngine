@@ -8,9 +8,6 @@
 #include "../core/vkcodes.h"
 #include "remixicon.h"
 
-#define BT_NO_SIMD_OPERATOR_OVERLOADS
-#include "btBulletCollisionCommon.h"
-
 Game::Game(GAME_CREATION_PARAMS) : globalArena(globalArena), configArena(configArena), levelArena(levelArena) {}
 
 void Game::StartGame(EngineCore& engine)
@@ -75,6 +72,12 @@ void Game::StartGame(EngineCore& engine)
 	soundFiles[(size_t)AudioFile::EnemyDeath] = LoadAudioFile(L"audio/tada.wav", globalArena);
 	soundFiles[(size_t)AudioFile::Shoot] = LoadAudioFile(L"audio/laser.wav", globalArena);
 	
+	// Physics
+	collisionConfiguration = NewObject(globalArena, btDefaultCollisionConfiguration);
+	dispatcher = NewObject(globalArena, btCollisionDispatcher, collisionConfiguration);
+	broadphase = NewObject(globalArena, btDbvtBroadphase);
+	solver = NewObject(globalArena, btSequentialImpulseConstraintSolver);
+
 	// Finish setup
 	LoadLevel(engine);
 	engine.UploadVertices();
@@ -92,16 +95,8 @@ void Game::LoadLevel(EngineCore& engine)
 	entityArena.Reset();
 
 	// Physics
-	physicsCommon = NewObjectAligned(globalArena, reactphysics3d::PhysicsCommon, 16);
-	if (physicsWorld != nullptr) physicsCommon->destroyPhysicsWorld(physicsWorld);
-	physicsWorld = physicsCommon->createPhysicsWorld();
-	physicsWorld->setEventListener(&physicsEvents);
-	physicsWorld->setIsDebugRenderingEnabled(true);
-	reactphysics3d::DebugRenderer& debugRenderer = physicsWorld->getDebugRenderer();
-	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::COLLIDER_AABB, true);
-	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::COLLISION_SHAPE, true);
-	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::CONTACT_POINT, true);
-	debugRenderer.setIsDebugItemDisplayed(reactphysics3d::DebugRenderer::DebugItem::CONTACT_NORMAL, true);
+	dynamicsWorld = NewObject(levelArena, btDiscreteDynamicsWorld, dispatcher, broadphase, solver, collisionConfiguration);
+	dynamicsWorld->setGravity(btVector3(0.f, -10.f, 0.f));
 
 	// Portals
 	auto createPortal = [&](size_t matIndex, XMVECTOR pos, const char* name) {
@@ -115,10 +110,6 @@ void Game::LoadLevel(EngineCore& engine)
 		portal->name = name;
 
 		portal->AddChild(portalRenderQuad, false);
-
-		portal->InitCollisionBody(physicsWorld);
-		reactphysics3d::Collider* triggerCollider = portal->InitBoxCollider(physicsCommon, { 1.f, 2.f, .25f }, { 0.f, 0.f, .25f }, CollisionLayers::Floor);
-		triggerCollider->setIsTrigger(true);
 
 		return portal;
 	};
@@ -137,10 +128,6 @@ void Game::LoadLevel(EngineCore& engine)
 	playerEntity = CreateEmptyEntity(engine);
 	playerEntity->name = "Player";
 	playerEntity->SetLocalPosition({ 0.f, 1.f, 0.f });
-	playerEntity->InitRigidBody(physicsWorld, reactphysics3d::BodyType::DYNAMIC);
-	playerEntity->InitCapsuleCollider(physicsCommon, .5f, 1.f, XMVECTOR{}, CollisionLayers::Player);
-	playerEntity->rigidBody->setAngularLockAxisFactor({ 0.f, 0.f, 0.f });
-	playerEntity->rigidBody->enableGravity(false);
 
 	playerLookEntity = CreateEmptyEntity(engine);
 	playerLookEntity->name = "PlayerLook";
@@ -166,15 +153,15 @@ void Game::LoadLevel(EngineCore& engine)
 	groundEntity->name = "Ground";
 	groundEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
 	groundEntity->SetLocalPosition(XMVectorSetY(groundEntity->localMatrix.translation, -.01f));
-	groundEntity->rigidBody->setType(reactphysics3d::BodyType::STATIC);
+	//groundEntity->rigidBody->setType(reactphysics3d::BodyType::STATIC);
 
 	for (int i = 0; i < 16; i++)
 	{
 		Entity* yea = CreateMeshEntity(engine, materialIndices[Material::Ground], engine.cubeVertexView);
 		yea->name = "Yea";
 		yea->SetLocalPosition({ 3.f, 0.5f + i * 16.f, 0.f });
-		yea->InitRigidBody(physicsWorld);
-		yea->InitBoxCollider(physicsCommon, { .5f, .5f, .5f }, {}, CollisionLayers::Floor);
+		//yea->InitRigidBody(physicsWorld);
+		//yea->InitBoxCollider(physicsCommon, { .5f, .5f, .5f }, {}, CollisionLayers::Floor);
 	}
 }
 
@@ -206,8 +193,6 @@ void Game::UpdateGame(EngineCore& engine)
 
 	input.accessMutex.lock();
 	input.UpdateMousePosition();
-
-	float clampedDeltaTime = std::min(engine.m_updateDeltaTime, MAX_PHYSICS_STEP);
 
 	// Reset per frame values
 	engine.m_debugLineData.lineVertices.clear();
@@ -279,8 +264,8 @@ void Game::UpdateGame(EngineCore& engine)
 		if (input.KeyDown(VK_CONTROL)) camSpeed *= 5.f;
 
 		XMVECTOR lookPos = playerLookEntity->GetWorldPosition();
-		lookPos += cameraEntity->worldMatrix.right * horizontalInput * clampedDeltaTime * camSpeed;
-		lookPos += cameraEntity->worldMatrix.forward * verticalInput * clampedDeltaTime * camSpeed;
+		lookPos += cameraEntity->worldMatrix.right * horizontalInput * engine.m_updateDeltaTime * camSpeed;
+		lookPos += cameraEntity->worldMatrix.forward * verticalInput * engine.m_updateDeltaTime * camSpeed;
 		playerLookEntity->SetWorldPosition(lookPos);
 	}
 	else
@@ -300,7 +285,7 @@ void Game::UpdateGame(EngineCore& engine)
 		XMVECTOR wantedDirection = XMVector3Normalize(wantedForward + wantedSideways);
 		bool playerWantsDirection = XMVectorGetX(XMVector3LengthSq(wantedForward) + XMVector3LengthSq(wantedSideways)) > 0.01f;
 
-		XMVECTOR playerVelocity = XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity());
+		/*XMVECTOR playerVelocity = XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity());
 		float verticalPlayerVelocity = XMVectorGetY(playerVelocity);
 		XMVECTOR horizontalPlayerVelocity = XMVectorSetY(playerVelocity, 0.f);
 		XMVECTOR horizontalPlayerDirection = XMVector3Normalize(XMVectorSetY(playerVelocity, 0.f));
@@ -324,15 +309,15 @@ void Game::UpdateGame(EngineCore& engine)
 
 			playerVelocity = XMVectorScale(resultDirection, horizontalPlayerSpeed);
 			playerVelocity = XMVectorSetY(playerVelocity, verticalPlayerVelocity);
-		}
+		}*/
 
 		// Ground collision
-		const float maxPlayerSpeedEstimate = std::max(10.f, playerEntity->rigidBody->getLinearVelocity().y);
+		/*const float maxPlayerSpeedEstimate = std::max(10.f, playerEntity->rigidBody->getLinearVelocity().y);
 		const float collisionEpsilon = maxPlayerSpeedEstimate * clampedDeltaTime;
 		XMVECTOR groundRayStart = playerEntity->GetWorldPosition() + V3_UP * collisionEpsilon;
 		XMVECTOR groundRayEnd = playerEntity->GetWorldPosition() - V3_UP * collisionEpsilon;
 		minRaycastCollector.Raycast(physicsWorld, groundRayStart, groundRayEnd, CollisionLayers::Floor);
-		playerOnGround = minRaycastCollector.anyCollision;
+		playerOnGround = minRaycastCollector.anyCollision;*/
 
 		/*
 		debugLog.Log(playerOnGround ? "--- G" : "--- A");
@@ -341,12 +326,12 @@ void Game::UpdateGame(EngineCore& engine)
 		debugLog.Log("Player Y: {}", playerEntity->position.m128_f32[1]);
 		debugLog.Log("Ray Y: {} -> {}", groundRayStart.m128_f32[1], groundRayEnd.m128_f32[1]);
 		if (minRaycastCollector.anyCollision) debugLog.Log("Ray hit: {}", minRaycastCollector.collision.worldPoint.m128_f32[1]);
-		*/
+		
 
 		if (playerOnGround)
 		{
 			// Move player on ground
-			playerEntity->rigidBody->setTransform(PhysicsTransformFromXM(minRaycastCollector.collision.worldPoint, playerEntity->GetWorldRotation()));
+			//playerEntity->rigidBody->setTransform(PhysicsTransformFromXM(minRaycastCollector.collision.worldPoint, playerEntity->GetWorldRotation()));
 
 			// Stop falling speed
 			playerVelocity = XMVectorSetY(playerVelocity, 0.);
@@ -374,16 +359,16 @@ void Game::UpdateGame(EngineCore& engine)
 		else
 		{
 			playerVelocity.m128_f32[1] -= clampedDeltaTime * movementSettings->playerGravity;
-		}
+		}*/
 
 		// Apply velocity
-		playerEntity->rigidBody->setLinearVelocity(PhysicsVectorFromXM(playerVelocity));
+		//playerEntity->rigidBody->setLinearVelocity(PhysicsVectorFromXM(playerVelocity));
 	}
 
 	// Gizmo
 	if (editMode && editElement != nullptr && input.KeyJustPressed(VK_LBUTTON))
 	{
-		RaycastScreenPosition(engine, *engine.mainCamera, { input.mouseX, input.mouseY }, &allRaycastCollector, CollisionLayers::GizmoClick);
+		/*RaycastScreenPosition(engine, *engine.mainCamera, {input.mouseX, input.mouseY}, &allRaycastCollector, CollisionLayers::GizmoClick);
 		Entity* selectedGizmo = nullptr;
 		for (CollisionRecord& gizmoHit : allRaycastCollector.collisions)
 		{
@@ -417,7 +402,7 @@ void Game::UpdateGame(EngineCore& engine)
 			{
 				gizmoDragEntityStart = selectedGizmoTarget->GetLocalScale();
 			}
-		}
+		}*/
 	}
 	else if (selectedGizmoElement != nullptr && selectedGizmoTarget != nullptr)
 	{
@@ -458,19 +443,19 @@ void Game::UpdateGame(EngineCore& engine)
 	XMStoreFloat3(&playerAudioListener.OrientFront, cameraEntity->worldMatrix.forward);
 	XMStoreFloat3(&playerAudioListener.OrientTop, cameraEntity->worldMatrix.up);
 	XMStoreFloat3(&playerAudioListener.Position, engine.mainCamera->worldMatrix.translation);
-	XMStoreFloat3(&playerAudioListener.Velocity, XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity()));
+	//XMStoreFloat3(&playerAudioListener.Velocity, XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity()));
 
 	// Shoot portal
 	if (input.KeyJustPressed(VK_LBUTTON) || input.KeyJustPressed(VK_RBUTTON))
 	{
-		minRaycastCollector.Raycast(physicsWorld, engine.mainCamera->worldMatrix.translation, engine.mainCamera->worldMatrix.translation + cameraEntity->worldMatrix.forward * 1000.f, CollisionLayers::Floor);
+		/*minRaycastCollector.Raycast(physicsWorld, engine.mainCamera->worldMatrix.translation, engine.mainCamera->worldMatrix.translation + cameraEntity->worldMatrix.forward * 1000.f, CollisionLayers::Floor);
 		if (minRaycastCollector.anyCollision)
 		{
 			Entity* targetPortal = input.KeyJustPressed(VK_LBUTTON) ? portal1 : portal2;
 			targetPortal->SetWorldPosition(minRaycastCollector.collision.worldPoint - cameraEntity->worldMatrix.forward * 0.001f);
 			targetPortal->SetForwardDirection(minRaycastCollector.collision.worldNormal);
 			PlaySound(engine, &playerAudioSource, AudioFile::Shoot);
-		}
+		}*/
 	}
 
 	// Update animations: iteration order is not guaranteed to be parent->child, so do other things in a separate pass
@@ -505,36 +490,16 @@ void Game::UpdateGame(EngineCore& engine)
 		entity.WritePhysicsTransform();
 	}
 
-	physicsEvents.collisionEvents.clear();
-	physicsEvents.triggerEvents.clear();
-
-	physicsWorld->update(clampedDeltaTime);
+	dynamicsWorld->stepSimulation(engine.m_updateDeltaTime, 3, MAX_PHYSICS_STEP);
 	
-	for (GameTriggerEvent& triggerEvent : physicsEvents.triggerEvents)
-	{
-		assert(triggerEvent.triggerBody != nullptr && triggerEvent.otherEntity != nullptr);
-		if (triggerEvent.triggerBody == nullptr || triggerEvent.otherEntity == nullptr) continue;
-
-		if (triggerEvent.triggerBody == portal1->rigidBody)
-		{
-			triggerEvent.otherEntity->isNearPortal1 = triggerEvent.type != reactphysics3d::OverlapCallback::OverlapPair::EventType::OverlapExit;
-			if (triggerEvent.otherEntity == playerEntity && triggerEvent.type == reactphysics3d::OverlapCallback::OverlapPair::EventType::OverlapStart) debugLog.Log("Player near portal 1");
-		}
-		if (triggerEvent.triggerBody == portal2->rigidBody)
-		{
-			triggerEvent.otherEntity->isNearPortal2 = triggerEvent.type != reactphysics3d::OverlapCallback::OverlapPair::EventType::OverlapExit;
-			if (triggerEvent.otherEntity == playerEntity && triggerEvent.type == reactphysics3d::OverlapCallback::OverlapPair::EventType::OverlapStart) debugLog.Log("Player near portal 2");
-		}
-	}
-
 	if (renderPhysics)
 	{
-		reactphysics3d::DebugRenderer& debugRenderer = physicsWorld->getDebugRenderer();
+		/*reactphysics3d::DebugRenderer& debugRenderer = physicsWorld->getDebugRenderer();
 		for (int i = 0; i < debugRenderer.getNbLines(); i++)
 		{
 			auto line = debugRenderer.getLinesArray()[i];
 			engine.m_debugLineData.AddLine(XMVectorFromPhysics(line.point1), XMVectorFromPhysics(line.point2), XMColorFromPhysics(line.color1), XMColorFromPhysics(line.color2));
-		}
+		}*/
 	}
 
 	for (Entity& entity : entityArena)
@@ -707,7 +672,7 @@ Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float w
 	auto meshView = engine.CreateMesh(materialIndex, file.vertices, file.vertexCount, file.meshHash);
 	Entity* entity = CreateMeshEntity(engine, materialIndex, meshView);
 	entity->SetLocalPosition({-width / 2.f, 0.f, -height / 2.f});
-	if (collisionInit == CollisionInitType::CollisionBody)
+	/*if (collisionInit == CollisionInitType::CollisionBody)
 	{
 		entity->InitCollisionBody(physicsWorld);
 	}
@@ -718,7 +683,7 @@ Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float w
 	if (collisionInit != CollisionInitType::None)
 	{
 		reactphysics3d::Collider* collider = entity->InitBoxCollider(physicsCommon, { width / 2.f, .2f, height / 2.f }, { width / 2.f, -.2f, height / 2.f }, collisionLayers);
-	}
+	}*/
 	return entity;
 }
 
@@ -798,12 +763,12 @@ XMVECTOR Game::ScreenToWorldPosition(EngineCore& engine, CameraData& cameraData,
 	return XMVector3Unproject(screenPos, 0.f, 0.f, engine.m_width, engine.m_height, 0.f, 1.f, cameraProjection, cameraView, XMMatrixIdentity());
 }
 
-void Game::RaycastScreenPosition(EngineCore& engine, CameraData& cameraData, XMVECTOR screenPos, EngineRaycastCallback* callback, CollisionLayers layers)
+/*void Game::RaycastScreenPosition(EngineCore& engine, CameraData& cameraData, XMVECTOR screenPos, EngineRaycastCallback* callback, CollisionLayers layers)
 {
 	XMVECTOR rayOriginWorld = ScreenToWorldPosition(engine, cameraData, screenPos);
 	XMVECTOR rayDirection = XMVector3Normalize(rayOriginWorld - cameraData.worldMatrix.translation);
 	callback->Raycast(physicsWorld, rayOriginWorld, rayOriginWorld + rayDirection * 1000.f);
-}
+}*/
 
 void Game::Log(const std::string& message)
 {
@@ -846,76 +811,13 @@ void Game::ToggleNoclip()
 	noclip = !noclip;
 	if (noclip)
 	{
-		playerEntity->rigidBody->setLinearVelocity({});
+		//playerEntity->rigidBody->setLinearVelocity({});
 		playerEntity->RemoveChild(playerLookEntity, true);
 	}
 	else
 	{
 		playerEntity->AddChild(playerLookEntity, true);
 		playerLookEntity->SetLocalPosition(defaultPlayerLookPosition);
-	}
-}
-
-void GamePhysicsEvents::onTrigger(const reactphysics3d::OverlapCallback::CallbackData& callbackData)
-{
-	for (int i = 0; i < callbackData.getNbOverlappingPairs(); i++)
-	{
-		auto pair = callbackData.getOverlappingPair(i);
-
-		GameTriggerEvent& triggerEvent = triggerEvents.newElement();
-
-		assert(pair.getCollider1()->getIsTrigger() != pair.getCollider2()->getIsTrigger());
-		if (pair.getCollider1()->getIsTrigger())
-		{
-			triggerEvent.triggerCollider = pair.getCollider1();
-			triggerEvent.triggerBody = pair.getBody1();
-			triggerEvent.otherCollider = pair.getCollider2();
-			triggerEvent.otherBody = pair.getBody2();
-		}
-		else
-		{
-			triggerEvent.triggerCollider = pair.getCollider2();
-			triggerEvent.triggerBody = pair.getBody2();
-			triggerEvent.otherCollider = pair.getCollider1();
-			triggerEvent.otherBody = pair.getBody1();
-		}
-
-		void* triggerUserData = triggerEvent.triggerBody->getUserData();
-		if (triggerUserData != nullptr) triggerEvent.triggerEntity = reinterpret_cast<Entity*>(triggerUserData);
-
-		void* otherUserData = triggerEvent.otherBody->getUserData();
-		if (otherUserData != nullptr) triggerEvent.otherEntity = reinterpret_cast<Entity*>(otherUserData);
-
-		triggerEvent.type = pair.getEventType();
-	}
-}
-
-void GamePhysicsEvents::onContact(const reactphysics3d::CollisionCallback::CallbackData& callbackData)
-{
-	for (int i = 0; i < callbackData.getNbContactPairs(); i++)
-	{
-		auto pair = callbackData.getContactPair(i);
-
-		GameCollisionEvent& collisionEvent = collisionEvents.newElement();
-
-		collisionEvent.bodyA = pair.getBody1();
-		collisionEvent.bodyB = pair.getBody2();
-		collisionEvent.colliderA = pair.getCollider1();
-		collisionEvent.colliderB = pair.getCollider2();
-		collisionEvent.entityA = reinterpret_cast<Entity*>(pair.getBody1()->getUserData());
-		collisionEvent.entityB = reinterpret_cast<Entity*>(pair.getBody2()->getUserData());
-
-		for (int i = 0; i < pair.getNbContactPoints(); i++)
-		{
-			GameContactPoint& gamePoint = collisionEvent.contactPoints.newElement();
-
-			auto physicsContactPoint = pair.getContactPoint(i);
-			gamePoint.worldNormal = XMVectorFromPhysics(physicsContactPoint.getWorldNormal());
-			gamePoint.penetrationDepth = physicsContactPoint.getPenetrationDepth();
-			gamePoint.localPointOnShapeA = XMVectorFromPhysics(physicsContactPoint.getLocalPointOnCollider1());
-			gamePoint.localPointOnShapeB = XMVectorFromPhysics(physicsContactPoint.getLocalPointOnCollider2());
-		}
-		collisionEvent.type = pair.getEventType();
 	}
 }
 

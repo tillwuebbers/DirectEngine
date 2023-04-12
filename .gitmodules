@@ -7,12 +7,6 @@
 [submodule "DirectEngine/openxr-sdk"]
 	path = DirectEngine/openxr-sdk
 	url = https://github.com/KhronosGroup/OpenXR-SDK/
-[submodule "DirectEngine/reactphysics3d"]
-	path = DirectEngine/reactphysics3d
-	url = https://github.com/DanielChappuis/reactphysics3d
-[submodule "DirectEngine/metadesk"]
-	path = DirectEngine/metadesk
-	url = https://github.com/Dion-Systems/metadesk
 [submodule "DirectEngine/bullet3"]
 	path = DirectEngine/bullet3
 	url = https://github.com/bulletphysics/bullet3

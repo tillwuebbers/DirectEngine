@@ -9,8 +9,6 @@
 #include <DirectXMath.h>
 using namespace DirectX;
 
-#include <reactphysics3d/reactphysics3d.h>
-
 class Entity
 {
 public:
@@ -44,18 +42,12 @@ public:
 	bool isNearPortal1 = false;
 	bool isNearPortal2 = false;
 
-	reactphysics3d::RigidBody* rigidBody = nullptr;
-	reactphysics3d::CollisionBody* collisionBody = nullptr;
+	//reactphysics3d::RigidBody* rigidBody = nullptr;
 
 	AudioSource audioSource;
 
 	void AddChild(Entity* child, bool keepWorldPosition);
 	void RemoveChild(Entity* child, bool keepWorldPosition);
-
-	void InitRigidBody(reactphysics3d::PhysicsWorld* physicsWorld, reactphysics3d::BodyType type = reactphysics3d::BodyType::DYNAMIC);
-	void InitCollisionBody(reactphysics3d::PhysicsWorld* physicsWorld);
-	reactphysics3d::Collider* InitBoxCollider(reactphysics3d::PhysicsCommon* physicsCommon, XMVECTOR boxExtents, XMVECTOR boxOffset, CollisionLayers collisionLayers);
-	reactphysics3d::Collider* InitCapsuleCollider(reactphysics3d::PhysicsCommon* physicsCommon, float radius, float height, XMVECTOR offset, CollisionLayers collisionLayers);
 
 	EntityData& GetData();
 	EntityConstantBuffer& GetBuffer();
@@ -82,8 +74,6 @@ public:
 	XMVECTOR GetWorldPosition();
 	XMVECTOR GetWorldRotation();
 	XMVECTOR GetWorldScale();
-
-	reactphysics3d::Transform GetPhysicsTransform();
 
 private:
 	bool isParentActive = true;

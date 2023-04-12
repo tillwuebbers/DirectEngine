@@ -13,7 +13,7 @@ FetchContent_MakeAvailable(googletest)
 
 add_executable(${PROJECT_NAME} "GameTest.cpp" "TestCommon.h" ${CORE_CODE} ${GAME_CODE} ${IMPORT_CODE} "EngineTest.cpp" "Tests.cpp")
 DEPS(${PROJECT_NAME})
-target_link_libraries(${PROJECT_NAME} GTest::gtest_main ReactPhysics3D::ReactPhysics3D)
+target_link_libraries(${PROJECT_NAME} GTest::gtest_main)
 
 include(GoogleTest)
 gtest_discover_tests(${PROJECT_NAME})
