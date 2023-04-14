@@ -136,6 +136,7 @@ void Game::LoadLevel(EngineCore& engine)
 	playerEntity->physicsShapeOffset = { 0.f, 1.f, 0.f };
 	PhysicsInit playerPhysics{ 10.f, PhysicsInitType::RigidBodyDynamic };
 	playerEntity->AddRigidBody(levelArena, dynamicsWorld, playerPhysicsShape, playerPhysics);
+	if (playerEntity->rigidBody != nullptr) playerEntity->rigidBody->setAngularFactor(0.f);
 
 	playerLookEntity = CreateEmptyEntity(engine);
 	playerLookEntity->name = "PlayerLook";
@@ -329,21 +330,19 @@ void Game::UpdateGame(EngineCore& engine)
 		btCollisionWorld::ClosestRayResultCallback callback{ ToBulletVec3(groundRayStart), ToBulletVec3(groundRayEnd) };
 		dynamicsWorld->rayTest(ToBulletVec3(groundRayStart), ToBulletVec3(groundRayEnd), callback);
 		playerOnGround = callback.hasHit();
-		if (callback.hasHit()) debugLog.Log("Ray hit: {} {} {}", SPLIT_V3_BT(callback.m_hitPointWorld));
+		if (callback.hasHit() && frameStep) debugLog.Log("Hit ground: {}", callback.m_closestHitFraction);
 		
 		if (playerOnGround)
 		{
-			// Move player on ground
-			playerEntity->SetWorldPosition(ToXMVec(callback.m_hitPointWorld));
-
 			// Stop falling speed
-			playerVelocity = XMVectorSetY(playerVelocity, 0.);
+			playerVelocity = XMVectorSetY(playerVelocity, std::max(XMVectorGetY(playerVelocity), 0.f));
 
 			// Apply jump
 			if (input.KeyDown(VK_SPACE) && (lastJumpPressTime + jumpBufferDuration >= engine.TimeSinceStart() || movementSettings->autojump))
 			{
 				lastJumpPressTime = -1000.f;
-				playerVelocity.m128_f32[1] += movementSettings->playerJumpStrength;
+				float verticalSpeed = XMVectorGetY(playerVelocity);
+				playerVelocity = XMVectorSetY(playerVelocity, std::max(verticalSpeed, movementSettings->playerJumpStrength));
 			}
 			else
 			{

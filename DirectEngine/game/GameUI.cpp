@@ -503,10 +503,25 @@ void Game::DrawDebugUI(EngineCore& engine)
 						ImGui::Text("%s RIGIDBODY %s", bodyTypeIcon, entity.rigidBody->isActive() ? "" : ICON_ZZZ_FILL);
 						ImGui::Text("In World: %s", entity.rigidBody->isInWorld() ? "yes" : "no");
 						ImGui::Text("Velocity: %.1f %.1f %.1f", SPLIT_V3_BT(entity.rigidBody->getLinearVelocity()));
+						ImGui::SameLine();
+						ImGui::SetCursorPosX(ImGui::GetContentRegionMax().x / 2.f);
 						ImGui::Text("Angular Velocity: %.1f %.1f %.1f", SPLIT_V3_BT(entity.rigidBody->getAngularVelocity()));
 						ImGui::Text("Inertia: %.1f %.1f %.1f", SPLIT_V3_BT(entity.rigidBody->getLocalInertia()));
-						ImGui::Text("Mass: %.1f", entity.rigidBody->getMass());
+						ImGui::SameLine();
+						ImGui::SetCursorPosX(ImGui::GetContentRegionMax().x / 2.f);
 						ImGui::Text("Gravity: %.1f %.1f %.1f", SPLIT_V3_BT(entity.rigidBody->getGravity()));
+
+						float mass = entity.rigidBody->getMass();
+						if (ImGui::SliderFloat("Mass", &mass, 0.f, 1000.f, "%.1f"))
+						{
+							entity.rigidBody->setMassProps(mass, entity.rigidBody->getLocalInertia());
+						}
+
+						float friction = entity.rigidBody->getFriction();
+						if (ImGui::SliderFloat("Friction", &friction, 0.f, 1.f, "%.1f"))
+						{
+							entity.rigidBody->setFriction(friction);
+						}
 						
 						btVector3 rotationLock = entity.rigidBody->getAngularFactor();
 						bool xLocked = rotationLock.x() < 0.01f;
@@ -523,66 +538,40 @@ void Game::DrawDebugUI(EngineCore& engine)
 						rotationLock.setY(yLocked ? 0.f : 1.f);
 						rotationLock.setZ(zLocked ? 0.f : 1.f);
 						entity.rigidBody->setAngularFactor(rotationLock);
-					}
-
-					/*if (entity.rigidBody != nullptr)
-					{
-						int rigidBodyType = static_cast<int>(entity.rigidBody->getType());
-						if (ImGui::Combo("Body Type", &rigidBodyType, "Static\0Kinematic\0Dynamic\0\0"))
-						{
-							entity.rigidBody->setType(static_cast<reactphysics3d::BodyType>(rigidBodyType));
-						}
 
 						ImGui::DragFloat3("##ApplyForce", &physicsForceDebug.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f");
 						ImGui::SameLine();
 						if (ImGui::Button("Apply Force"))
 						{
-							entity.rigidBody->applyWorldForceAtCenterOfMass(PhysicsVectorFromXM(physicsForceDebug));
+							entity.rigidBody->applyCentralForce(ToBulletVec3(physicsForceDebug));
 						}
 
 						ImGui::DragFloat3("##ApplyTorque", &physicsTorqueDebug.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f");
 						ImGui::SameLine();
 						if (ImGui::Button("Apply Torque"))
 						{
-							entity.rigidBody->applyWorldTorque(PhysicsVectorFromXM(physicsTorqueDebug));
+							entity.rigidBody->applyTorque(ToBulletVec3(physicsTorqueDebug));
 						}
 
-						for (size_t i = 0; i < entity.rigidBody->getNbColliders(); i++)
+						const char* shapeTypeIcon = nullptr;
+						switch (entity.rigidBody->getCollisionShape()->getShapeType())
 						{
-							ImGui::Separator();
-							DisplayCollider(entity.rigidBody->getCollider(i));
+							case BOX_SHAPE_PROXYTYPE:
+								shapeTypeIcon = ICON_CHECKBOX_BLANK_LINE;
+								break;
+							case SPHERE_SHAPE_PROXYTYPE:
+								shapeTypeIcon = ICON_CHECKBOX_BLANK_CIRCLE_LINE;
+								break;
+							case CAPSULE_SHAPE_PROXYTYPE:
+								shapeTypeIcon = ICON_CAPSULE_LINE;
+								break;
+							default:
+								shapeTypeIcon = ICON_QUESTION_LINE;
+								break;
 						}
-
-						ImGui::DragFloat3("##AddColliderSize", &physicsAddColliderDebug.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f");
-						if (ImGui::Button("Add Box Collider"))
-						{
-							auto boxShape = physicsCommon->createBoxShape(PhysicsVectorFromXM(physicsAddColliderDebug));
-							entity.rigidBody->addCollider(boxShape, {});
-						}
+						ImGui::Text("COLLISION SHAPE %s", shapeTypeIcon);
 					}
-					else
-					{
-						ImGui::Separator();
-						if (ImGui::Button("Add Rigidbody"))
-						{
-							entity.rigidBody = physicsWorld->createRigidBody(entity.GetPhysicsTransform());
-							entity.rigidBody->updateMassPropertiesFromColliders();
-							entity.rigidBody->setType(reactphysics3d::BodyType::STATIC);
-						}
-					}*/
 
-					/*if (entity.collisionBody != nullptr)
-					{
-						ImGui::Separator();
-						ImGui::Text("COLLISION BODY");
-
-						for (size_t i = 0; i < entity.collisionBody->getNbColliders(); i++)
-						{
-							ImGui::Separator();
-							DisplayCollider(entity.collisionBody->getCollider(i));
-						}
-					}*/
-					
 					if (entity.isSkinnedRoot && entity.transformHierachy->nodeCount > 0)
 					{
 						TransformHierachy* hierachy = entity.transformHierachy;

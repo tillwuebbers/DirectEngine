@@ -51,18 +51,6 @@ enum class Material
 	Crosshair,
 };
 
-/*struct GameTriggerEvent
-{
-	reactphysics3d::Collider* triggerCollider = nullptr;
-	reactphysics3d::CollisionBody* triggerBody = nullptr;
-	Entity* triggerEntity = nullptr;
-	reactphysics3d::Collider* otherCollider = nullptr;
-	reactphysics3d::CollisionBody* otherBody = nullptr;
-	Entity* otherEntity = nullptr;
-
-	reactphysics3d::OverlapCallback::OverlapPair::EventType type;
-};*/
-
 struct GameContactPoint
 {
 	XMVECTOR worldNormal = {};
@@ -70,29 +58,6 @@ struct GameContactPoint
 	XMVECTOR localPointOnShapeA = {};
 	XMVECTOR localPointOnShapeB = {};
 };
-
-/*struct GameCollisionEvent
-{
-	reactphysics3d::Collider* colliderA = nullptr;
-	reactphysics3d::CollisionBody* bodyA = nullptr;
-	Entity* entityA = nullptr;
-	reactphysics3d::Collider* colliderB = nullptr;
-	reactphysics3d::CollisionBody* bodyB = nullptr;
-	Entity* entityB = nullptr;
-
-	CountingArray<GameContactPoint, MAX_CONTACT_POINTS> contactPoints = {};
-	reactphysics3d::CollisionCallback::ContactPair::EventType type;
-};*/
-
-/*class GamePhysicsEvents : public reactphysics3d::EventListener
-{
-public:
-	virtual void onTrigger(const reactphysics3d::OverlapCallback::CallbackData& callbackData) override;
-	virtual void onContact(const reactphysics3d::CollisionCallback::CallbackData& callbackData) override;
-
-	CountingArray<GameTriggerEvent, MAX_COLLISION_EVENTS> triggerEvents{};
-	CountingArray<GameCollisionEvent, MAX_COLLISION_EVENTS> collisionEvents{};
-};*/
 
 class Game : public IGame
 {
@@ -144,7 +109,6 @@ public:
 	float newEntityHeight = 1.f;
 	XMVECTOR physicsForceDebug = {};
 	XMVECTOR physicsTorqueDebug = {};
-	XMVECTOR physicsAddColliderDebug = {};
 
 	CameraData* matrixCalcSelectedCam = nullptr;
 	XMVECTOR matrixCalcInputVec = {};
