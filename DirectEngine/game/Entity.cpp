@@ -1,19 +1,53 @@
 #include "Entity.h"
 
-void Entity::AddChild(Entity* child, bool keepWorldPosition)
+uint64_t g_entityGeneration = 1;
+
+EntityHandle::EntityHandle(Entity* entity)
 {
-	assert(child != nullptr);
-	if (child == nullptr) return;
+	if (entity == nullptr)
+	{
+		generation = 0;
+	}
+	else
+	{
+		generation = entity->generation;
+	}
+
+	ptr = entity;
+}
+
+Entity* EntityHandle::Get()
+{
+	if (ptr == nullptr) return nullptr;
+	if (ptr->generation != generation) return nullptr;
+	return ptr;
+}
+
+bool EntityHandle::operator==(const EntityHandle& other) const
+{
+	if (ptr == nullptr && other.ptr == nullptr) return true;
+	return ptr == other.ptr && generation == other.generation;
+}
+
+bool EntityHandle::operator!=(const EntityHandle& other) const
+{
+	return !(*this == other);
+}
+
+void Entity::AddChild(EntityHandle childHandle, bool keepWorldPosition)
+{
+	assert(childHandle.Get() != nullptr);
+	if (childHandle.Get() == nullptr) return;
+	Entity* child = childHandle.Get();
 
 	assert(child != this);
 	if (child == this) return;
 
-	assert(child->parent == nullptr);
-	if (child->parent != nullptr) child->parent->RemoveChild(child, false);
+	if (child->parent.Get() != nullptr) child->parent.Get()->RemoveChild(child, false);
 	
 	children.newElement() = child;
 
-	child->parent = this;
+	child->parent = EntityHandle{ this };
 	child->SetActive(this->IsActive(), false);
 
 	if (keepWorldPosition)
@@ -22,13 +56,14 @@ void Entity::AddChild(Entity* child, bool keepWorldPosition)
 	}
 }
 
-void Entity::RemoveChild(Entity* child, bool keepWorldPosition)
+void Entity::RemoveChild(EntityHandle childHandle, bool keepWorldPosition)
 {
-	assert(child != nullptr);
-	if (child == nullptr) return;
+	assert(childHandle.Get() != nullptr);
+	if (childHandle.Get() == nullptr) return;
+	Entity* child = childHandle.Get();
 
-	assert(child->parent == this);
-	if (child->parent == this) child->parent = nullptr;
+	assert(child->parent.Get() == this);
+	if (child->parent.Get() == this) child->parent = EntityHandle{};
 
 	if (keepWorldPosition)
 	{
@@ -86,13 +121,13 @@ EntityConstantBuffer& Entity::GetBuffer()
 
 void Entity::UpdateWorldMatrix()
 {
-	if (parent == nullptr)
+	if (parent.Get() == nullptr)
 	{
 		worldMatrix.SetMatrix(localMatrix.matrix);
 	}
 	else
 	{
-		worldMatrix.SetMatrix(localMatrix.matrix * parent->worldMatrix.matrix);
+		worldMatrix.SetMatrix(localMatrix.matrix * parent.Get()->worldMatrix.matrix);
 	}
 
 	if (isRendered)
@@ -100,9 +135,10 @@ void Entity::UpdateWorldMatrix()
 		GetBuffer().worldTransform = worldMatrix.matrixT;
 	}
 
-	for (Entity* child : children)
+	for (EntityHandle child : children)
 	{
-		child->UpdateWorldMatrix();
+		if (child.Get() == nullptr) continue;
+		child.Get()->UpdateWorldMatrix();
 	}
 }
 
@@ -226,8 +262,11 @@ void Entity::UpdateAnimation(EngineCore& engine, bool isMainRender)
 		}
 
 		// Upload new transforms to children
-		for (Entity* child : children)
+		for (EntityHandle childHandle : children)
 		{
+			if (childHandle.Get() == nullptr) continue;
+			Entity* child = childHandle.Get();
+
 			if (child->isSkinnedMesh && child->isRendered)
 			{
 				EntityData& data = child->GetData();
@@ -262,9 +301,10 @@ void Entity::SetActive(bool newState, bool affectSelf)
 		if (newState && !rigidBody->isInWorld()) rigidBodyWorld->addRigidBody(rigidBody);
 	}
 
-	for (Entity* child : children)
+	for (EntityHandle child : children)
 	{
-		child->SetActive(newState, false);
+		if (child.Get() == nullptr) continue;
+		child.Get()->SetActive(newState, false);
 	}
 }
 
@@ -330,37 +370,37 @@ XMVECTOR Entity::GetLocalScale() const
 
 void Entity::SetWorldPosition(XMVECTOR worldPos)
 {
-	if (parent == nullptr)
+	if (parent.Get() == nullptr)
 	{
 		SetLocalPosition(worldPos);
 	}
 	else
 	{
-		SetLocalPosition(XMVector3Transform(worldPos, parent->worldMatrix.inverse));
+		SetLocalPosition(XMVector3Transform(worldPos, parent.Get()->worldMatrix.inverse));
 	}
 }
 
 void Entity::SetWorldRotation(XMVECTOR worldRot)
 {
-	if (parent == nullptr)
+	if (parent.Get() == nullptr)
 	{
 		SetLocalRotation(worldRot);
 	}
 	else
 	{
-		SetLocalRotation(XMQuaternionMultiply(XMQuaternionInverse(parent->worldMatrix.rotation), worldRot));
+		SetLocalRotation(XMQuaternionMultiply(XMQuaternionInverse(parent.Get()->worldMatrix.rotation), worldRot));
 	}
 }
 
 void Entity::SetWorldScale(XMVECTOR worldScale)
 {
-	if (parent == nullptr)
+	if (parent.Get() == nullptr)
 	{
 		SetLocalScale(worldScale);
 	}
 	else
 	{
-		SetLocalScale(XMVectorDivide(worldScale, parent->worldMatrix.scale));
+		SetLocalScale(XMVectorDivide(worldScale, parent.Get()->worldMatrix.scale));
 	}
 }
 

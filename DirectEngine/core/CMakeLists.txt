@@ -8,6 +8,8 @@ add_library (${PROJECT_NAME}
                 ${IMPORT_CODE}
                 ${SHADER_CODE})
 
+source_group("Shader Files" FILES ${SHADER_CODE})
+
 DEPS(${PROJECT_NAME})
    
 # compile shaders

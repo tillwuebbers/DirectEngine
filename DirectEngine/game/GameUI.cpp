@@ -384,39 +384,41 @@ void Game::DrawDebugUI(EngineCore& engine)
 
 			editElement = nullptr;
 
-			for (Entity* entity = (Entity*)entityArena.base; entity != (Entity*)(entityArena.base + entityArena.used); entity++)
+			for (Entity& entity : entityArena)
 			{
-				int offset = entity - (Entity*)entityArena.base;
+				int offset = &entity - (Entity*)entityArena.base;
+				ImGui::PushID(&entity);
 
-				ImGui::PushID(entity);
-				const char* icon = entity->IsActive() ? ICON_CHECK_FILL : "";
-				std::string entityTitle = std::format("{} [{}] {}###{}", entity->name, offset, icon, reinterpret_cast<void*>(&entity));
-				if ((showInactiveEntities || entity->IsActive()) && ImGui::CollapsingHeader(entityTitle.c_str()))
+				const char* icon = entity.IsActive() ? ICON_CHECK_FILL : "";
+				std::string entityTitle = std::format("{} [{}] {}###{}", entity.name, offset, icon, reinterpret_cast<void*>(&entity));
+				if ((showInactiveEntities || entity.IsActive()) && ImGui::CollapsingHeader(entityTitle.c_str()))
 				{
 					ImGui::Text("NAME");
-					ImGui::InputText("##entityname", entity->name.str, FixedStr::SIZE);
+					ImGui::InputText("##entityname", entity.name.str, FixedStr::SIZE);
 
 					ImGui::Separator();
 
 
-					ImGui::Text(std::format("CHILDREN ({})", entity->children.size).c_str());
+					ImGui::Text(std::format("CHILDREN ({})", entity.children.size).c_str());
 
-					for (int i = 0; i < entity->children.size; i++)
+					for (int i = 0; i < entity.children.size; i++)
 					{
 						if (ImGui::SmallButton(std::format("{}###{}", ICON_CLOSE_FILL, i).c_str()))
 						{
-							entity->RemoveChild(entity->children[i], true);
+							entity.RemoveChild(entity.children[i], true);
 							i--;
 							continue;
 						}
 
 						ImGui::SameLine();
-						ImGui::Text(std::format("{} [{}]", entity->children[i]->name, (entity->children[i] - (Entity*)entityArena.base)).c_str());
+						if (entity.children[i].Get() == nullptr) continue;
+						Entity* child = entity.children[i].Get();
+						ImGui::Text(std::format("{} [{}]", child->name, (child - (Entity*)entityArena.base)).c_str());
 					}
 
 					if (ImGui::Button("Add"))
 					{
-						entity->AddChild((Entity*)entityArena.base + newChildId, true);
+						entity.AddChild((Entity*)entityArena.base + newChildId, true);
 					}
 					ImGui::SameLine();
 					ImGui::PushItemWidth(100);
@@ -426,14 +428,14 @@ void Game::DrawDebugUI(EngineCore& engine)
 
 					ImGui::Separator();
 
-					bool activeState = entity->IsActive();
+					bool activeState = entity.IsActive();
 					if (ImGui::Checkbox("Active", &activeState))
 					{
-						entity->SetActive(activeState);
+						entity.SetActive(activeState);
 					}
-					if (entity->isRendered)
+					if (entity.isRendered)
 					{
-						ImGui::Checkbox("Visible", &entity->GetData().visible);
+						ImGui::Checkbox("Visible", &entity.GetData().visible);
 					}
 					else
 					{
@@ -446,45 +448,45 @@ void Game::DrawDebugUI(EngineCore& engine)
 					ImGui::Separator();
 
 					ImGui::Text("TRANSFORM");
-					XMVECTOR pos = entity->GetLocalPosition();
+					XMVECTOR pos = entity.GetLocalPosition();
 					if (ImGui::DragFloat3("Position", &pos.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat))
 					{
-						entity->SetLocalPosition(pos);
+						entity.SetLocalPosition(pos);
 					}
 
-					XMVECTOR rot = QuaternionToEuler(entity->GetLocalRotation());
+					XMVECTOR rot = QuaternionToEuler(entity.GetLocalRotation());
 					if (ImGui::DragFloat3("Rotation", &rot.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat))
 					{
-						entity->SetLocalRotation(XMQuaternionRotationRollPitchYaw(XMVectorGetX(rot), XMVectorGetY(rot), XMVectorGetZ(rot)));
+						entity.SetLocalRotation(XMQuaternionRotationRollPitchYaw(XMVectorGetX(rot), XMVectorGetY(rot), XMVectorGetZ(rot)));
 					}
 
-					XMVECTOR scale = entity->GetLocalScale();
+					XMVECTOR scale = entity.GetLocalScale();
 					if (ImGui::DragFloat3("Scale", &scale.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f", ImGuiSliderFlags_NoRoundToFormat))
 					{
-						entity->SetLocalScale(scale);
+						entity.SetLocalScale(scale);
 					}
 
 					ImGui::BeginTabBar("Transform");
 					if (ImGui::BeginTabItem("Local"))
 					{
-						DisplayMatrix(entity->localMatrix.matrix);
+						DisplayMatrix(entity.localMatrix.matrix);
 						ImGui::EndTabItem();
 					}
 					if (ImGui::BeginTabItem("Global"))
 					{
-						DisplayMatrix(entity->worldMatrix.matrix);
+						DisplayMatrix(entity.worldMatrix.matrix);
 						ImGui::EndTabItem();
 					}
 					ImGui::EndTabBar();
 
-					if (entity->rigidBody != nullptr)
+					if (entity.rigidBody != nullptr)
 					{
 						ImGui::Separator();
 						const char* bodyTypeIcon = nullptr;
 
-						if (entity->rigidBody->isStaticOrKinematicObject())
+						if (entity.rigidBody->isStaticOrKinematicObject())
 						{
-							if (entity->rigidBody->isStaticObject())
+							if (entity.rigidBody->isStaticObject())
 							{
 								bodyTypeIcon = ICON_HOME_2_LINE;
 							}
@@ -498,15 +500,15 @@ void Game::DrawDebugUI(EngineCore& engine)
 							bodyTypeIcon = ICON_SEND_PLANE_LINE;
 						}
 
-						ImGui::Text("%s RIGIDBODY %s", bodyTypeIcon, entity->rigidBody->isActive() ? "" : ICON_ZZZ_FILL);
-						ImGui::Text("In World: %s", entity->rigidBody->isInWorld() ? "yes" : "no");
-						ImGui::Text("Velocity: %.1f %.1f %.1f", SPLIT_V3_BT(entity->rigidBody->getLinearVelocity()));
-						ImGui::Text("Angular Velocity: %.1f %.1f %.1f", SPLIT_V3_BT(entity->rigidBody->getAngularVelocity()));
-						ImGui::Text("Inertia: %.1f %.1f %.1f", SPLIT_V3_BT(entity->rigidBody->getLocalInertia()));
-						ImGui::Text("Mass: %.1f", entity->rigidBody->getMass());
-						ImGui::Text("Gravity: %.1f %.1f %.1f", SPLIT_V3_BT(entity->rigidBody->getGravity()));
+						ImGui::Text("%s RIGIDBODY %s", bodyTypeIcon, entity.rigidBody->isActive() ? "" : ICON_ZZZ_FILL);
+						ImGui::Text("In World: %s", entity.rigidBody->isInWorld() ? "yes" : "no");
+						ImGui::Text("Velocity: %.1f %.1f %.1f", SPLIT_V3_BT(entity.rigidBody->getLinearVelocity()));
+						ImGui::Text("Angular Velocity: %.1f %.1f %.1f", SPLIT_V3_BT(entity.rigidBody->getAngularVelocity()));
+						ImGui::Text("Inertia: %.1f %.1f %.1f", SPLIT_V3_BT(entity.rigidBody->getLocalInertia()));
+						ImGui::Text("Mass: %.1f", entity.rigidBody->getMass());
+						ImGui::Text("Gravity: %.1f %.1f %.1f", SPLIT_V3_BT(entity.rigidBody->getGravity()));
 						
-						btVector3 rotationLock = entity->rigidBody->getAngularFactor();
+						btVector3 rotationLock = entity.rigidBody->getAngularFactor();
 						bool xLocked = rotationLock.x() < 0.01f;
 						bool yLocked = rotationLock.y() < 0.01f;
 						bool zLocked = rotationLock.z() < 0.01f;
@@ -520,42 +522,42 @@ void Game::DrawDebugUI(EngineCore& engine)
 						rotationLock.setX(xLocked ? 0.f : 1.f);
 						rotationLock.setY(yLocked ? 0.f : 1.f);
 						rotationLock.setZ(zLocked ? 0.f : 1.f);
-						entity->rigidBody->setAngularFactor(rotationLock);
+						entity.rigidBody->setAngularFactor(rotationLock);
 					}
 
-					/*if (entity->rigidBody != nullptr)
+					/*if (entity.rigidBody != nullptr)
 					{
-						int rigidBodyType = static_cast<int>(entity->rigidBody->getType());
+						int rigidBodyType = static_cast<int>(entity.rigidBody->getType());
 						if (ImGui::Combo("Body Type", &rigidBodyType, "Static\0Kinematic\0Dynamic\0\0"))
 						{
-							entity->rigidBody->setType(static_cast<reactphysics3d::BodyType>(rigidBodyType));
+							entity.rigidBody->setType(static_cast<reactphysics3d::BodyType>(rigidBodyType));
 						}
 
 						ImGui::DragFloat3("##ApplyForce", &physicsForceDebug.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f");
 						ImGui::SameLine();
 						if (ImGui::Button("Apply Force"))
 						{
-							entity->rigidBody->applyWorldForceAtCenterOfMass(PhysicsVectorFromXM(physicsForceDebug));
+							entity.rigidBody->applyWorldForceAtCenterOfMass(PhysicsVectorFromXM(physicsForceDebug));
 						}
 
 						ImGui::DragFloat3("##ApplyTorque", &physicsTorqueDebug.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f");
 						ImGui::SameLine();
 						if (ImGui::Button("Apply Torque"))
 						{
-							entity->rigidBody->applyWorldTorque(PhysicsVectorFromXM(physicsTorqueDebug));
+							entity.rigidBody->applyWorldTorque(PhysicsVectorFromXM(physicsTorqueDebug));
 						}
 
-						for (size_t i = 0; i < entity->rigidBody->getNbColliders(); i++)
+						for (size_t i = 0; i < entity.rigidBody->getNbColliders(); i++)
 						{
 							ImGui::Separator();
-							DisplayCollider(entity->rigidBody->getCollider(i));
+							DisplayCollider(entity.rigidBody->getCollider(i));
 						}
 
 						ImGui::DragFloat3("##AddColliderSize", &physicsAddColliderDebug.m128_f32[0], SLIDER_SPEED, SLIDER_MIN, SLIDER_MAX, "%.1f");
 						if (ImGui::Button("Add Box Collider"))
 						{
 							auto boxShape = physicsCommon->createBoxShape(PhysicsVectorFromXM(physicsAddColliderDebug));
-							entity->rigidBody->addCollider(boxShape, {});
+							entity.rigidBody->addCollider(boxShape, {});
 						}
 					}
 					else
@@ -563,27 +565,27 @@ void Game::DrawDebugUI(EngineCore& engine)
 						ImGui::Separator();
 						if (ImGui::Button("Add Rigidbody"))
 						{
-							entity->rigidBody = physicsWorld->createRigidBody(entity->GetPhysicsTransform());
-							entity->rigidBody->updateMassPropertiesFromColliders();
-							entity->rigidBody->setType(reactphysics3d::BodyType::STATIC);
+							entity.rigidBody = physicsWorld->createRigidBody(entity.GetPhysicsTransform());
+							entity.rigidBody->updateMassPropertiesFromColliders();
+							entity.rigidBody->setType(reactphysics3d::BodyType::STATIC);
 						}
 					}*/
 
-					/*if (entity->collisionBody != nullptr)
+					/*if (entity.collisionBody != nullptr)
 					{
 						ImGui::Separator();
 						ImGui::Text("COLLISION BODY");
 
-						for (size_t i = 0; i < entity->collisionBody->getNbColliders(); i++)
+						for (size_t i = 0; i < entity.collisionBody->getNbColliders(); i++)
 						{
 							ImGui::Separator();
-							DisplayCollider(entity->collisionBody->getCollider(i));
+							DisplayCollider(entity.collisionBody->getCollider(i));
 						}
 					}*/
 					
-					if (entity->isSkinnedRoot && entity->transformHierachy->nodeCount > 0)
+					if (entity.isSkinnedRoot && entity.transformHierachy->nodeCount > 0)
 					{
-						TransformHierachy* hierachy = entity->transformHierachy;
+						TransformHierachy* hierachy = entity.transformHierachy;
 
 						ImGui::Separator();
 						ImGui::Text("ANIMATIONS");
@@ -602,18 +604,18 @@ void Game::DrawDebugUI(EngineCore& engine)
 
 						ImGui::Separator();
 
-						std::string nodeTitle = std::format("BONES: {}", entity->transformHierachy->nodeCount);
+						std::string nodeTitle = std::format("BONES: {}", entity.transformHierachy->nodeCount);
 						if (ImGui::TreeNodeEx(nodeTitle.c_str()))
 						{
-							DisplayTransformNode(entity->transformHierachy->root);
+							DisplayTransformNode(entity.transformHierachy->root);
 							ImGui::TreePop();
 						}
 					}
 
-					gizmo->root->SetLocalPosition(entity->worldMatrix.translation);
-					gizmo->root->SetLocalRotation(entity->worldMatrix.rotation);
+					gizmo->root->SetLocalPosition(entity.worldMatrix.translation);
+					gizmo->root->SetLocalRotation(entity.worldMatrix.rotation);
 					gizmo->root->SetActive(editMode);
-					editElement = entity;
+					editElement = &entity;
 				}
 				ImGui::PopID();
 			}

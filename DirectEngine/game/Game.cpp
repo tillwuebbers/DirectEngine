@@ -811,6 +811,8 @@ bool Game::LoadGameConfig()
 
 	movementSettings = LoadConfigEntry<MovementSettings>(configArena, configFile->movementSettingsOffset, MOVEMENT_SETTINGS_VERSION);
 	if (movementSettings == nullptr) return false;
+
+	return true;
 }
 
 void Game::ResetGameConfig()

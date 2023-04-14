@@ -1,6 +1,8 @@
 ﻿# Main CMakeLists.txt
 cmake_minimum_required (VERSION 3.12)
 
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
 # dirs
 set(XAUDIO2_DIR ${CMAKE_CURRENT_SOURCE_DIR}/xaudio2)
 set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
@@ -84,7 +86,7 @@ function(DEPS PROJ)
         target_link_options(${PROJ} PRIVATE $<$<CONFIG:RELWITHDEBINFO>:/PROFILE>)
     endif()
     target_compile_definitions(${PROJ} PRIVATE "UNICODE;_UNICODE")
-    target_compile_options(${PROJ} PUBLIC -std:c++20 /Zc:strictStrings-)
+    target_compile_options(${PROJ} PUBLIC -std:c++20 /Zc:strictStrings- /wd4244 /wd4267 /wd4305)
 endfunction()
 
 # executable

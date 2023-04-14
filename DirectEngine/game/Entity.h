@@ -9,18 +9,36 @@
 #include <DirectXMath.h>
 using namespace DirectX;
 
+class Entity;
+
+struct EntityHandle
+{
+	uint64_t generation = 0;
+	Entity* ptr = nullptr;
+
+	EntityHandle() = default;
+	EntityHandle(Entity* entity);
+
+	Entity* Get();
+
+	//implement equals operator
+	bool operator==(const EntityHandle& other) const;
+	bool operator!=(const EntityHandle& other) const;
+};
+
 class Entity : btMotionState
 {
 public:
-	ExtendedMatrix localMatrix;
-	ExtendedMatrix worldMatrix;
+	ExtendedMatrix localMatrix{};
+	ExtendedMatrix worldMatrix{};
 	
+	uint64_t generation = 0;
 	FixedStr name = "Entity";
 
 	EngineCore* engine;
 
-	Entity* parent = nullptr;
-	CountingArray<Entity*, MAX_ENTITY_CHILDREN> children = {};
+	EntityHandle parent = nullptr;
+	CountingArray<EntityHandle, MAX_ENTITY_CHILDREN> children{};
 
 	bool isRendered = false;
 	bool isSkinnedMesh = false;
@@ -44,12 +62,12 @@ public:
 
 	btRigidBody* rigidBody = nullptr;
 	btDynamicsWorld* rigidBodyWorld = nullptr;
-	XMVECTOR physicsShapeOffset = {};
+	XMVECTOR physicsShapeOffset{};
 
-	AudioSource audioSource;
+	AudioSource audioSource{};
 
-	void AddChild(Entity* child, bool keepWorldPosition);
-	void RemoveChild(Entity* child, bool keepWorldPosition);
+	void AddChild(EntityHandle childHandle, bool keepWorldPosition);
+	void RemoveChild(EntityHandle childHandle, bool keepWorldPosition);
 
 	void AddRigidBody(MemoryArena& arena, btDynamicsWorld* world, btCollisionShape* shape, PhysicsInit& physicsInit);
 
@@ -84,5 +102,7 @@ private:
 	bool isParentActive = true;
 	bool isSelfActive = true;
 };
+
+extern uint64_t g_entityGeneration;
 
 XMVECTOR SampleAnimation(AnimationData& animData, float animationTime, XMVECTOR(__vectorcall* interp)(XMVECTOR a, XMVECTOR b, float t));
