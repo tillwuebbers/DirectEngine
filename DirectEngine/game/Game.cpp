@@ -136,7 +136,11 @@ void Game::LoadLevel(EngineCore& engine)
 	playerEntity->physicsShapeOffset = { 0.f, 1.f, 0.f };
 	PhysicsInit playerPhysics{ 10.f, PhysicsInitType::RigidBodyDynamic };
 	playerEntity->AddRigidBody(levelArena, dynamicsWorld, playerPhysicsShape, playerPhysics);
-	if (playerEntity->rigidBody != nullptr) playerEntity->rigidBody->setAngularFactor(0.f);
+	if (playerEntity->rigidBody != nullptr)
+	{
+		playerEntity->rigidBody->setAngularFactor(0.f);
+		playerEntity->rigidBody->setActivationState(DISABLE_DEACTIVATION);
+	}
 
 	playerLookEntity = CreateEmptyEntity(engine);
 	playerLookEntity->name = "PlayerLook";
@@ -492,7 +496,21 @@ void Game::UpdateGame(EngineCore& engine)
 		//entity.WritePhysicsTransform();
 	}
 
+	btVector3 beforePos;
+	btVector3 beforeVel;
+	if (playerEntity->rigidBody != nullptr && frameStep)
+	{
+		beforePos = playerEntity->rigidBody->getWorldTransform().getOrigin();
+		beforeVel = playerEntity->rigidBody->getLinearVelocity();
+	}
 	dynamicsWorld->stepSimulation(engine.m_updateDeltaTime, 3, MAX_PHYSICS_STEP);
+	if (playerEntity->rigidBody != nullptr && frameStep)
+	{
+		btVector3 afterPos = playerEntity->rigidBody->getWorldTransform().getOrigin();
+		btVector3 afterVel = playerEntity->rigidBody->getLinearVelocity();
+		debugLog.Log("Position ({:.2f} {:.2f} {:.2f}) -> ({:.2f} {:.2f} {:.2f})", SPLIT_V3_BT(beforePos), SPLIT_V3_BT(afterPos));
+		debugLog.Log("Velocity ({:.2f} {:.2f} {:.2f}) -> ({:.2f} {:.2f} {:.2f})", SPLIT_V3_BT(beforeVel), SPLIT_V3_BT(afterVel));
+	}
 
 	if (renderPhysics)
 	{
