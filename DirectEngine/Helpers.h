@@ -101,12 +101,12 @@ inline std::wstring EndTimer(std::chrono::steady_clock::time_point startTime, st
 #ifdef ENABLE_TIMERS
 #define INIT_TIMER(t) std::chrono::steady_clock::time_point t = StartTimer()
 #define RESET_TIMER(t) t = StartTimer()
-#define LOG_TIMER(t, s, l) l.Log(EndTimer(t, __FUNCTION__, s))
+#define LOG_TIMER(t, s) LOG(EndTimer(t, __FUNCTION__, s))
 #define OUTPUT_TIMERW(t, s) OutputDebugString(EndTimer(t, WIDE1(__FUNCTION__), s).c_str())
 #else
 #define INIT_TIMER(t) std::chrono::steady_clock::time_point t
 #define RESET_TIMER(t)
-#define LOG_TIMER(t, s, l)
+#define LOG_TIMER(t, s)
 #define OUTPUT_TIMERW(t, s)
 #endif
 

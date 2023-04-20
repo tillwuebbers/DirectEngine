@@ -6,7 +6,6 @@
 #define GLTF_JOINTS "JOINTS_0"
 #define GLTF_WEIGHTS "WEIGHTS_0"
 
-#include "Log.h"
 #include "../core/Memory.h"
 #include "../core/Common.h"
 
@@ -93,4 +92,4 @@ struct GltfResult
 
 MeshFile CreateQuad(float width, float height, MemoryArena& arena);
 MeshFile CreateQuadY(float width, float height, MemoryArena& arena);
-GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, MemoryArena& arena);
+GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena);

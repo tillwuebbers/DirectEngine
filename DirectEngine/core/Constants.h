@@ -68,6 +68,8 @@
 
 #define DIFFUSE_SUFFIX "_D"
 
+#define LOG_SIZE 1024
+
 #ifdef GAME_DEBUG
 #define ISDEBUG true
 #else

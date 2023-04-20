@@ -22,10 +22,7 @@ void PhysicsDebugDrawer::drawContactPoint(const btVector3& PointOnB, const btVec
 
 void PhysicsDebugDrawer::reportErrorWarning(const char* warningString)
 {
-	assert(log != nullptr);
-	if (log == nullptr) return;
-
-	log->Warn(warningString);
+	WARN(warningString);
 }
 
 void PhysicsDebugDrawer::draw3dText(const btVector3& location, const char* textString)

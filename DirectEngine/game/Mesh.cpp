@@ -1,4 +1,5 @@
 #include "Mesh.h"
+#include "Log.h"
 
 #include "../Helpers.h"
 
@@ -129,7 +130,7 @@ TransformNode* CreateMatrices(Model& model, int jointIndex, TransformNode* paren
 	return &nodeList[jointIndex];
 }
 
-GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, MemoryArena& arena)
+GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 {
 	INIT_TIMER(timer);
 
@@ -142,23 +143,23 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 
 	if (!warn.empty())
 	{
-		debugLog.Warn(warn);
+		WARN(warn);
 	}
 
 	if (!err.empty())
 	{
-		debugLog.Error(err);
+		ERR(err);
 	}
 
 	if (!ret)
 	{
-		debugLog.Error("Failed to parse glTF");
+		ERR("Failed to parse glTF");
 	}
 
 	size_t vertexCount = 0;
 	Vertex* vertices;
 
-	LOG_TIMER(timer, "Load Model Binary", debugLog);
+	LOG_TIMER(timer, "Load Model Binary");
 	RESET_TIMER(timer);
 
 	TransformHierachy* hierachy = nullptr;
@@ -189,7 +190,7 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 		}
 		hierachy->root = CreateMatrices(model, 0, nullptr, hierachy->nodes, inverseBindMatrices);
 
-		LOG_TIMER(timer, "Load Hierachy", debugLog);
+		LOG_TIMER(timer, "Load Hierachy");
 		RESET_TIMER(timer);
 
 		for (Animation& animation : model.animations)
@@ -283,7 +284,7 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 				}
 				else
 				{
-					debugLog.Warn("Unknown channel target path!");
+					WARN("Unknown channel target path!");
 					continue;
 				}
 
@@ -320,7 +321,7 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 			transformAnimation.duration = maxTime;
 		}
 
-		LOG_TIMER(timer, "Animations", debugLog);
+		LOG_TIMER(timer, "Animations");
 	}
 	
 	RESET_TIMER(timer);
@@ -436,7 +437,7 @@ GltfResult LoadGltfFromFile(const std::string& filePath, RingLog& debugLog, Memo
 		}
 	}
 
-	LOG_TIMER(timer, "Meshes", debugLog);
+	LOG_TIMER(timer, "Meshes");
 	RESET_TIMER(timer);
 	
 	return { meshFiles, hierachy };

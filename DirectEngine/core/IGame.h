@@ -24,8 +24,4 @@ public:
 	virtual EngineInput& GetInput() = 0;
 	virtual std::mutex& GetWindowUdpateDataMutex() = 0;
 	virtual WindowUpdate& GetWindowUpdateData() = 0;
-
-	virtual void Log(const std::string& message) = 0;
-	virtual void Warn(const std::string& message) = 0;
-	virtual void Error(const std::string& message) = 0;
 };

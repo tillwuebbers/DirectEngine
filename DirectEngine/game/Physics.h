@@ -21,17 +21,19 @@ enum class PhysicsInitType
 };
 
 #define CollisionLayersTable\
-  EnumFlag(1,  GizmoClick, "Gizmo Click")\
-  EnumFlag(2,  Floor,      "Floor")\
-  EnumFlag(3,  Player,     "Player")
+  EnumFlag(1, CL_Player, "Player")\
+  EnumFlag(2, CL_World,  "World")\
+  EnumFlag(3, CL_Entity, "Entity")\
+  EnumFlag(4, CL_Portal, "Portal")\
+  EnumFlag(5, CL_Gizmo,  "Gizmo Click")
 
 enum class CollisionLayers : uint32_t
 {
-	None = 0U,
+	CL_None = 0U,
 #define EnumFlag(idx, name, str) name = 1U << (idx - 1),
 	CollisionLayersTable
 #undef EnumFlag
-	All = ~0U
+	CL_All = ~0U
 };
 
 const std::vector<const char*> collisionLayerNames =
@@ -58,14 +60,13 @@ struct PhysicsInit
 
 	float mass = 0.f;
 	PhysicsInitType type = PhysicsInitType::None;
-	CollisionLayers ownCollisionLayers = CollisionLayers::Floor;
-	CollisionLayers collidesWithLayers = CollisionLayers::All;
+	CollisionLayers ownCollisionLayers = CollisionLayers::CL_Entity;
+	CollisionLayers collidesWithLayers = CollisionLayers::CL_All;
 };
 
 struct PhysicsDebugDrawer : btIDebugDraw
 {
 	int debugMode = 0;
-	RingLog* log = nullptr;
 	EngineCore* engine = nullptr;
 
 	void drawLine(const btVector3& from, const btVector3& to, const btVector3& color) override;

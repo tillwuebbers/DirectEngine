@@ -1,9 +1,11 @@
 #pragma once
 #include "Entity.h"
+#include "IEntityCreator.h"
 #include "Log.h"
 #include "Mesh.h"
 #include "Config.h"
 #include "Physics.h"
+#include "Gizmo.h"
 #include "../core/IGame.h"
 #include "../core/EngineCore.h"
 
@@ -29,18 +31,6 @@ struct ShadowSpaceBounds
 	XMFLOAT3 max;
 };
 
-struct Gizmo
-{
-	Entity* root;
-	Entity* translateArrows[3];
-	Entity* rotateArrows[3];
-	Entity* scaleArrows[3];
-
-	D3D12_VERTEX_BUFFER_VIEW translateArrowMesh;
-	D3D12_VERTEX_BUFFER_VIEW rotateArrowMesh;
-	D3D12_VERTEX_BUFFER_VIEW scaleArrowMesh;
-};
-
 enum class Material
 {
 	Test,
@@ -59,7 +49,28 @@ struct GameContactPoint
 	XMVECTOR localPointOnShapeB = {};
 };
 
-class Game : public IGame
+struct TimeData
+{
+	float deltaTime = 0.f;
+	float timeSinceStart = 0.f;
+};
+
+struct PlayerMovement
+{
+	MovementSettings* movementSettings = nullptr;
+
+	bool noclip = false;
+	bool playerOnGround = false;
+
+	float lastJumpPressTime = -1000.f;
+	float inputDeadzone = 0.05f;
+	float jumpBufferDuration = 1.f;
+
+
+	void Update(EngineInput& input, TimeData& time, Entity* playerEntity, Entity* playerLookEntity, Entity* cameraEntity, btDynamicsWorld* dynamicsWorld, bool frameStep);
+};
+
+class Game : public IGame, public IEntityCreator
 {
 public:
 	Game(GAME_CREATION_PARAMS);
@@ -73,7 +84,6 @@ public:
 	// Logging
 	bool showLog = ISDEBUG;
 	bool stopLog = false;
-	RingLog debugLog{};
 
 	bool showProfiler = false;
 	bool pauseProfiler = false;
@@ -129,11 +139,6 @@ public:
 	btDiscreteDynamicsWorld* dynamicsWorld = nullptr;
 	PhysicsDebugDrawer physicsDebug{};
 
-	//reactphysics3d::PhysicsWorld* physicsWorld = nullptr;
-	//MinimumRaycastCallback minRaycastCollector{};
-	//AllRaycastCallback allRaycastCollector{ globalArena };
-	//GamePhysicsEvents physicsEvents{};
-
 	// Materials and Lighting
 	std::unordered_map<Material, size_t> materialIndices{};
 	
@@ -149,15 +154,7 @@ public:
 	float saturation = 1.;
 	float fog = 0.;
 
-	// Gizmo
-	Gizmo* gizmo = nullptr;
-	bool gizmoLocal = true;
-	bool editMode = false;
-	Entity* editElement = nullptr;
-	Entity* selectedGizmoElement = nullptr;
-	Entity* selectedGizmoTarget = nullptr;
-	XMVECTOR gizmoDragCursorStart{};
-	XMVECTOR gizmoDragEntityStart{};
+	Gizmo gizmo{};
 
 	// Entities
 	Entity* portal1 = nullptr;
@@ -174,18 +171,12 @@ public:
 	CountingArray<AudioBuffer*, MAX_AUDIO_FILES> soundFiles{};
 
 	// Movement
-	MovementSettings* movementSettings = nullptr;
+	PlayerMovement playerMovement{};
 	XMVECTOR defaultPlayerLookPosition = { 0.f, 1.85f, 0.f };
 
 	float playerPitch = 0.f;
 	float playerYaw = 0.f;
-	bool playerOnGround = false;
 	
-	float inputDeadzone = 0.05f;
-
-	float jumpBufferDuration = 1.f;
-	float lastJumpPressTime = -1000.f;
-
 	void StartGame(EngineCore& engine) override;
 	void LoadLevel(EngineCore& engine);
 	void UpdateGame(EngineCore& engine) override;
@@ -193,11 +184,11 @@ public:
 	void DrawUI(EngineCore& engine);
 	void DrawDebugUI(EngineCore& engine);
 
-	Entity* CreateEmptyEntity(EngineCore& engine);
-	Entity* CreateMeshEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView);
-	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical = false);
-	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, PhysicsInit& physicsInit, bool vertical = false);
-	Entity* CreateEntityFromGltf(EngineCore& engine, const char* path, const std::wstring& shaderName, RingLog& log);
+	Entity* CreateEmptyEntity(EngineCore& engine) override;
+	Entity* CreateMeshEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView) override;
+	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical = false) override;
+	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, PhysicsInit& physicsInit, bool vertical = false) override;
+	Entity* CreateEntityFromGltf(EngineCore& engine, const char* path, const std::wstring& shaderName) override;
 	void UpdateCursorState();
 
 	void PlaySound(EngineCore& engine, AudioSource* audioSource, AudioFile file);
@@ -211,15 +202,9 @@ public:
 	void ResetGameConfig();
 	void ToggleNoclip();
 
-	void Log(const std::string& message) override;
-	void Warn(const std::string& message) override;
-	void Error(const std::string& message) override;
-
 	std::mutex& GetWindowUdpateDataMutex() override { return windowUdpateDataMutex; };
 	WindowUpdate& GetWindowUpdateData() override { return windowUpdateData; };
 };
-
-Gizmo* LoadGizmo(EngineCore& engine, Game& game, size_t materialIndex);
 
 MAT_RMAJ CalculateShadowCamProjection(const MAT_RMAJ& camViewMatrix, const MAT_RMAJ& camProjectionMatrix, const MAT_RMAJ& lightViewMatrix);
 

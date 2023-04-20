@@ -34,6 +34,7 @@ bool EntityHandle::operator!=(const EntityHandle& other) const
 	return !(*this == other);
 }
 
+// TODO: keepWorldPosition == false apparently doesn't work?
 void Entity::AddChild(EntityHandle childHandle, bool keepWorldPosition)
 {
 	assert(childHandle.Get() != nullptr);

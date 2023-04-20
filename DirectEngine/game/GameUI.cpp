@@ -99,7 +99,7 @@ void Game::DrawUI(EngineCore& engine)
 	if (showDemoWindow) ImGui::ShowDemoWindow(&showDemoWindow);
 
 	// Escape Menu
-	if (showEscMenu && !editMode)
+	if (showEscMenu && !gizmo.editMode)
 	{
 		const int buttonWidth = 250;
 		const int buttonHeight = 30;
@@ -149,7 +149,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 		{
 			ImGui::Checkbox("Keep Visible", &keepDebugMenuVisibleInGame);
 			ImGui::SameLine();
-			ImGui::Checkbox("Edit Mode", &editMode);
+			ImGui::Checkbox("Edit Mode", &gizmo.editMode);
 
 			if (ImGui::Button("Reset Config"))
 			{
@@ -168,7 +168,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 
 			ImGui::Text("Camera Position: %.1f %.1f %.1f", SPLIT_V3(engine.mainCamera->worldMatrix.translation));
 			ImGui::Text("Camera Rotation: %.1f %.1f", playerPitch / XM_2PI * 360.f, playerYaw / XM_2PI * 360.f);
-			ImGui::Text("Player on Ground: %s", playerOnGround ? "true" : "false");
+			ImGui::Text("Player on Ground: %s", playerMovement.playerOnGround ? "true" : "false");
 
 			ImGui::NewLine();
 
@@ -269,12 +269,12 @@ void Game::DrawDebugUI(EngineCore& engine)
 			{
 				if (!stopLog)
 				{
-					Warn("Log paused...");
+					WARN("Log paused...");
 				}
 				stopLog = !stopLog;
 				if (!stopLog)
 				{
-					Warn("Log resumed...");
+					WARN("Log resumed...");
 				}
 			}
 			ImGui::SameLine();
@@ -282,7 +282,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 
 			ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ 0, 0 });
-			debugLog.DrawLogText();
+			if (GameLog::g_debugLog != nullptr) GameLog::g_debugLog->DrawLogText();
 			if (scrollLog)
 			{
 				ImGui::SetScrollHereY();
@@ -319,7 +319,6 @@ void Game::DrawDebugUI(EngineCore& engine)
 
 			ImGui::Separator();
 			ImGui::Checkbox("Show Physics", &renderPhysics);
-			//ImGui::Checkbox("Show Wireframe", &engine.renderWireframe);
 		}
 		ImGui::End();
 	}
@@ -344,12 +343,12 @@ void Game::DrawDebugUI(EngineCore& engine)
 	{
 		if (ImGui::Begin("Movement", &showMovementWindow))
 		{
-			ImGui::Checkbox("Autojump", &movementSettings->autojump);
+			ImGui::Checkbox("Autojump", &playerMovement.movementSettings->autojump);
 			ImGui::SameLine();
 
 			ImVec2 cursorPos = ImGui::GetCursorScreenPos();
 			float playerDisplaySpeed = 0.f;// XMVectorGetX(XMVector3Length(XMVectorSetY(XMVectorFromPhysics(playerEntity->rigidBody->getLinearVelocity()), 0.)));
-			ImGui::GetWindowDrawList()->AddLine({ cursorPos.x, cursorPos.y + 10.f }, { cursorPos.x + (playerDisplaySpeed * 30.f / movementSettings->playerMaxSpeed), cursorPos.y + 10.f }, ImColor(.1f, .2f, .9f), 10.f);
+			ImGui::GetWindowDrawList()->AddLine({ cursorPos.x, cursorPos.y + 10.f }, { cursorPos.x + (playerDisplaySpeed * 30.f / playerMovement.movementSettings->playerMaxSpeed), cursorPos.y + 10.f }, ImColor(.1f, .2f, .9f), 10.f);
 			ImGui::SetCursorPosX(cursorPos.x + 35.f);
 			ImGui::Text("Vel: %.1f", playerDisplaySpeed);
 
@@ -363,26 +362,26 @@ void Game::DrawDebugUI(EngineCore& engine)
 			ImGui::SetNextItemWidth(80.f);
 			ImGui::DragFloat("##yaw", &playerYaw, .05f, -XMConvertToRadians(360.f), XMConvertToRadians(360.f), "%.1f");
 
-			ImGui::SliderFloat("Acceleration", &movementSettings->playerAcceleration, 1., 200., "%.0f");
-			ImGui::SliderFloat("Friction", &movementSettings->playerFriction, 1., 200., "%.0f");
-			ImGui::SliderFloat("Gravity", &movementSettings->playerGravity, 1., 100., "%.0f");
-			ImGui::SliderFloat("Max Speed", &movementSettings->playerMaxSpeed, 1., 100., "%.0f");
-			ImGui::SliderFloat("Jump Strength", &movementSettings->playerJumpStrength, 1., 1000., "%.0f");
-			ImGui::SliderFloat("Jump Buffer Duration", &jumpBufferDuration, 0.01, 1., "%.2f");
+			ImGui::SliderFloat("Acceleration", &playerMovement.movementSettings->playerAcceleration, 1., 200., "%.0f");
+			ImGui::SliderFloat("Friction", &playerMovement.movementSettings->playerFriction, 1., 200., "%.0f");
+			ImGui::SliderFloat("Gravity", &playerMovement.movementSettings->playerGravity, 1., 100., "%.0f");
+			ImGui::SliderFloat("Max Speed", &playerMovement.movementSettings->playerMaxSpeed, 1., 100., "%.0f");
+			ImGui::SliderFloat("Jump Strength", &playerMovement.movementSettings->playerJumpStrength, 1., 1000., "%.0f");
+			ImGui::SliderFloat("Jump Buffer Duration", &playerMovement.jumpBufferDuration, 0.01, 1., "%.2f");
 		}
 		ImGui::End();
 	}
 
 	// Entity list
-	gizmo->root->SetActive(false);
+	gizmo.root->SetActive(false);
 	if (showEntityList)
 	{
 		if (ImGui::Begin("Entity List", &showEntityList))
 		{
 			ImGui::Checkbox("Show Inactive Entities", &showInactiveEntities);
-			ImGui::Checkbox("Gizmo Space Local", &gizmoLocal);
+			ImGui::Checkbox("Gizmo Space Local", &gizmo.gizmoLocal);
 
-			editElement = nullptr;
+			gizmo.editElement = nullptr;
 
 			for (Entity& entity : entityArena)
 			{
@@ -601,10 +600,10 @@ void Game::DrawDebugUI(EngineCore& engine)
 						}
 					}
 
-					gizmo->root->SetLocalPosition(entity.worldMatrix.translation);
-					gizmo->root->SetLocalRotation(entity.worldMatrix.rotation);
-					gizmo->root->SetActive(editMode);
-					editElement = &entity;
+					gizmo.root->SetLocalPosition(entity.worldMatrix.translation);
+					gizmo.root->SetLocalRotation(entity.worldMatrix.rotation);
+					gizmo.root->SetActive(gizmo.editMode);
+					gizmo.editElement = &entity;
 				}
 				ImGui::PopID();
 			}
