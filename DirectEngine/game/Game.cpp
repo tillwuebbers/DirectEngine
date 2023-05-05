@@ -103,21 +103,25 @@ void Game::LoadLevel(EngineCore& engine)
 
 	// Portals
 	auto createPortal = [&](size_t matIndex, XMVECTOR pos, const char* name) {
-		Entity* portalRenderQuad = CreateQuadEntity(engine, matIndex, 2.f, 4.f);
-		portalRenderQuad->SetLocalPosition({ -1.f, 2.f, 0.f });
-		portalRenderQuad->SetLocalRotation(XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f));
-		portalRenderQuad->name = "PortalQuad";
 
 		Entity* portal = CreateEmptyEntity(engine);
 		portal->SetLocalPosition(pos);
 		portal->name = name;
 
+		Entity* portalRenderQuad = CreateQuadEntity(engine, matIndex, 2.f, 4.f);
 		portal->AddChild(portalRenderQuad, false);
+		portalRenderQuad->name = "PortalQuad";
+		portalRenderQuad->SetLocalPosition({ -1.f, 2.f, 0.f });
+		portalRenderQuad->SetLocalRotation(XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f));
 
 		return portal;
 	};
-	portal1 = createPortal(materialIndices[Material::Portal1], { 0.f, 2.f, 10.f }, "Portal 1");
-	portal2 = createPortal(materialIndices[Material::Portal2], { 2.f, 2.f, 10.f }, "Portal 2");
+	portal1 = createPortal(materialIndices[Material::Portal1], { -2.f, 2.f, 0.f }, "Portal 1");
+	portal1->SetWorldPosition({ 0.f, 0.01f, 0.f });
+	portal1->SetLocalRotation(XMQuaternionRotationAxis({ 1.f, 0.f, 0.f }, -XM_PIDIV2));
+	
+	portal2 = createPortal(materialIndices[Material::Portal2], { 2.f, 2.f, 0.f }, "Portal 2");
+	portal2->SetLocalRotation(XMQuaternionRotationAxis({ 0.f, 1.f, 0.f }, -XM_PIDIV2));
 
 	// Gizmo
 	gizmo = LoadGizmo(engine, *this, materialIndices[Material::Laser]);
@@ -543,15 +547,19 @@ void Game::UpdateGame(EngineCore& engine)
 	engine.mainCamera->UpdateProjectionMatrix();
 
 	MAT_RMAJ portalFlipOffset = XMMatrixRotationAxis({ 0.f, 1.f, 0.f }, XM_PI);
+	MAT_RMAJ portalCamMatrix = cameraEntity->worldMatrix.matrix;
 
-	MAT_RMAJ portal1Mat = cameraEntity->worldMatrix.matrix * portal1->worldMatrix.inverse * portalFlipOffset * portal2->worldMatrix.matrix;
-	MAT_RMAJ portal2Mat = cameraEntity->worldMatrix.matrix * portal2->worldMatrix.inverse * portalFlipOffset * portal1->worldMatrix.matrix;
+	MAT_RMAJ portal1Mat = portalCamMatrix * portal1->worldMatrix.inverse * portalFlipOffset * portal2->worldMatrix.matrix;
+	MAT_RMAJ portal2Mat = portalCamMatrix * portal2->worldMatrix.inverse * portalFlipOffset * portal1->worldMatrix.matrix;
+
+	XMVECTOR portal1ClipPlane = PlaneNormalForm(portal2->worldMatrix.forward, portal2->GetWorldPosition());
+	XMVECTOR portal2ClipPlane = PlaneNormalForm(portal1->worldMatrix.forward, portal1->GetWorldPosition());
 
 	engine.m_renderTextures[0]->camera->UpdateViewMatrix(portal1Mat);
-	engine.m_renderTextures[0]->camera->UpdateProjectionMatrix();
+	engine.m_renderTextures[0]->camera->UpdateObliqueProjectionMatrix(portal1ClipPlane);
 
 	engine.m_renderTextures[1]->camera->UpdateViewMatrix(portal2Mat);
-	engine.m_renderTextures[1]->camera->UpdateProjectionMatrix();
+	engine.m_renderTextures[1]->camera->UpdateObliqueProjectionMatrix(portal2ClipPlane);
 
 	for (CameraData& camera : engine.m_cameras)
 	{
