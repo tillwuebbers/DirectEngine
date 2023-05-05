@@ -224,6 +224,72 @@ struct CameraData
         constantBuffer.data.cameraView = XMMatrixTranspose(worldMatrix.inverse);
     }
 
+    void UpdateObliqueProjectionMatrix(XMVECTOR clipPlaneWorld)
+    {
+        float SinFov;
+        float CosFov;
+        XMScalarSinCos(&SinFov, &CosFov, 0.5f * fovY);
+
+        float Height = CosFov / SinFov;
+        float Width = Height / aspectRatio;
+        float fRange = farClip / (farClip - nearClip);
+
+        MAT_RMAJ M;
+        M.r[0].m128_f32[0] = Width;
+        M.r[0].m128_f32[1] = 0.0f;
+        M.r[0].m128_f32[2] = 0.0f;
+        M.r[0].m128_f32[3] = 0.0f;
+
+        M.r[1].m128_f32[0] = 0.0f;
+        M.r[1].m128_f32[1] = Height;
+        M.r[1].m128_f32[2] = 0.0f;
+        M.r[1].m128_f32[3] = 0.0f;
+
+        M.r[2].m128_f32[0] = 0.0f;
+        M.r[2].m128_f32[1] = 0.0f;
+        M.r[2].m128_f32[2] = fRange;
+        M.r[2].m128_f32[3] = 1.0f;
+
+        M.r[3].m128_f32[0] = 0.0f;
+        M.r[3].m128_f32[1] = 0.0f;
+        M.r[3].m128_f32[2] = -fRange * nearClip;
+        M.r[3].m128_f32[3] = 0.0f;
+        
+        XMVECTOR det;
+        XMMATRIX MPrime = XMMatrixInverse(&det, M);
+
+        XMVECTOR clipPlane = XMVector4Transform(clipPlaneWorld, worldMatrix.inverse);
+
+        XMVECTOR qPrime = {
+            XMVectorGetX(clipPlane) >= 0.f ? 1.f : -1.f,
+            XMVectorGetY(clipPlane) >= 0.f ? 1.f : -1.f,
+            1.f,
+            1.f
+        }; // Q'
+
+        XMVECTOR q = XMVector4Transform(qPrime, MPrime);
+
+        XMVECTOR m4{
+            M.r[0].m128_f32[3],
+            M.r[1].m128_f32[3],
+            M.r[2].m128_f32[3],
+            M.r[3].m128_f32[3],
+        };
+
+        float alpha = XMVectorGetX(XMVector4Dot(XMVectorScale(m4, 2.f), q)) / XMVectorGetX(XMVector4Dot(clipPlane, q));
+
+        XMVECTOR m3Prime = XMVectorScale(clipPlane, alpha) - m4;
+
+        MPrime.r[0].m128_f32[2] = XMVectorGetX(m3Prime);
+        MPrime.r[1].m128_f32[2] = XMVectorGetY(m3Prime);
+        MPrime.r[2].m128_f32[2] = XMVectorGetZ(m3Prime);
+        MPrime.r[3].m128_f32[2] = XMVectorGetW(m3Prime);
+
+        M = XMMatrixInverse(&det, MPrime);
+
+        constantBuffer.data.cameraProjection = XMMatrixTranspose(M);
+    }
+
     void UpdateProjectionMatrix()
     {
         constantBuffer.data.cameraProjection = XMMatrixTranspose(XMMatrixPerspectiveFovLH(fovY, aspectRatio, nearClip, farClip));
