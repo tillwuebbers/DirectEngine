@@ -206,6 +206,20 @@ public:
     }
 };
 
+inline std::string FormatPlaneOutput(XMVECTOR plane)
+{
+    float zDist = -XMVectorGetW(plane) / XMVectorGetZ(plane);
+    return std::format("Normal: ({},{},{}), ZDist: {}\n",
+        plane.m128_f32[0], plane.m128_f32[1], plane.m128_f32[2], zDist);
+}
+
+inline float Sgn(float val)
+{
+    if (val < 0.f) return -1.f;
+    if (val > 0.f) return 1.f;
+    return 0.f;
+}
+
 struct CameraData
 {
     ConstantBuffer<CameraConstantBuffer> constantBuffer = {};
@@ -224,7 +238,8 @@ struct CameraData
         constantBuffer.data.cameraView = XMMatrixTranspose(worldMatrix.inverse);
     }
 
-    void UpdateObliqueProjectionMatrix(XMVECTOR clipPlaneWorld)
+    // see: http://www.terathon.com/lengyel/Lengyel-Oblique.pdf
+    void UpdateObliqueProjectionMatrix(XMVECTOR nearPlaneNormalWorld, XMVECTOR nearPlanePointWorld)
     {
         float SinFov;
         float CosFov;
@@ -255,37 +270,25 @@ struct CameraData
         M.r[3].m128_f32[2] = -fRange * nearClip;
         M.r[3].m128_f32[3] = 0.0f;
         
-        XMVECTOR det;
-        XMMATRIX MPrime = XMMatrixInverse(&det, M);
-
-        XMVECTOR clipPlane = XMVector4Transform(clipPlaneWorld, worldMatrix.inverse);
+        XMVECTOR clipNormalCamera = XMVector3Normalize(XMVector3TransformNormal(XMVector3Normalize(nearPlaneNormalWorld), worldMatrix.matrix));
+        XMVECTOR clipPositionCamera = XMVector3TransformCoord(nearPlanePointWorld, worldMatrix.matrix);
+        XMVECTOR clipPlane = PlaneNormalForm(clipNormalCamera, clipPositionCamera);
 
         XMVECTOR qPrime = {
-            XMVectorGetX(clipPlane) >= 0.f ? 1.f : -1.f,
-            XMVectorGetY(clipPlane) >= 0.f ? 1.f : -1.f,
+            Sgn(XMVectorGetX(clipPlane)),
+            Sgn(XMVectorGetY(clipPlane)),
             1.f,
-            1.f
-        }; // Q'
-
-        XMVECTOR q = XMVector4Transform(qPrime, MPrime);
-
-        XMVECTOR m4{
-            M.r[0].m128_f32[3],
-            M.r[1].m128_f32[3],
-            M.r[2].m128_f32[3],
-            M.r[3].m128_f32[3],
+            1.f,
         };
 
-        float alpha = XMVectorGetX(XMVector4Dot(XMVectorScale(m4, 2.f), q)) / XMVectorGetX(XMVector4Dot(clipPlane, q));
+        XMVECTOR q = XMVector4Transform(qPrime, XMMatrixInverse(nullptr, M));
+        float a = XMVectorGetZ(q) / XMVectorGetX(XMVector4Dot(clipPlane, q));
+        XMVECTOR c = XMVectorScale(clipPlane, a);
 
-        XMVECTOR m3Prime = XMVectorScale(clipPlane, alpha) - m4;
-
-        MPrime.r[0].m128_f32[2] = XMVectorGetX(m3Prime);
-        MPrime.r[1].m128_f32[2] = XMVectorGetY(m3Prime);
-        MPrime.r[2].m128_f32[2] = XMVectorGetZ(m3Prime);
-        MPrime.r[3].m128_f32[2] = XMVectorGetW(m3Prime);
-
-        M = XMMatrixInverse(&det, MPrime);
+        M.r[0].m128_f32[2] = XMVectorGetX(c);
+        M.r[1].m128_f32[2] = XMVectorGetY(c);
+        M.r[2].m128_f32[2] = XMVectorGetZ(c);
+        M.r[3].m128_f32[2] = XMVectorGetW(c);
 
         constantBuffer.data.cameraProjection = XMMatrixTranspose(M);
     }

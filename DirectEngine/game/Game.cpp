@@ -129,8 +129,9 @@ void Game::LoadLevel(EngineCore& engine)
 
 		return portal;
 	};
-	portal1 = createPortal(Material::Portal1, { 0.f, 2.f, 10.f }, "Portal 1");
-	portal2 = createPortal(Material::Portal2, { 2.f, 2.f, 10.f }, "Portal 2");
+	portal1 = createPortal(Material::Portal1, { 0.f, 0.f, 0.f }, "Portal 1");
+	portal2 = createPortal(Material::Portal2, { 0.f, 0.f, 0.f }, "Portal 2");
+	portal2->SetLocalRotation(XMQuaternionRotationRollPitchYaw(0.f, XM_PI, 0.f));
 
 	// Crosshair
 	Entity* crosshair = CreateQuadEntity(engine, materialIndices[Material::Crosshair], .03f, .03f, true);
@@ -483,14 +484,11 @@ void Game::UpdateGame(EngineCore& engine)
 	MAT_RMAJ portal1Mat = portalCamMatrix * portal1->worldMatrix.inverse * portalFlipOffset * portal2->worldMatrix.matrix;
 	MAT_RMAJ portal2Mat = portalCamMatrix * portal2->worldMatrix.inverse * portalFlipOffset * portal1->worldMatrix.matrix;
 
-	XMVECTOR portal1ClipPlane = PlaneNormalForm(portal2->worldMatrix.forward, portal2->GetWorldPosition());
-	XMVECTOR portal2ClipPlane = PlaneNormalForm(portal1->worldMatrix.forward, portal1->GetWorldPosition());
-
 	engine.m_renderTextures[0]->camera->UpdateViewMatrix(portal1Mat);
-	engine.m_renderTextures[0]->camera->UpdateObliqueProjectionMatrix(portal1ClipPlane);
+	engine.m_renderTextures[0]->camera->UpdateObliqueProjectionMatrix(portal2->worldMatrix.forward, portal2->GetWorldPosition());
 
 	engine.m_renderTextures[1]->camera->UpdateViewMatrix(portal2Mat);
-	engine.m_renderTextures[1]->camera->UpdateObliqueProjectionMatrix(portal2ClipPlane);
+	engine.m_renderTextures[1]->camera->UpdateObliqueProjectionMatrix(portal1->worldMatrix.forward, portal1->GetWorldPosition());
 
 	for (CameraData& camera : engine.m_cameras)
 	{

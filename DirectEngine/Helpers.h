@@ -97,7 +97,8 @@ inline std::wstring EndTimer(std::chrono::steady_clock::time_point startTime, st
 
 inline XMVECTOR PlaneNormalForm(XMVECTOR planeNormal, XMVECTOR pointOnPlane)
 {
-    return XMVectorSetW(planeNormal, XMVectorGetX(-XMVector3Dot(planeNormal, pointOnPlane)));
+    XMVECTOR normalizedPlaneNormal = XMVector3Normalize(planeNormal);
+    return XMVectorSetW(normalizedPlaneNormal, XMVectorGetX(-XMVector3Dot(normalizedPlaneNormal, pointOnPlane)));
 }
 
 #define WIDE2(x) L##x
