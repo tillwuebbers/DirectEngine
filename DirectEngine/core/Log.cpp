@@ -1,6 +1,6 @@
 #include "Log.h"
 
-namespace GameLog
+namespace EngineLog
 {
 	RingLog* g_debugLog = nullptr;
 
@@ -45,17 +45,17 @@ namespace GameLog
 
 	void GlobalLog(LogMode mode, const std::string& message)
 	{
-		const char* logPrefix = " INFO: ";
-		const char* warnPrefix = " WARN: ";
+		const char* logPrefix =   " INFO: ";
+		const char* warnPrefix =  " WARN: ";
 		const char* errorPrefix = "ERROR: ";
 
 		const char* selectedPrefix;
 		switch (mode)
 		{
-		case GameLog::LogMode::Warn:
+		case EngineLog::LogMode::Warn:
 			selectedPrefix = warnPrefix;
 			break;
-		case GameLog::LogMode::Error:
+		case EngineLog::LogMode::Error:
 			selectedPrefix = errorPrefix;
 			break;
 		default:
@@ -72,10 +72,10 @@ namespace GameLog
 		{
 			switch (mode)
 			{
-			case GameLog::LogMode::Warn:
+			case EngineLog::LogMode::Warn:
 				g_debugLog->Warn(message);
 				break;
-			case GameLog::LogMode::Error:
+			case EngineLog::LogMode::Error:
 				g_debugLog->Error(message);
 				break;
 			default:

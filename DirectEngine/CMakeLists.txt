@@ -87,12 +87,14 @@ function(DEPS PROJ)
     endif()
     target_compile_definitions(${PROJ} PRIVATE "UNICODE;_UNICODE")
     target_compile_options(${PROJ} PUBLIC -std:c++20 /Zc:strictStrings- /wd4244 /wd4267 /wd4305)
+    set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src)
 endfunction()
 
 # executable
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_executable(${PROJECT_NAME} WIN32 "DirectEngine.cpp" "DirectEngine.h")
 target_link_libraries(${PROJECT_NAME} ${CORE_NAME})
+add_dependencies(${PROJECT_NAME} ${GAME_NAME})
 DEPS(${PROJECT_NAME})
 
 # assets

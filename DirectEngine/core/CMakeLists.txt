@@ -11,7 +11,7 @@ add_library (${PROJECT_NAME}
 source_group("Shader Files" FILES ${SHADER_CODE})
 
 DEPS(${PROJECT_NAME})
-   
+
 # compile shaders
 target_include_directories(${PROJECT_NAME} PRIVATE "${SHADER_DIR}")
 foreach(SHADER_FILE ${SHADER_CODE})
@@ -26,4 +26,4 @@ endforeach()
 
 
 # custom flags
-target_compile_definitions(${PROJECT_NAME} PRIVATE "ENABLE_TIMERS")
+target_compile_definitions(${PROJECT_NAME} PRIVATE "ENABLE_TIMERS" "COMPILING_CORE")

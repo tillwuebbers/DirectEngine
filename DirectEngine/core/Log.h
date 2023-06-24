@@ -1,12 +1,12 @@
 #pragma once
 
-#include "../core/Constants.h"
+#include "Constants.h"
 #include "imgui.h"
 #include <string>
 #include <format>
 #include <iostream>
 
-namespace GameLog
+namespace EngineLog
 {
 	struct LogMessage
 	{
@@ -65,6 +65,6 @@ namespace GameLog
 	}
 }
 
-#define LOG(...) GameLog::GlobalLog(GameLog::LogMode::Log, __VA_ARGS__)
-#define WARN(...) GameLog::GlobalLog(GameLog::LogMode::Warn, __VA_ARGS__)
-#define ERR(...) GameLog::GlobalLog(GameLog::LogMode::Error, __VA_ARGS__)
+#define LOG(...)  EngineLog::GlobalLog(EngineLog::LogMode::Log, __VA_ARGS__)
+#define WARN(...) EngineLog::GlobalLog(EngineLog::LogMode::Warn, __VA_ARGS__)
+#define ERR(...)  EngineLog::GlobalLog(EngineLog::LogMode::Error, __VA_ARGS__)

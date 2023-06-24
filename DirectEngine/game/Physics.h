@@ -1,6 +1,5 @@
 #pragma once
 #include "Memory.h"
-#include "Log.h"
 #include "../core/EngineCore.h"
 #include "../Helpers.h"
 

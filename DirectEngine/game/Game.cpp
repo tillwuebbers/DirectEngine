@@ -10,13 +10,15 @@
 
 Game::Game(GAME_CREATION_PARAMS) : globalArena(globalArena), configArena(configArena), levelArena(levelArena) {}
 
+void Game::RegisterLog(EngineLog::RingLog* log)
+{
+	EngineLog::g_debugLog = log;
+}
+
 void Game::StartGame(EngineCore& engine)
 {
 	// Timer
 	INIT_TIMER(timer);
-
-	// Logging
-	GameLog::g_debugLog = NewObject(globalArena, GameLog::RingLog);
 
 	// UI
 	ImGui::SetCurrentContext(engine.m_imgui.imGuiContext);

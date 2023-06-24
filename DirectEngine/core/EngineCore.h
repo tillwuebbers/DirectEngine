@@ -25,6 +25,7 @@
 #include "../imgui/ProfilerTask.h"
 
 #include "UI.h"
+#include "Log.h"
 
 #include "../Helpers.h"
 #include "Constants.h"

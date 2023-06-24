@@ -1,7 +1,6 @@
 #include "Mesh.h"
-#include "Log.h"
-
 #include "../Helpers.h"
+#include "../core/Log.h"
 
 #include <format>
 

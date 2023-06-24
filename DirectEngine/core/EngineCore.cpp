@@ -5,6 +5,7 @@
 #include <iostream>
 #include <codecvt>
 #include <locale>
+#include <format>
 
 #include <d3d12.h>
 #include <d3dx12.h>
@@ -33,6 +34,10 @@ EngineCore::EngineCore(UINT width, UINT height, CreateGameFunc gameFunc) :
 void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
 {
     ThrowIfFailed(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
+
+    // Logging
+    EngineLog::g_debugLog = NewObject(engineArena, EngineLog::RingLog);
+    LOG("initialized log");
 
     // window
     CheckTearingSupport();
@@ -954,6 +959,7 @@ void EngineCore::OnUpdate()
     {
         BeginProfile("Start Game", ImColor::HSV(0.f, 0.f, 1.f));
         m_gameStarted = true;
+        m_game->RegisterLog(EngineLog::g_debugLog);
         m_game->StartGame(*this);
         EndProfile("Start Game");
     }

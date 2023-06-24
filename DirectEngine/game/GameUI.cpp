@@ -269,6 +269,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 			{
 				if (!stopLog)
 				{
+					LOG("doot");
 					WARN("Log paused...");
 				}
 				stopLog = !stopLog;
@@ -282,7 +283,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 
 			ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ 0, 0 });
-			if (GameLog::g_debugLog != nullptr) GameLog::g_debugLog->DrawLogText();
+			if (EngineLog::g_debugLog != nullptr) EngineLog::g_debugLog->DrawLogText();
 			if (scrollLog)
 			{
 				ImGui::SetScrollHereY();

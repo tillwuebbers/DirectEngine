@@ -1,7 +1,6 @@
 #pragma once
 #include "Entity.h"
 #include "IEntityCreator.h"
-#include "Log.h"
 #include "Mesh.h"
 #include "Config.h"
 #include "Physics.h"
@@ -177,6 +176,7 @@ public:
 	float playerPitch = 0.f;
 	float playerYaw = 0.f;
 	
+	void RegisterLog(EngineLog::RingLog* log) override;
 	void StartGame(EngineCore& engine) override;
 	void LoadLevel(EngineCore& engine);
 	void UpdateGame(EngineCore& engine) override;

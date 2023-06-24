@@ -1,6 +1,7 @@
 #pragma once
 
-#include "../core/Input.h"
+#include "Log.h"
+#include "Input.h"
 #include <string>
 #include <mutex>
 
@@ -16,6 +17,7 @@ struct WindowUpdate
 class IGame
 {
 public:
+	virtual void RegisterLog(EngineLog::RingLog* log) = 0;
 	virtual void StartGame(EngineCore& engine) = 0;
 	virtual void UpdateGame(EngineCore& engine) = 0;
 	virtual void BeforeMainRender(EngineCore& engine) = 0;
