@@ -271,8 +271,8 @@ struct CameraData
         M.r[3].m128_f32[2] = -fRange * nearClip;
         M.r[3].m128_f32[3] = 0.0f;
         
-        XMVECTOR clipNormalCamera = XMVector3Normalize(XMVector3TransformNormal(XMVector3Normalize(nearPlaneNormalWorld), worldMatrix.matrix));
-        XMVECTOR clipPositionCamera = XMVector3TransformCoord(nearPlanePointWorld, worldMatrix.matrix);
+        XMVECTOR clipNormalCamera = XMVector3Normalize(XMVector3TransformNormal(XMVector3Normalize(nearPlaneNormalWorld), worldMatrix.inverse));
+        XMVECTOR clipPositionCamera = XMVector3TransformCoord(nearPlanePointWorld, worldMatrix.inverse);
         XMVECTOR clipPlane = PlaneNormalForm(clipNormalCamera, clipPositionCamera);
 
         XMVECTOR qPrime = {

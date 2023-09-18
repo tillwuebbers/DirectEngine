@@ -1,3 +1,7 @@
+/*
+* Main game logic, load and manage entities
+*/
+
 #include "Game.h"
 
 #include "../Helpers.h"
@@ -480,6 +484,7 @@ void Game::UpdateGame(EngineCore& engine)
 	engine.mainCamera->UpdateViewMatrix(cameraEntity->worldMatrix.matrix);
 	engine.mainCamera->UpdateProjectionMatrix();
 
+	// Update portals
 	MAT_RMAJ portalFlipOffset = XMMatrixRotationAxis({ 0.f, 1.f, 0.f }, XM_PI);
 	MAT_RMAJ portalCamMatrix = cameraEntity->worldMatrix.matrix;
 
@@ -488,7 +493,6 @@ void Game::UpdateGame(EngineCore& engine)
 
 	engine.m_renderTextures[0]->camera->UpdateViewMatrix(portal1Mat);
 	engine.m_renderTextures[0]->camera->UpdateObliqueProjectionMatrix(portal2->worldMatrix.forward, portal2->GetWorldPosition());
-
 	engine.m_renderTextures[1]->camera->UpdateViewMatrix(portal2Mat);
 	engine.m_renderTextures[1]->camera->UpdateObliqueProjectionMatrix(portal1->worldMatrix.forward, portal1->GetWorldPosition());
 

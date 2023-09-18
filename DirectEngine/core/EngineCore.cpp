@@ -1,5 +1,9 @@
 #pragma warning (disable : 4996)
 
+/*
+* Game engine stuff, directx, window, etc.
+*/
+
 #include <comdef.h>
 
 #include <iostream>

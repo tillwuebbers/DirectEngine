@@ -1,4 +1,8 @@
-﻿#define WIN32_LEAN_AND_MEAN
+﻿/*
+* Process stuff, deal with entry point, window events, threads
+*/
+
+#define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
 #include <iostream>
