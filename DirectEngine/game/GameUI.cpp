@@ -641,7 +641,6 @@ void Game::DrawDebugUI(EngineCore& engine)
 					ImGui::Text("Entities: %d", mat.entities.size);
 					ImGui::SameLine();
 					ImGui::SetCursorPosX(availableX / 2.f);
-					ImGui::Text("Vertices: %d/%d", mat.vertexCount, mat.maxVertexCount);
 
 					for (Texture* tex : mat.textures)
 					{

@@ -51,20 +51,19 @@ void Game::StartGame(EngineCore& engine)
 	RESET_TIMER(timer);
 
 	// Materials
-	materialIndices.try_emplace(Material::Test,      engine.CreateMaterial(1024 * 64, sizeof(Vertex), { memeTexture }, defaultShader));
-	materialIndices.try_emplace(Material::Ground,    engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, groundShader));
-	materialIndices.try_emplace(Material::Laser,     engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, laserShader));
-	materialIndices.try_emplace(Material::Portal1,   engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTextures[0]->texture}, portalShader));
-	materialIndices.try_emplace(Material::Portal2,   engine.CreateMaterial(1024 * 64, sizeof(Vertex), { &engine.m_renderTextures[1]->texture}, portalShader));
-	materialIndices.try_emplace(Material::Crosshair, engine.CreateMaterial(1024 * 64, sizeof(Vertex), {}, crosshairShader));
+	materialIndices.try_emplace(Material::Test,      engine.CreateMaterial({ memeTexture }, defaultShader));
+	materialIndices.try_emplace(Material::Ground,    engine.CreateMaterial({}, groundShader));
+	materialIndices.try_emplace(Material::Laser,     engine.CreateMaterial({}, laserShader));
+	materialIndices.try_emplace(Material::Portal1,   engine.CreateMaterial({ &engine.m_renderTextures[0]->texture}, portalShader));
+	materialIndices.try_emplace(Material::Portal2,   engine.CreateMaterial({ &engine.m_renderTextures[1]->texture}, portalShader));
+	materialIndices.try_emplace(Material::Crosshair, engine.CreateMaterial({}, crosshairShader));
 
 	LOG_TIMER(timer, "Materials");
 	RESET_TIMER(timer);
 
 	// Meshes
-	// TODO: why does mesh need material index, and why doesn't it matter if it's wrong?
 	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", globalArena).meshes[0];
-	auto cubeMeshView = engine.CreateMesh(materialIndices[Material::Test], cubeMeshFile.vertices, cubeMeshFile.vertexCount, 0);
+	auto cubeMeshView = engine.CreateMesh(cubeMeshFile.vertices, cubeMeshFile.vertexCount, nullptr, 0, 0);
 	engine.cubeVertexView = cubeMeshView;
 
 	LOG_TIMER(timer, "Default Meshes");
@@ -634,7 +633,7 @@ Entity* Game::CreateMeshEntity(EngineCore& engine, size_t materialIndex, D3D12_V
 Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical)
 {
 	MeshFile file = vertical ? CreateQuadY(width, height, globalArena) : CreateQuad(width, height, globalArena);
-	auto meshView = engine.CreateMesh(materialIndex, file.vertices, file.vertexCount, file.meshHash);
+	auto meshView = engine.CreateMesh(file.vertices, file.vertexCount, nullptr, 0, file.meshHash);
 	Entity* entity = CreateMeshEntity(engine, materialIndex, meshView);
 	entity->SetLocalPosition({-width / 2.f, 0.f, -height / 2.f});
 
@@ -683,8 +682,8 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, const s
 		LOG_TIMER(timer, "Texture for model");
 		RESET_TIMER(timer);
 
-		size_t materialIndex = engine.CreateMaterial(1024 * 64, sizeof(Vertex), textures, shaderName);
-		D3D12_VERTEX_BUFFER_VIEW meshView = engine.CreateMesh(materialIndex, meshFile.vertices, meshFile.vertexCount, meshFile.meshHash);
+		size_t materialIndex = engine.CreateMaterial(textures, shaderName);
+		D3D12_VERTEX_BUFFER_VIEW meshView = engine.CreateMesh(meshFile.vertices, meshFile.vertexCount, nullptr, 0, meshFile.meshHash);
 		LOG_TIMER(timer, "Create material and mesh for model");
 		RESET_TIMER(timer);
 

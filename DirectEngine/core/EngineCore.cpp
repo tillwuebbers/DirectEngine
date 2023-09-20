@@ -1,10 +1,11 @@
-#pragma warning (disable : 4996)
+﻿#pragma warning (disable : 4996)
 
 /*
 * Game engine stuff, directx, window, etc.
 */
 
 #include <comdef.h>
+#include <Shlwapi.h> // requires -lShlwapi in cmake: target_link_libraries(${PROJECT_NAME} Shlwapi)
 
 #include <iostream>
 #include <codecvt>
@@ -20,6 +21,7 @@
 
 #include "UI.h"
 #include "EngineCore.h"
+#include "DirectXRaytracingHelper.h"
 #include "../directx-tex/DDSTextureLoader12.h"
 
 EngineCore::EngineCore(UINT width, UINT height, CreateGameFunc gameFunc) :
@@ -78,6 +80,15 @@ void EngineCore::OnInit(HINSTANCE hInst, int nCmdShow, WNDPROC wndProc)
     m_frameStartTime = m_startTime;
 
     ShowWindow(m_hwnd, nCmdShow);
+}
+
+void EngineCore::SerializeAndCreateRaytracingRootSignature(D3D12_ROOT_SIGNATURE_DESC& desc, ID3D12RootSignature** rootSig)
+{
+    ComPtr<ID3DBlob> blob;
+    ComPtr<ID3DBlob> error;
+
+    ThrowIfFailed(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &error), error ? static_cast<char*>(error->GetBufferPointer()) : nullptr);
+    ThrowIfFailed(m_device->CreateRootSignature(1, blob->GetBufferPointer(), blob->GetBufferSize(), NewComObject(comPointers, rootSig)));
 }
 
 // Load the rendering pipeline dependencies.
@@ -257,13 +268,40 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
         m_uploadCommandAllocators[n]->SetName(std::format(L"Upload Command Allocator {}", n).c_str());
         ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, NewComObject(comPointers, &m_renderCommandAllocators[n])));
         m_renderCommandAllocators[n]->SetName(std::format(L"Render Command Allocator {}", n).c_str());
+        ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, NewComObject(comPointers, &m_raytracingCommandAllocators[n])));
+        m_raytracingCommandAllocators[n]->SetName(std::format(L"Raytracing Command Allocator {}", n).c_str());
     }
 
     LoadSizeDependentResources();
 
+    // Global Root Signature
+    // This is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
+    {
+        CD3DX12_DESCRIPTOR_RANGE UAVDescriptor;
+        UAVDescriptor.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+        CD3DX12_ROOT_PARAMETER rootParameters[2];
+        rootParameters[0].InitAsDescriptorTable(1, &UAVDescriptor);
+        rootParameters[1].InitAsShaderResourceView(0);
+        CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
+        SerializeAndCreateRaytracingRootSignature(globalRootSignatureDesc, &m_raytracingGlobalRootSignature);
+    }
+
+    // Local Root Signature
+    // This is a root signature that enables a shader to have unique arguments that come from shader tables.
+    {
+        CD3DX12_ROOT_PARAMETER rootParameters[1];
+        rootParameters[0].InitAsConstants(SizeOfInUint32(m_rayGenConstantBuffer), 0, 0);
+        CD3DX12_ROOT_SIGNATURE_DESC localRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
+        localRootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+        SerializeAndCreateRaytracingRootSignature(localRootSignatureDesc, &m_raytracingLocalRootSignature);
+    }
+
     m_imgui.SetupImgui(m_hwnd, m_device, FrameCount);
 }
 
+/// <summary>
+/// Load engine resources that are dependent on the size of the window.
+/// </summary>
 void EngineCore::LoadSizeDependentResources()
 {
     // Create frame resources.
@@ -460,12 +498,36 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
     assert(config->creationError == S_OK);
 }
 
+void WaitUntilFileFree(const wchar_t* path)
+{
+    time_t startTime = time(nullptr);
+    bool canOpen = false;
+    while (!canOpen)
+    {
+        std::ifstream fileStream(path, std::ios::in);
+
+        canOpen = fileStream.good();
+        fileStream.close();
+
+        if (!canOpen)
+        {
+            time_t elapsedSeconds = time(nullptr) - startTime;
+            if (elapsedSeconds > 5)
+            {
+                throw std::format(L"Could not open shader file {}", path).c_str();
+            }
+            Sleep(100);
+        }
+    }
+}
+
 void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders)
 {
     INIT_TIMER(timer);
 
-    ComPtr<ID3DBlob> vertexShader;
-    ComPtr<ID3DBlob> pixelShader;
+    ComPtr<ID3DBlob> vertexShader{};
+    ComPtr<ID3DBlob> pixelShader{};
+    ComPtr<ID3DBlob> rtShader{};
 
 #if ISDEBUG
     if (hotloadShaders)
@@ -479,38 +541,25 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
 
         // Enable better shader debugging with the graphics debugging tools.
         UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-        std::wstring path = std::wstring(L"compile/");
-        path.append(config->shaderName);
-        path.append(L".hlsl");
-        const wchar_t* shaderPath = path.c_str();
+        const wchar_t* shaderPath =   std::wstring(L"compile/rasterize/").append(config->shaderName).append(L".hlsl").c_str();
+        const wchar_t* shaderPathRT = std::wstring(L"compile/raytrace/").append(config->shaderName).append(L".hlsl").c_str();
         Sleep(100);
 
-	    time_t startTime = time(nullptr);
-        bool canOpen = false;
-        while (!canOpen)
+        WaitUntilFileFree(shaderPath);
+
+        bool raytracingShaderExists = PathFileExists(shaderPathRT);
+        if (raytracingShaderExists)
         {
-            std::ifstream fileStream(shaderPath, std::ios::in);
-
-            canOpen = fileStream.good();
-            fileStream.close();
-
-            if (!canOpen)
-            {
-			    time_t elapsedSeconds = time(nullptr) - startTime;
-			    if (elapsedSeconds > 5)
-			    {
-                    throw std::format(L"Could not open shader file {}", shaderPath).c_str();
-			    }
-                Sleep(100);
-            }
+            WaitUntilFileFree(shaderPathRT);
         }
 
         ComPtr<ID3DBlob> vsErrors;
         ComPtr<ID3D10Blob> psErrors;
+        ComPtr<ID3DBlob> rtErrors;
 
         m_shaderError.clear();
-        config->creationError = D3DCompileFromFile(shaderPath, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_VS, SHADER_VERSION_VS, compileFlags, 0, &vertexShader, &vsErrors);
 
+        config->creationError = D3DCompileFromFile(shaderPath, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_VS, SHADER_VERSION_VS, compileFlags, 0, &vertexShader, &vsErrors);
         if (vsErrors)
         {
             m_shaderError = std::format("Vertex Shader Errors:\n{}\n", (LPCSTR)vsErrors->GetBufferPointer());
@@ -527,6 +576,17 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
             OutputDebugStringA(m_shaderError.c_str());
         }
         if (FAILED(config->creationError)) return;
+
+        if (raytracingShaderExists)
+        {
+            config->creationError = D3DCompileFromFile(shaderPathRT, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_RT, SHADER_VERSION_RT, compileFlags, 0, &rtShader, &rtErrors);
+            if (rtErrors)
+            {
+                m_shaderError = std::format("Ray Tracing Shader Errors:\n{}\n", (LPCSTR)rtErrors->GetBufferPointer());
+                OutputDebugString(std::format(L"{}\n", shaderPathRT).c_str());
+                OutputDebugStringA(m_shaderError.c_str());
+            }
+        }
     }
     else
 #endif
@@ -540,11 +600,21 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
         std::wstring psPath = path;
         psPath.append(L".frag.cso");
 
+        std::wstring rtPath = path;
+        rtPath.append(L".rt.cso");
+
         config->creationError = D3DReadFileToBlob(vsPath.c_str(), &vertexShader);
         if (FAILED(config->creationError)) return;
 
         config->creationError = D3DReadFileToBlob(psPath.c_str(), &pixelShader);
         if (FAILED(config->creationError)) return;
+
+        bool raytracingShaderExists = PathFileExists(rtPath.c_str());
+        if (raytracingShaderExists)
+        {
+			config->creationError = D3DReadFileToBlob(rtPath.c_str(), &rtShader);
+			if (FAILED(config->creationError)) return;
+        }
     }
 
     OUTPUT_TIMERW(timer, L"Load Shaders");
@@ -595,6 +665,20 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
     config->creationError = m_device->CreateGraphicsPipelineState(&psoDesc, NewComObjectReplace(comPointers, &config->pipelineState));
     config->pipelineState->SetName(config->shaderName.c_str());
 
+    // Raytracing
+    if (rtShader.Get() != nullptr)
+    {
+        CD3DX12_SHADER_BYTECODE rtBytecode = CD3DX12_SHADER_BYTECODE(rtShader.Get());
+        CD3DX12_STATE_OBJECT_DESC raytracingStateDesc{ D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE };
+        CD3DX12_DXIL_LIBRARY_SUBOBJECT* raytracingStateLib1 = raytracingStateDesc.CreateSubobject<CD3DX12_DXIL_LIBRARY_SUBOBJECT>();
+        raytracingStateLib1->SetDXILLibrary(&rtBytecode);
+
+        ThrowIfFailed(m_device->CreateStateObject(raytracingStateDesc, NewComObjectReplace(comPointers, &config->raytracingState)));
+        config->raytracingState->SetName(L"RT State");
+
+        LoadRaytracingShaderTables(config->raytracingState, L"MyRaygenShader", L"MyMissShader", L"MyHitGroup");
+    }
+
     OUTPUT_TIMERW(timer, L"Create Pipeline State");
     RESET_TIMER(timer);
 }
@@ -617,15 +701,36 @@ void EngineCore::LoadAssets()
     m_debugLineConfig->sampleCount = m_msaaEnabled ? m_msaaSampleCount : 1;
     CreatePipeline(m_debugLineConfig, 0, 0);
 
-    CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(MAX_DEBUG_LINE_VERTICES * sizeof(Vertex));
-    ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, NewComObject(comPointers, &m_debugLineData.vertexBuffer)));
-    m_debugLineData.vertexBuffer->SetName(L"Debug Line Vertex Buffer");
+    {
+        // Debug lines
+        CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+        CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(MAX_DEBUG_LINE_VERTICES * sizeof(Vertex));
+        ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, NewComObject(comPointers, &m_debugLineData.vertexBuffer)));
+        m_debugLineData.vertexBuffer->SetName(L"Debug Line Vertex Buffer");
 
-	m_debugLineData.vertexBufferView = {};
-	m_debugLineData.vertexBufferView.BufferLocation = m_debugLineData.vertexBuffer->GetGPUVirtualAddress();
-	m_debugLineData.vertexBufferView.StrideInBytes = sizeof(Vertex);
-	m_debugLineData.vertexBufferView.SizeInBytes = MAX_DEBUG_LINE_VERTICES * sizeof(Vertex);
+        m_debugLineData.vertexBufferView = {};
+        m_debugLineData.vertexBufferView.BufferLocation = m_debugLineData.vertexBuffer->GetGPUVirtualAddress();
+        m_debugLineData.vertexBufferView.StrideInBytes = sizeof(Vertex);
+        m_debugLineData.vertexBufferView.SizeInBytes = MAX_DEBUG_LINE_VERTICES * sizeof(Vertex);
+    }
+    
+    {
+        // General vertex buffer
+        m_geometryBuffer.vertexStride = sizeof(Vertex);
+
+        // Create vertex buffer for upload
+        const size_t maxVertexByteCount = m_geometryBuffer.maxVertexCount * m_geometryBuffer.vertexStride;
+        CD3DX12_HEAP_PROPERTIES tempHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+        CD3DX12_RESOURCE_DESC tempBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(maxVertexByteCount);
+        ThrowIfFailed(m_device->CreateCommittedResource(&tempHeapProperties, D3D12_HEAP_FLAG_NONE, &tempBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, NewComObject(comPointers, &m_geometryBuffer.vertexUploadBuffer)));
+        m_geometryBuffer.vertexUploadBuffer->SetName(L"Vertex Upload Buffer");
+
+        // Create real vertex buffer on gpu memory
+        CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+        CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(maxVertexByteCount);
+        ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_COMMON, nullptr, NewComObject(comPointers, &m_geometryBuffer.vertexBuffer)));
+        m_geometryBuffer.vertexBuffer->SetName(L"Vertex Buffer");
+    }
 
     // Create the render command list
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_renderCommandAllocators[m_frameIndex], nullptr, NewComObject(comPointers, &m_renderCommandList)));
@@ -635,6 +740,10 @@ void EngineCore::LoadAssets()
     // Create the upload command list
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_uploadCommandAllocators[m_frameIndex], nullptr, NewComObject(comPointers, &m_uploadCommandList)));
     m_uploadCommandList->SetName(L"Upload Command List");
+
+    // Create the raytracing command list
+    ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_raytracingCommandAllocators[m_frameIndex], nullptr, NewComObject(comPointers, &m_raytracingCommandList)));
+    m_raytracingCommandList->SetName(L"Raytracing Command List");
 
     // Shader values for scene
     CreateConstantBuffers<SceneConstantBuffer>(m_sceneConstantBuffer, L"Scene Constant Buffer");
@@ -680,6 +789,13 @@ void EngineCore::LoadAssets()
         // complete before continuing.
         WaitForGpu();
     }
+
+    // Raytracing
+    m_raytracingOutput = CreateEmptyTexture(m_width, m_height, "Raytracing Output");
+    m_raytracingCommandList->Close();
+    m_raytracingCommandAllocators[m_frameIndex]->Reset();
+    m_raytracingCommandList->Reset(m_raytracingCommandAllocators[m_frameIndex], nullptr);
+    BuildAccelerationStructures(m_raytracingCommandList);
 }
 
 void EngineCore::ResetLevelData()
@@ -764,6 +880,32 @@ RenderTexture* EngineCore::CreateRenderTexture(UINT width, UINT height)
     return renderTexture;
 }
 
+Texture* EngineCore::CreateEmptyTexture(int width, int height, std::string name)
+{
+    Texture& texture = m_textures.newElement();
+    texture.name = name;
+
+    D3D12_RESOURCE_DESC textureDesc = CD3DX12_RESOURCE_DESC::Tex2D(DISPLAY_FORMAT, width, height);
+    textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+    CD3DX12_CLEAR_VALUE clearColor(DISPLAY_FORMAT, m_renderTargetClearColor);
+
+    CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_DEFAULT);
+    m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clearColor, NewComObject(comPointers, &texture.buffer));
+    texture.buffer->SetName(L"Render Texture");
+
+    // SRV
+    texture.handle = GetNewDescriptorHandle();
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Format = DISPLAY_FORMAT;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MipLevels = 1;
+    m_device->CreateShaderResourceView(texture.buffer, &srvDesc, texture.handle.cpuHandle);
+
+    return &texture;
+}
+
 Texture* EngineCore::CreateTexture(const std::wstring& filePath)
 {
     std::string textureId(filePath.begin(), filePath.end());
@@ -831,17 +973,13 @@ void EngineCore::UploadTexture(const TextureData& textureData, std::vector<D3D12
     m_device->CreateShaderResourceView(targetTexture.buffer, &srvDesc, targetTexture.handle.cpuHandle);
 }
 
-size_t EngineCore::CreateMaterial(const size_t maxVertices, const size_t vertexStride, const std::vector<Texture*>& textures, const std::wstring& shaderName)
+size_t EngineCore::CreateMaterial(const std::vector<Texture*>& textures, const std::wstring& shaderName)
 {
     INIT_TIMER(timer);
-
-    const size_t maxByteCount = vertexStride * maxVertices;
 
     size_t dataIndex = m_materials.size;
     MaterialData& data = m_materials.newElement();
 
-    data.maxVertexCount = maxVertices;
-    data.vertexStride = vertexStride;
     for (Texture* tex : textures)
     {
         data.textures.newElement() = tex;
@@ -858,51 +996,35 @@ size_t EngineCore::CreateMaterial(const size_t maxVertices, const size_t vertexS
     OUTPUT_TIMERW(timer, L"Pipeline");
     RESET_TIMER(timer);
 
-    // Create buffer for upload
-    CD3DX12_HEAP_PROPERTIES tempHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    CD3DX12_RESOURCE_DESC tempBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(maxByteCount);
-    ThrowIfFailed(m_device->CreateCommittedResource(&tempHeapProperties, D3D12_HEAP_FLAG_NONE, &tempBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, NewComObject(comPointers, &data.vertexUploadBuffer)));
-    data.vertexUploadBuffer->SetName(L"Vertex Upload Buffer");
-
-    // Create real vertex buffer on gpu memory
-    CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(maxByteCount);
-    ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_COMMON, nullptr, NewComObject(comPointers, &data.vertexBuffer)));
-    data.vertexBuffer->SetName(L"Vertex Buffer");
-
-    OUTPUT_TIMERW(timer, L"Buffers");
-    RESET_TIMER(timer);
-
     return dataIndex;
 }
 
-D3D12_VERTEX_BUFFER_VIEW EngineCore::CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount, const uint64_t id)
+D3D12_VERTEX_BUFFER_VIEW EngineCore::CreateMesh(const void* vertexData, const size_t vertexCount, const void* indexData, const size_t indexCount, const uint64_t id)
 {
     if (auto mesh = m_meshes.find(id); mesh != m_meshes.end())
 	{
 		return mesh->second;
 	}
 
-    // Update material
-    MaterialData& data = m_materials.at(materialIndex);
-    const size_t sizeInBytes = data.vertexStride * vertexCount;
-    const size_t offsetInBuffer = data.vertexCount * data.vertexStride;
+    // Write to buffer
+    const size_t sizeInBytes = m_geometryBuffer.vertexStride * vertexCount;
+    const size_t offsetInBuffer = m_geometryBuffer.vertexCount * m_geometryBuffer.vertexStride;
 
     D3D12_VERTEX_BUFFER_VIEW view{};
-    view.BufferLocation = data.vertexBuffer->GetGPUVirtualAddress() + offsetInBuffer;
-    view.StrideInBytes = data.vertexStride;
+    view.BufferLocation = m_geometryBuffer.vertexBuffer->GetGPUVirtualAddress() + offsetInBuffer;
+    view.StrideInBytes = m_geometryBuffer.vertexStride;
     view.SizeInBytes = sizeInBytes;
 
-    assert(data.vertexCount + vertexCount <= data.maxVertexCount);
+    assert(m_geometryBuffer.vertexCount + vertexCount <= m_geometryBuffer.maxVertexCount);
 
     // Write to temp buffer
     UINT8* pVertexDataBegin = nullptr;
     CD3DX12_RANGE readRange(0, 0);
-    ThrowIfFailed(data.vertexUploadBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)));
+    ThrowIfFailed(m_geometryBuffer.vertexUploadBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)));
     memcpy(pVertexDataBegin + offsetInBuffer, vertexData, sizeInBytes);
-    data.vertexUploadBuffer->Unmap(0, nullptr);
+    m_geometryBuffer.vertexUploadBuffer->Unmap(0, nullptr);
 
-    data.vertexCount += vertexCount;
+    m_geometryBuffer.vertexCount += vertexCount;
     m_meshes.try_emplace(id, view);
 
     return view;
@@ -924,15 +1046,109 @@ size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_
     return entity->entityIndex;
 }
 
-void EngineCore::UploadVertices()
+void EngineCore::BuildAccelerationStructures(ID3D12GraphicsCommandList4* commandList)
 {
-    for (MaterialData& data : m_materials)
+    ID3D12Device5* dxrDevice = nullptr;
+    ThrowIfFailed(m_device->QueryInterface(IID_PPV_ARGS(&dxrDevice)));
+
+    D3D12_RAYTRACING_GEOMETRY_DESC geometryDesc = {};
+    geometryDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
+    
+    // no index buffer
+    geometryDesc.Triangles.IndexBuffer = 0;
+    geometryDesc.Triangles.IndexCount = 0;
+    geometryDesc.Triangles.IndexFormat = DXGI_FORMAT_UNKNOWN;
+    
+    geometryDesc.Triangles.Transform3x4 = 0;
+    geometryDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
+    geometryDesc.Triangles.VertexCount = m_geometryBuffer.vertexCount;
+    geometryDesc.Triangles.VertexBuffer.StartAddress = m_geometryBuffer.vertexBuffer->GetGPUVirtualAddress();
+    geometryDesc.Triangles.VertexBuffer.StrideInBytes = m_geometryBuffer.vertexStride;
+
+    // Mark the geometry as opaque. 
+    // PERFORMANCE TIP: mark geometry as opaque whenever applicable as it can enable important ray processing optimizations.
+    // Note: When rays encounter opaque geometry an any hit shader will not be executed whether it is present or not.
+    geometryDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+
+    // Get required sizes for an acceleration structure.
+    D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS buildFlags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+    D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS topLevelInputs = {};
+    topLevelInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+    topLevelInputs.Flags = buildFlags;
+    topLevelInputs.NumDescs = 1;
+    topLevelInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
+
+    D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO topLevelPrebuildInfo = {};
+    dxrDevice->GetRaytracingAccelerationStructurePrebuildInfo(&topLevelInputs, &topLevelPrebuildInfo);
+    ThrowIfFailed(topLevelPrebuildInfo.ResultDataMaxSizeInBytes > 0);
+
+    D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO bottomLevelPrebuildInfo = {};
+    D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS bottomLevelInputs = topLevelInputs;
+    bottomLevelInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+    bottomLevelInputs.pGeometryDescs = &geometryDesc;
+    dxrDevice->GetRaytracingAccelerationStructurePrebuildInfo(&bottomLevelInputs, &bottomLevelPrebuildInfo);
+    ThrowIfFailed(bottomLevelPrebuildInfo.ResultDataMaxSizeInBytes > 0);
+
+    ComPtr<ID3D12Resource> scratchResource;
+    AllocateUAVBuffer(dxrDevice, std::max(topLevelPrebuildInfo.ScratchDataSizeInBytes, bottomLevelPrebuildInfo.ScratchDataSizeInBytes), &scratchResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, L"ScratchResource");
+
+    // Allocate resources for acceleration structures.
+    // Acceleration structures can only be placed in resources that are created in the default heap (or custom heap equivalent). 
+    // Default heap is OK since the application doesnt need CPU read/write access to them. 
+    // The resources that will contain acceleration structures must be created in the state D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, 
+    // and must have resource flag D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS. The ALLOW_UNORDERED_ACCESS requirement simply acknowledges both: 
+    //  - the system will be doing this type of access in its implementation of acceleration structure builds behind the scenes.
+    //  - from the app point of view, synchronization of writes/reads to acceleration structures is accomplished using UAV barriers.
     {
-        m_uploadCommandList->CopyResource(data.vertexBuffer, data.vertexUploadBuffer);
-        CD3DX12_RESOURCE_BARRIER transition = CD3DX12_RESOURCE_BARRIER::Transition(data.vertexBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-        m_uploadCommandList->ResourceBarrier(1, &transition);
+        D3D12_RESOURCE_STATES initialResourceState = D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE;
+
+        AllocateUAVBuffer(dxrDevice, bottomLevelPrebuildInfo.ResultDataMaxSizeInBytes, &m_bottomLevelAccelerationStructure, initialResourceState, L"BottomLevelAccelerationStructure");
+        AllocateUAVBuffer(dxrDevice, topLevelPrebuildInfo.ResultDataMaxSizeInBytes, &m_topLevelAccelerationStructure, initialResourceState, L"TopLevelAccelerationStructure");
     }
 
+    // Create an instance desc for the bottom-level acceleration structure.
+    ComPtr<ID3D12Resource> instanceDescs;
+    D3D12_RAYTRACING_INSTANCE_DESC instanceDesc = {};
+    instanceDesc.Transform[0][0] = instanceDesc.Transform[1][1] = instanceDesc.Transform[2][2] = 1;
+    instanceDesc.InstanceMask = 1;
+    instanceDesc.AccelerationStructure = m_bottomLevelAccelerationStructure->GetGPUVirtualAddress();
+    AllocateUploadBuffer(dxrDevice, &instanceDesc, sizeof(instanceDesc), &instanceDescs, L"InstanceDescs");
+
+    // Bottom Level Acceleration Structure desc
+    D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC bottomLevelBuildDesc = {};
+    {
+        bottomLevelBuildDesc.Inputs = bottomLevelInputs;
+        bottomLevelBuildDesc.ScratchAccelerationStructureData = scratchResource->GetGPUVirtualAddress();
+        bottomLevelBuildDesc.DestAccelerationStructureData = m_bottomLevelAccelerationStructure->GetGPUVirtualAddress();
+    }
+
+    // Top Level Acceleration Structure desc
+    D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC topLevelBuildDesc = {};
+    {
+        topLevelInputs.InstanceDescs = instanceDescs->GetGPUVirtualAddress();
+        topLevelBuildDesc.Inputs = topLevelInputs;
+        topLevelBuildDesc.DestAccelerationStructureData = m_topLevelAccelerationStructure->GetGPUVirtualAddress();
+        topLevelBuildDesc.ScratchAccelerationStructureData = scratchResource->GetGPUVirtualAddress();
+    }
+
+    // Build acceleration structure.
+    commandList->BuildRaytracingAccelerationStructure(&bottomLevelBuildDesc, 0, nullptr);
+    auto UAV = CD3DX12_RESOURCE_BARRIER::UAV(m_bottomLevelAccelerationStructure);
+    commandList->ResourceBarrier(1, &UAV);
+    commandList->BuildRaytracingAccelerationStructure(&topLevelBuildDesc, 0, nullptr);
+
+    // Kick off acceleration structure construction.
+    ExecCommandList(commandList);
+
+    // Wait for GPU to finish as the locally created temporary GPU resources will get released once we go out of scope.
+    WaitForGpu();
+}
+
+void EngineCore::UploadVertices()
+{
+    m_uploadCommandList->CopyResource(m_geometryBuffer.vertexBuffer, m_geometryBuffer.vertexUploadBuffer);
+    CD3DX12_RESOURCE_BARRIER transition = CD3DX12_RESOURCE_BARRIER::Transition(m_geometryBuffer.vertexBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+    m_uploadCommandList->ResourceBarrier(1, &transition);
     m_scheduleUpload = true;
 }
 
@@ -978,6 +1194,10 @@ void EngineCore::OnUpdate()
 
     m_game->UpdateGame(*this);
     ThrowIfFailed(m_uploadCommandList->Close());
+
+    BeginProfile("Build RT Acceleration Structure", ImColor::HSV(.66f, .33f, 1.f));
+    
+    EndProfile("Build RT Acceleration Structure");
 
     if (m_resetLevel)
     {
@@ -1159,17 +1379,91 @@ void EngineCore::PopulateCommandList()
     EndProfile("Render Main");
 }
 
-void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
+void EngineCore::LoadRaytracingShaderTables(ID3D12StateObject* dxrStateObject, const wchar_t* raygenShaderName, const wchar_t* missShaderName, const wchar_t* hitGroupShaderName)
 {
-    // Set pipeline
-    renderList->SetPipelineState(m_shadowConfig->pipelineState);
-    renderList->SetGraphicsRootSignature(m_shadowConfig->rootSignature);
-    renderList->RSSetViewports(1, &m_shadowmap->viewport);
-    renderList->RSSetScissorRects(1, &m_shadowmap->scissorRect);
+    ID3D12StateObjectProperties* dxrProperties = nullptr;
+    ThrowIfFailed(dxrStateObject->QueryInterface(IID_PPV_ARGS(&dxrProperties)));
+    void* rayGenShaderIdentifier = dxrProperties->GetShaderIdentifier(raygenShaderName);
+    assert(rayGenShaderIdentifier != nullptr);
+    void* missShaderIdentifier = dxrProperties->GetShaderIdentifier(missShaderName);
+    assert(missShaderIdentifier != nullptr);
+    void* hitGroupShaderIdentifier = dxrProperties->GetShaderIdentifier(hitGroupShaderName);
+    assert(hitGroupShaderIdentifier != nullptr);
+
+    UINT shaderIdentifierSize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+
+    // Ray gen shader table
+    {
+        struct RootArguments {
+            RayGenConstantBuffer cb;
+        } rootArguments;
+        rootArguments.cb = m_rayGenConstantBuffer;
+
+        UINT numShaderRecords = 1;
+        UINT shaderRecordSize = shaderIdentifierSize + sizeof(rootArguments);
+        ShaderTable rayGenShaderTable{ m_device, numShaderRecords, shaderRecordSize, L"RayGenShaderTable" };
+        rayGenShaderTable.push_back(ShaderRecord(rayGenShaderIdentifier, shaderIdentifierSize, &rootArguments, sizeof(rootArguments)));
+        m_rayGenShaderTable = rayGenShaderTable.GetResource();
+    }
+
+    // Miss shader table
+    {
+        UINT numShaderRecords = 1;
+        UINT shaderRecordSize = shaderIdentifierSize;
+        ShaderTable missShaderTable{ m_device, numShaderRecords, shaderRecordSize, L"MissShaderTable" };
+        missShaderTable.push_back(ShaderRecord(missShaderIdentifier, shaderIdentifierSize));
+        m_missShaderTable = missShaderTable.GetResource();
+    }
+
+    // Hit group shader table
+    {
+        UINT numShaderRecords = 1;
+        UINT shaderRecordSize = shaderIdentifierSize;
+        ShaderTable hitGroupShaderTable{ m_device, numShaderRecords, shaderRecordSize, L"HitGroupShaderTable" };
+        hitGroupShaderTable.push_back(ShaderRecord(hitGroupShaderIdentifier, shaderIdentifierSize));
+        m_hitGroupShaderTable = hitGroupShaderTable.GetResource();
+    }
+}
+
+void EngineCore::RenderShadows(ID3D12GraphicsCommandList4* renderList)
+{
+    // Set raytracing pipeline
+    if (m_shadowConfig->raytracingState != nullptr)
+    {
+        renderList->SetComputeRootSignature(m_raytracingGlobalRootSignature);
+    }
 
     // Load heaps
     ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap };
     renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+    if (m_shadowConfig->raytracingState != nullptr)
+    {
+        renderList->SetComputeRootDescriptorTable(0, m_raytracingOutput->handle.gpuHandle);
+        renderList->SetComputeRootShaderResourceView(1, m_topLevelAccelerationStructure->GetGPUVirtualAddress());
+        
+        // Run Raytracing
+        D3D12_DISPATCH_RAYS_DESC dispatchDesc{};
+        dispatchDesc.HitGroupTable.StartAddress = m_hitGroupShaderTable->GetGPUVirtualAddress();
+        dispatchDesc.HitGroupTable.SizeInBytes = m_hitGroupShaderTable->GetDesc().Width;
+        dispatchDesc.HitGroupTable.StrideInBytes = dispatchDesc.HitGroupTable.SizeInBytes;
+        dispatchDesc.MissShaderTable.StartAddress = m_missShaderTable->GetGPUVirtualAddress();
+        dispatchDesc.MissShaderTable.SizeInBytes = m_missShaderTable->GetDesc().Width;
+        dispatchDesc.MissShaderTable.StrideInBytes = dispatchDesc.MissShaderTable.SizeInBytes;
+        dispatchDesc.RayGenerationShaderRecord.StartAddress = m_rayGenShaderTable->GetGPUVirtualAddress();
+        dispatchDesc.RayGenerationShaderRecord.SizeInBytes = m_rayGenShaderTable->GetDesc().Width;
+        dispatchDesc.Width = m_width;
+        dispatchDesc.Height = m_height;
+        dispatchDesc.Depth = 1;
+        renderList->SetPipelineState1(m_shadowConfig->raytracingState);
+        renderList->DispatchRays(&dispatchDesc);
+    }
+
+    // Set rasterization pipeline
+    renderList->SetPipelineState(m_shadowConfig->pipelineState);
+    renderList->SetGraphicsRootSignature(m_shadowConfig->rootSignature);
+    renderList->RSSetViewports(1, &m_shadowmap->viewport);
+    renderList->RSSetScissorRects(1, &m_shadowmap->scissorRect);
 
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
@@ -1177,7 +1471,7 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
     Transition(renderList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
     renderList->OMSetRenderTargets(0, nullptr, FALSE, &m_shadowmap->depthStencilViewCPU);
 
-    // Record commands.
+    // Run Rasterization
     renderList->ClearDepthStencilView(m_shadowmap->depthStencilViewCPU, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 

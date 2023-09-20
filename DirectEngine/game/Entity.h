@@ -21,7 +21,6 @@ struct EntityHandle
 
 	Entity* Get();
 
-	//implement equals operator
 	bool operator==(const EntityHandle& other) const;
 	bool operator!=(const EntityHandle& other) const;
 };
@@ -73,11 +72,13 @@ public:
 
 	EntityData& GetData();
 	EntityConstantBuffer& GetBuffer();
+	
 	void UpdateWorldMatrix();
 	void SetForwardDirection(XMVECTOR direction, XMVECTOR up = V3_UP, XMVECTOR altUp = V3_RIGHT);
 	XMVECTOR GetForwardDirection() const;
 	void UpdateAudio(EngineCore& engine, const X3DAUDIO_LISTENER* audioListener);
 	void UpdateAnimation(EngineCore& engine, bool isMainRender);
+	
 	void SetActive(bool newState, bool affectSelf = true);
 	bool IsActive();
 

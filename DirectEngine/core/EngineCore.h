@@ -166,19 +166,28 @@ struct EntityData
     ConstantBuffer<BoneMatricesBuffer> boneConstantBuffer = {};
     ConstantBuffer<BoneMatricesBuffer> firstPersonBoneConstantBuffer = {};
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
+    D3D12_INDEX_BUFFER_VIEW indexBufferView = {};
 };
 
 struct MaterialData
 {
-    size_t vertexCount = 0;
-    size_t maxVertexCount = 0;
-    size_t vertexStride = 0;
-    ID3D12Resource* vertexUploadBuffer = nullptr;
-    ID3D12Resource* vertexBuffer = nullptr;
     CountingArray<EntityData*, MAX_ENTITIES_PER_MATERIAL> entities = {};
     CountingArray<Texture*, MAX_TEXTURES_PER_MATERIAL> textures = {};
     PipelineConfig* pipeline = nullptr;
     std::string name = "Material";
+};
+
+struct GeometryBuffer
+{
+    size_t vertexCount = 0;
+    size_t maxVertexCount = 65536;
+    size_t vertexStride = 0;
+    ID3D12Resource* vertexUploadBuffer = nullptr;
+    ID3D12Resource* vertexBuffer = nullptr;
+    size_t indexCount = 0;
+    size_t maxIndexCount = 0;
+    ID3D12Resource* indexUploadBuffer = nullptr;
+    ID3D12Resource* indexBuffer = nullptr;
 };
 
 class DebugLineData
@@ -239,6 +248,7 @@ struct CameraData
         constantBuffer.data.cameraView = XMMatrixTranspose(worldMatrix.inverse);
     }
 
+    // Used for portals (or potentially mirrors, water reflections, etc), sets a near clipping plane that isn't parallel to the camera.
     // see: http://www.terathon.com/lengyel/Lengyel-Oblique.pdf
     void UpdateObliqueProjectionMatrix(XMVECTOR nearPlaneNormalWorld, XMVECTOR nearPlanePointWorld)
     {
@@ -317,6 +327,21 @@ struct RenderTexture
     CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle{};
 };
 
+// TODO: move this somewhere else
+struct RTViewport
+{
+    float left;
+    float top;
+    float right;
+    float bottom;
+};
+
+struct RayGenConstantBuffer
+{
+    RTViewport viewport;
+    RTViewport stencil;
+};
+
 class EngineCore
 {
 public:
@@ -353,7 +378,7 @@ public:
     CD3DX12_VIEWPORT m_viewport;
     CD3DX12_RECT m_scissorRect;
 
-    ID3D12Device* m_device = nullptr;
+    ID3D12Device5* m_device = nullptr;
     ID3D12CommandQueue* m_commandQueue = nullptr;
     IDXGISwapChain3* m_swapChain = nullptr;
     ID3D12DescriptorHeap* m_rtvHeap = nullptr;
@@ -361,12 +386,14 @@ public:
     ID3D12DescriptorHeap* m_depthStencilHeap = nullptr;
     ID3D12CommandAllocator* m_uploadCommandAllocators[FrameCount] = {};
     ID3D12CommandAllocator* m_renderCommandAllocators[FrameCount] = {};
+    ID3D12CommandAllocator* m_raytracingCommandAllocators[FrameCount] = {};
     ID3D12Resource* m_renderTargets[FrameCount] = {};
     ID3D12Resource* m_msaaRenderTargets[FrameCount] = {};
     ID3D12Resource* m_depthStencilBuffer = nullptr;
     ID3D12Resource* m_msaaDepthStencilBuffer = nullptr;
     ID3D12GraphicsCommandList* m_uploadCommandList = nullptr;
-    ID3D12GraphicsCommandList* m_renderCommandList = nullptr;
+    ID3D12GraphicsCommandList4* m_renderCommandList = nullptr;
+    ID3D12GraphicsCommandList4* m_raytracingCommandList = nullptr;
     bool m_scheduleUpload = false;
     bool m_renderTextureEnabled = true;
     bool m_msaaEnabled = true;
@@ -392,6 +419,7 @@ public:
     ShadowMap* m_shadowmap = nullptr;
     ID3D12Resource* m_textureUploadHeaps[MAX_TEXTURE_UPLOADS] = {};
     size_t m_textureUploadIndex = 0;
+    GeometryBuffer m_geometryBuffer = {};
     FixedList<MaterialData> m_materials{ engineArena, MAX_MATERIALS };
     FixedList<Texture> m_textures = { engineArena, MAX_TEXTURE_UPLOADS };
     FixedList<CameraData> m_cameras = { engineArena, MAX_CAMERAS };
@@ -400,6 +428,17 @@ public:
     ImGuiUI m_imgui = {};
     CameraData* mainCamera = nullptr;
     FixedList<RenderTexture*> m_renderTextures{ engineArena, 2 };
+
+    // Raytracing
+    ID3D12RootSignature* m_raytracingGlobalRootSignature = nullptr;
+    ID3D12RootSignature* m_raytracingLocalRootSignature = nullptr;
+    Texture* m_raytracingOutput = nullptr;
+    ID3D12Resource* m_topLevelAccelerationStructure = nullptr;
+    ID3D12Resource* m_bottomLevelAccelerationStructure = nullptr;
+    ComPtr<ID3D12Resource> m_missShaderTable = nullptr;
+    ComPtr<ID3D12Resource> m_hitGroupShaderTable = nullptr;
+    ComPtr<ID3D12Resource> m_rayGenShaderTable = nullptr;
+    RayGenConstantBuffer m_rayGenConstantBuffer = {};
 
     // Synchronization objects
     UINT m_frameIndex = 0;
@@ -455,19 +494,23 @@ public:
     void LoadPipeline(LUID* requiredLuid);
     void LoadSizeDependentResources();
     void LoadAssets();
+    void SerializeAndCreateRaytracingRootSignature(D3D12_ROOT_SIGNATURE_DESC& desc, ID3D12RootSignature** rootSig);
+    void LoadRaytracingShaderTables(ID3D12StateObject* dxrStateObject, const wchar_t* raygenShaderName, const wchar_t* missShaderName, const wchar_t* hitGroupShaderName);
     void ResetLevelData();
     CameraData* CreateCamera();
     CD3DX12_CPU_DESCRIPTOR_HANDLE CreateDepthStencilView(UINT width, UINT height, ComStack& comStack, ID3D12Resource** bufferTarget, int fixedOffset = -1, UINT sampleCount = 1);
     void CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount);
     void CreatePipelineState(PipelineConfig* config, bool hotloadShaders = false);
     RenderTexture* CreateRenderTexture(UINT width, UINT height);
+    Texture* CreateEmptyTexture(int width, int height, std::string name);
     Texture* CreateTexture(const std::wstring& filePath);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
-    size_t CreateMaterial(const size_t maxVertices, const size_t vertexStride, const std::vector<Texture*>& textures, const std::wstring& shaderName);
-    D3D12_VERTEX_BUFFER_VIEW CreateMesh(const size_t materialIndex, const void* vertexData, const size_t vertexCount, const uint64_t id);
+    size_t CreateMaterial(const std::vector<Texture*>& textures, const std::wstring& shaderName);
+    D3D12_VERTEX_BUFFER_VIEW CreateMesh(const void* vertexData, const size_t vertexCount, const void* indexData, const size_t indexCount, const uint64_t id);
     size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
+    void BuildAccelerationStructures(ID3D12GraphicsCommandList4* commandList);
     void UploadVertices();
-    void RenderShadows(ID3D12GraphicsCommandList* renderList);
+    void RenderShadows(ID3D12GraphicsCommandList4* renderList);
     void RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);
     void RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);
     void RenderDebugLines(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);

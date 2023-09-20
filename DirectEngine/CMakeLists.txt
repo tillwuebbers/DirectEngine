@@ -31,7 +31,8 @@ file (GLOB IMPORT_CODE "imgui/remixicon.h"
                 "import/stb_image_write.h"
                 "directx-tex/DDSTextureLoader12.h"
                 "directx-tex/DDSTextureLoader12.cpp")
-file (GLOB SHADER_CODE "shaders/compile/*.hlsl")
+file (GLOB SHADER_CODE "shaders/compile/rasterize/*.hlsl")
+file (GLOB SHADER_CODE_RT "shaders/compile/raytrace/*.hlsl")
 
 function(DEPS PROJ)
     # imgui
@@ -79,7 +80,7 @@ function(DEPS PROJ)
         "${BULLET_LIB_DIR}/BUlletDynamics.lib"
         )
     endif()
-    target_link_libraries(${PROJ} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib")
+    target_link_libraries(${PROJ} "d3d12.lib" "dxgi.lib" "dxguid.lib" "d3dcompiler.lib" "Shlwapi.dll")
     
     # options
     if (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")

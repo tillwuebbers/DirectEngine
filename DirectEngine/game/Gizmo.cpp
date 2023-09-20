@@ -4,13 +4,13 @@
 void Gizmo::Init(MemoryArena& arena, IEntityCreator* game, EngineCore& engine, size_t materialIndex)
 {
 	MeshFile translateArrowMeshFile = LoadGltfFromFile("models/translate-arrow.glb", arena).meshes[0];
-	translateArrowMesh = engine.CreateMesh(materialIndex, translateArrowMeshFile.vertices, translateArrowMeshFile.vertexCount, translateArrowMeshFile.meshHash);
+	translateArrowMesh = engine.CreateMesh(translateArrowMeshFile.vertices, translateArrowMeshFile.vertexCount, nullptr, 0, translateArrowMeshFile.meshHash);
 
 	MeshFile rotateArrowMeshFile = LoadGltfFromFile("models/rotate-arrow.glb", arena).meshes[0];
-	rotateArrowMesh = engine.CreateMesh(materialIndex, rotateArrowMeshFile.vertices, rotateArrowMeshFile.vertexCount, rotateArrowMeshFile.meshHash);
+	rotateArrowMesh = engine.CreateMesh(rotateArrowMeshFile.vertices, rotateArrowMeshFile.vertexCount, nullptr, 0, rotateArrowMeshFile.meshHash);
 
 	MeshFile scaleArrowMeshFile = LoadGltfFromFile("models/scale-arrow.glb", arena).meshes[0];
-	scaleArrowMesh = engine.CreateMesh(materialIndex, scaleArrowMeshFile.vertices, scaleArrowMeshFile.vertexCount, scaleArrowMeshFile.meshHash);
+	scaleArrowMesh = engine.CreateMesh(scaleArrowMeshFile.vertices, scaleArrowMeshFile.vertexCount, nullptr, 0, scaleArrowMeshFile.meshHash);
 
 	XMVECTOR xyzColors[3] = {
 		{ 1.f, 0.f, 0.f, 1.f },
