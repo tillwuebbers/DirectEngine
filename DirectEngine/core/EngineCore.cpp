@@ -200,6 +200,11 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
     }
 #endif
 
+    // Check feature support
+    D3D12_FEATURE_DATA_D3D12_OPTIONS5 featureOptions5{};
+    ThrowIfFailed(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &featureOptions5, sizeof(featureOptions5)));
+    m_raytracingSupport = featureOptions5.RaytracingTier >= D3D12_RAYTRACING_TIER_1_1;
+
     // Describe and create the command queue.
     D3D12_COMMAND_QUEUE_DESC queueDesc = {};
     queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
@@ -274,26 +279,29 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
 
     LoadSizeDependentResources();
 
-    // Global Root Signature
-    // This is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
+    if (m_raytracingSupport)
     {
-        CD3DX12_DESCRIPTOR_RANGE UAVDescriptor;
-        UAVDescriptor.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
-        CD3DX12_ROOT_PARAMETER rootParameters[2];
-        rootParameters[0].InitAsDescriptorTable(1, &UAVDescriptor);
-        rootParameters[1].InitAsShaderResourceView(0);
-        CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
-        SerializeAndCreateRaytracingRootSignature(globalRootSignatureDesc, &m_raytracingGlobalRootSignature);
-    }
+        // Global Root Signature
+        // This is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
+        {
+            CD3DX12_DESCRIPTOR_RANGE UAVDescriptor;
+            UAVDescriptor.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+            CD3DX12_ROOT_PARAMETER rootParameters[2];
+            rootParameters[0].InitAsDescriptorTable(1, &UAVDescriptor);
+            rootParameters[1].InitAsShaderResourceView(0);
+            CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
+            SerializeAndCreateRaytracingRootSignature(globalRootSignatureDesc, &m_raytracingGlobalRootSignature);
+        }
 
-    // Local Root Signature
-    // This is a root signature that enables a shader to have unique arguments that come from shader tables.
-    {
-        CD3DX12_ROOT_PARAMETER rootParameters[1];
-        rootParameters[0].InitAsConstants(SizeOfInUint32(m_rayGenConstantBuffer), 0, 0);
-        CD3DX12_ROOT_SIGNATURE_DESC localRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
-        localRootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
-        SerializeAndCreateRaytracingRootSignature(localRootSignatureDesc, &m_raytracingLocalRootSignature);
+        // Local Root Signature
+        // This is a root signature that enables a shader to have unique arguments that come from shader tables.
+        {
+            CD3DX12_ROOT_PARAMETER rootParameters[1];
+            rootParameters[0].InitAsConstants(SizeOfInUint32(m_rayGenConstantBuffer), 0, 0);
+            CD3DX12_ROOT_SIGNATURE_DESC localRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
+            localRootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+            SerializeAndCreateRaytracingRootSignature(localRootSignatureDesc, &m_raytracingLocalRootSignature);
+        }
     }
 
     m_imgui.SetupImgui(m_hwnd, m_device, FrameCount);
@@ -666,7 +674,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
     config->pipelineState->SetName(config->shaderName.c_str());
 
     // Raytracing
-    if (rtShader.Get() != nullptr)
+    if (m_raytracingSupport && rtShader.Get() != nullptr)
     {
         CD3DX12_SHADER_BYTECODE rtBytecode = CD3DX12_SHADER_BYTECODE(rtShader.Get());
         CD3DX12_STATE_OBJECT_DESC raytracingStateDesc{ D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE };
@@ -1045,6 +1053,8 @@ size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_
 
 void EngineCore::BuildAccelerationStructures()
 {
+    if (!m_raytracingSupport) return;
+
     ID3D12Device5* dxrDevice = nullptr;
     ThrowIfFailed(m_device->QueryInterface(IID_PPV_ARGS(&dxrDevice)));
 
@@ -1146,6 +1156,8 @@ void EngineCore::BuildAccelerationStructures()
 
 void EngineCore::UpdateAccelerationStructure()
 {
+    if (!m_raytracingSupport) return;
+
     // Abort if nothing to do
     auto& entities = m_materials[1].entities;
     const size_t instanceCount = entities.size;
@@ -1429,6 +1441,8 @@ void EngineCore::PopulateCommandList()
 
 void EngineCore::LoadRaytracingShaderTables(ID3D12StateObject* dxrStateObject, const wchar_t* raygenShaderName, const wchar_t* missShaderName, const wchar_t* hitGroupShaderName)
 {
+    if (!m_raytracingSupport) return;
+
     ID3D12StateObjectProperties* dxrProperties = nullptr;
     ThrowIfFailed(dxrStateObject->QueryInterface(IID_PPV_ARGS(&dxrProperties)));
     void* rayGenShaderIdentifier = dxrProperties->GetShaderIdentifier(raygenShaderName);
@@ -1475,8 +1489,10 @@ void EngineCore::LoadRaytracingShaderTables(ID3D12StateObject* dxrStateObject, c
 
 void EngineCore::RenderShadows(ID3D12GraphicsCommandList4* renderList)
 {
+    bool doRaytracing = m_shadowConfig->raytracingState != nullptr && m_raytracingEnabled && m_raytracingSupport;
+
     // Set raytracing pipeline
-    if (m_shadowConfig->raytracingState != nullptr)
+    if (doRaytracing)
     {
         renderList->SetComputeRootSignature(m_raytracingGlobalRootSignature);
     }
@@ -1485,7 +1501,7 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList4* renderList)
     ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap };
     renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
-    if (m_shadowConfig->raytracingState != nullptr)
+    if (doRaytracing)
     {
         renderList->SetComputeRootDescriptorTable(0, m_raytracingOutput->handle.gpuHandle);
         renderList->SetComputeRootShaderResourceView(1, m_topLevelAccelerationStructure->GetGPUVirtualAddress());

@@ -317,6 +317,10 @@ void Game::DrawDebugUI(EngineCore& engine)
 			ImGui::Checkbox("VSync", &engine.m_useVsync);
 			ImGui::Checkbox("MSAA", &engine.m_msaaEnabled);
 			ImGui::Checkbox("Render Texture", &engine.m_renderTextureEnabled);
+			ImGui::Text("Ray Tracing Support: %s", engine.m_raytracingSupport ? "yes" : "no");
+			ImGui::BeginDisabled(!engine.m_raytracingSupport);
+			ImGui::Checkbox("Ray Tracing", &engine.m_raytracingEnabled);
+			ImGui::EndDisabled();
 
 			ImGui::Separator();
 			ImGui::Checkbox("Show Physics", &renderPhysics);

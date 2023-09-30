@@ -398,6 +398,7 @@ public:
     bool m_renderTextureEnabled = true;
     bool m_msaaEnabled = true;
     UINT m_msaaSampleCount = 4;
+    bool m_raytracingEnabled = true;
     PipelineConfig* m_shadowConfig;
     PipelineConfig* m_wireframeConfig;
     PipelineConfig* m_debugLineConfig;
@@ -458,6 +459,7 @@ public:
     
     // Window Settings
     bool m_tearingSupport = false;
+    bool m_raytracingSupport = false;
     WindowMode m_windowMode = WindowMode::Windowed;
     WindowMode m_wantedWindowMode = WindowMode::Windowed;
     bool m_wantBorderless = false;
