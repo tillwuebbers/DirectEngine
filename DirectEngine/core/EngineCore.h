@@ -433,8 +433,9 @@ public:
     ID3D12RootSignature* m_raytracingGlobalRootSignature = nullptr;
     ID3D12RootSignature* m_raytracingLocalRootSignature = nullptr;
     Texture* m_raytracingOutput = nullptr;
-    ID3D12Resource* m_topLevelAccelerationStructure = nullptr;
-    ID3D12Resource* m_bottomLevelAccelerationStructure = nullptr;
+    ComPtr<ID3D12Resource> m_topLevelAccelerationStructure = nullptr;
+    ComPtr<ID3D12Resource> m_bottomLevelAccelerationStructure = nullptr;
+    ComPtr<ID3D12Resource> m_scratchResource = nullptr;
     ComPtr<ID3D12Resource> m_missShaderTable = nullptr;
     ComPtr<ID3D12Resource> m_hitGroupShaderTable = nullptr;
     ComPtr<ID3D12Resource> m_rayGenShaderTable = nullptr;
@@ -508,7 +509,8 @@ public:
     size_t CreateMaterial(const std::vector<Texture*>& textures, const std::wstring& shaderName);
     D3D12_VERTEX_BUFFER_VIEW CreateMesh(const void* vertexData, const size_t vertexCount, const void* indexData, const size_t indexCount, const uint64_t id);
     size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
-    void BuildAccelerationStructures(ID3D12GraphicsCommandList4* commandList);
+    void BuildAccelerationStructures();
+    void UpdateAccelerationStructure();
     void UploadVertices();
     void RenderShadows(ID3D12GraphicsCommandList4* renderList);
     void RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);

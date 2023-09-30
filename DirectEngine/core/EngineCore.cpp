@@ -792,10 +792,7 @@ void EngineCore::LoadAssets()
 
     // Raytracing
     m_raytracingOutput = CreateEmptyTexture(m_width, m_height, "Raytracing Output");
-    m_raytracingCommandList->Close();
-    m_raytracingCommandAllocators[m_frameIndex]->Reset();
-    m_raytracingCommandList->Reset(m_raytracingCommandAllocators[m_frameIndex], nullptr);
-    BuildAccelerationStructures(m_raytracingCommandList);
+    BuildAccelerationStructures();
 }
 
 void EngineCore::ResetLevelData()
@@ -1046,10 +1043,14 @@ size_t EngineCore::CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_
     return entity->entityIndex;
 }
 
-void EngineCore::BuildAccelerationStructures(ID3D12GraphicsCommandList4* commandList)
+void EngineCore::BuildAccelerationStructures()
 {
     ID3D12Device5* dxrDevice = nullptr;
     ThrowIfFailed(m_device->QueryInterface(IID_PPV_ARGS(&dxrDevice)));
+
+    ThrowIfFailed(m_raytracingCommandList->Close());
+    ThrowIfFailed(m_raytracingCommandAllocators[m_frameIndex]->Reset());
+    ThrowIfFailed(m_raytracingCommandList->Reset(m_raytracingCommandAllocators[m_frameIndex], nullptr));
 
     D3D12_RAYTRACING_GEOMETRY_DESC geometryDesc = {};
     geometryDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
@@ -1089,8 +1090,7 @@ void EngineCore::BuildAccelerationStructures(ID3D12GraphicsCommandList4* command
     dxrDevice->GetRaytracingAccelerationStructurePrebuildInfo(&bottomLevelInputs, &bottomLevelPrebuildInfo);
     ThrowIfFailed(bottomLevelPrebuildInfo.ResultDataMaxSizeInBytes > 0);
 
-    ComPtr<ID3D12Resource> scratchResource;
-    AllocateUAVBuffer(dxrDevice, std::max(topLevelPrebuildInfo.ScratchDataSizeInBytes, bottomLevelPrebuildInfo.ScratchDataSizeInBytes), &scratchResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, L"ScratchResource");
+    AllocateUAVBuffer(dxrDevice, std::max(topLevelPrebuildInfo.ScratchDataSizeInBytes, bottomLevelPrebuildInfo.ScratchDataSizeInBytes), &m_scratchResource, D3D12_RESOURCE_STATE_COMMON, L"ScratchResource");
 
     // Allocate resources for acceleration structures.
     // Acceleration structures can only be placed in resources that are created in the default heap (or custom heap equivalent). 
@@ -1118,7 +1118,7 @@ void EngineCore::BuildAccelerationStructures(ID3D12GraphicsCommandList4* command
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC bottomLevelBuildDesc = {};
     {
         bottomLevelBuildDesc.Inputs = bottomLevelInputs;
-        bottomLevelBuildDesc.ScratchAccelerationStructureData = scratchResource->GetGPUVirtualAddress();
+        bottomLevelBuildDesc.ScratchAccelerationStructureData = m_scratchResource->GetGPUVirtualAddress();
         bottomLevelBuildDesc.DestAccelerationStructureData = m_bottomLevelAccelerationStructure->GetGPUVirtualAddress();
     }
 
@@ -1128,20 +1128,68 @@ void EngineCore::BuildAccelerationStructures(ID3D12GraphicsCommandList4* command
         topLevelInputs.InstanceDescs = instanceDescs->GetGPUVirtualAddress();
         topLevelBuildDesc.Inputs = topLevelInputs;
         topLevelBuildDesc.DestAccelerationStructureData = m_topLevelAccelerationStructure->GetGPUVirtualAddress();
-        topLevelBuildDesc.ScratchAccelerationStructureData = scratchResource->GetGPUVirtualAddress();
+        topLevelBuildDesc.ScratchAccelerationStructureData = m_scratchResource->GetGPUVirtualAddress();
     }
 
     // Build acceleration structure.
-    commandList->BuildRaytracingAccelerationStructure(&bottomLevelBuildDesc, 0, nullptr);
-    auto UAV = CD3DX12_RESOURCE_BARRIER::UAV(m_bottomLevelAccelerationStructure);
-    commandList->ResourceBarrier(1, &UAV);
-    commandList->BuildRaytracingAccelerationStructure(&topLevelBuildDesc, 0, nullptr);
+    m_raytracingCommandList->BuildRaytracingAccelerationStructure(&bottomLevelBuildDesc, 0, nullptr);
+    auto UAV = CD3DX12_RESOURCE_BARRIER::UAV(m_bottomLevelAccelerationStructure.Get());
+    m_raytracingCommandList->ResourceBarrier(1, &UAV);
+    m_raytracingCommandList->BuildRaytracingAccelerationStructure(&topLevelBuildDesc, 0, nullptr);
 
     // Kick off acceleration structure construction.
-    ExecCommandList(commandList);
+    ExecCommandList(m_raytracingCommandList);
 
     // Wait for GPU to finish as the locally created temporary GPU resources will get released once we go out of scope.
     WaitForGpu();
+}
+
+void EngineCore::UpdateAccelerationStructure()
+{
+    // Abort if nothing to do
+    auto& entities = m_materials[1].entities;
+    const size_t instanceCount = entities.size;
+    if (instanceCount == 0) return;
+
+    ID3D12Device5* dxrDevice = nullptr;
+    ThrowIfFailed(m_device->QueryInterface(IID_PPV_ARGS(&dxrDevice)));
+
+    ThrowIfFailed(m_raytracingCommandAllocators[m_frameIndex]->Reset());
+    ThrowIfFailed(m_raytracingCommandList->Reset(m_raytracingCommandAllocators[m_frameIndex], nullptr));
+
+    // Update instance buffer
+
+    D3D12_RAYTRACING_INSTANCE_DESC* instanceDescData = NewArrayAligned(frameArena, D3D12_RAYTRACING_INSTANCE_DESC, instanceCount, D3D12_RAYTRACING_INSTANCE_DESCS_BYTE_ALIGNMENT);
+    for (int i = 0; i < instanceCount; i++)
+    {
+        D3D12_RAYTRACING_INSTANCE_DESC* instanceDesc = &instanceDescData[i];
+        *instanceDesc = D3D12_RAYTRACING_INSTANCE_DESC{};
+        for (int row = 0; row < 3; row++)
+            for (int col = 0; col < 4; col++)
+                instanceDesc->Transform[row][col] = entities[i]->constantBuffer.data.worldTransform.r[row].m128_f32[col];
+        instanceDesc->InstanceMask = 1;
+        // TODO: I think all of the top level structures point to the WHOLE bottom level structure, not just the part they need
+        instanceDesc->AccelerationStructure = m_bottomLevelAccelerationStructure->GetGPUVirtualAddress();
+    }
+	
+    ComPtr<ID3D12Resource> instanceDescs;
+    AllocateUploadBuffer(dxrDevice, &instanceDescData[0], sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * instanceCount, &instanceDescs, L"InstanceDescs");
+
+	// Update acceleration structure
+	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC topLevelBuildDesc = {};
+    {
+		topLevelBuildDesc.Inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
+		topLevelBuildDesc.Inputs.InstanceDescs = instanceDescs->GetGPUVirtualAddress();
+		topLevelBuildDesc.Inputs.NumDescs = 1;
+		topLevelBuildDesc.Inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+		topLevelBuildDesc.DestAccelerationStructureData = m_topLevelAccelerationStructure->GetGPUVirtualAddress();
+		topLevelBuildDesc.ScratchAccelerationStructureData = m_scratchResource->GetGPUVirtualAddress();
+	}
+	m_raytracingCommandList->BuildRaytracingAccelerationStructure(&topLevelBuildDesc, 0, nullptr);
+	auto UAV = CD3DX12_RESOURCE_BARRIER::UAV(m_topLevelAccelerationStructure.Get());
+    m_raytracingCommandList->ResourceBarrier(1, &UAV);
+	ExecCommandList(m_raytracingCommandList);
+	WaitForGpu();
 }
 
 void EngineCore::UploadVertices()
@@ -1196,7 +1244,7 @@ void EngineCore::OnUpdate()
     ThrowIfFailed(m_uploadCommandList->Close());
 
     BeginProfile("Build RT Acceleration Structure", ImColor::HSV(.66f, .33f, 1.f));
-    
+    UpdateAccelerationStructure();
     EndProfile("Build RT Acceleration Structure");
 
     if (m_resetLevel)
