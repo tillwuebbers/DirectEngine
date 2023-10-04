@@ -377,6 +377,7 @@ public:
     MemoryArena configArena = {};
     MemoryArena levelArena = {};
     MemoryArena frameArena = {};
+    TypedMemoryArena<EntityData> entityDataArena = {};
 
     // Window Handle
     HWND m_hwnd;
@@ -438,13 +439,14 @@ public:
     CameraData* mainCamera = nullptr;
     FixedList<RenderTexture*> m_renderTextures{ engineArena, 2 };
 
-    // Raytracing
+    // Ray tracing
     ID3D12RootSignature* m_raytracingGlobalRootSignature = nullptr;
     ID3D12RootSignature* m_raytracingLocalRootSignature = nullptr;
     Texture* m_raytracingOutput = nullptr;
+    ID3D12StateObject* m_raytracingState = nullptr;
     ID3D12Resource* m_topLevelAccelerationStructure = nullptr;
     ID3D12Resource* m_topLevelScratchResource = nullptr;
-    ComPtr<ID3D12Resource> m_topLevelInstanceDescs = nullptr;
+    ID3D12Resource* m_topLevelInstanceDescs = nullptr;
     ComPtr<ID3D12Resource> m_missShaderTable = nullptr;
     ComPtr<ID3D12Resource> m_hitGroupShaderTable = nullptr;
     ComPtr<ID3D12Resource> m_rayGenShaderTable = nullptr;

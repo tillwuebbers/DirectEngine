@@ -62,6 +62,8 @@ public:
 
     Iterator begin() { return Iterator(reinterpret_cast<T*>(base)); }
     Iterator end() { return Iterator(reinterpret_cast<T*>(base + used)); }
+
+    size_t Count() { return used / sizeof(T); }
 };
 
 #define NewObject(arena, type, ...) new((arena).Allocate(sizeof(type))) type(__VA_ARGS__)

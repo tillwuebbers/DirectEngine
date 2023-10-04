@@ -45,8 +45,6 @@ public:
     UINT sampleCount = 1;
 	D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
-    ID3D12StateObject* raytracingState = nullptr;
-
     ID3D12PipelineState* pipelineState = nullptr;
     ID3D12RootSignature* rootSignature = nullptr;
 

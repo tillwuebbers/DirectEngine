@@ -681,10 +681,10 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
         CD3DX12_DXIL_LIBRARY_SUBOBJECT* raytracingStateLib1 = raytracingStateDesc.CreateSubobject<CD3DX12_DXIL_LIBRARY_SUBOBJECT>();
         raytracingStateLib1->SetDXILLibrary(&rtBytecode);
 
-        ThrowIfFailed(m_device->CreateStateObject(raytracingStateDesc, NewComObjectReplace(comPointers, &config->raytracingState)));
-        config->raytracingState->SetName(L"RT State");
+        ThrowIfFailed(m_device->CreateStateObject(raytracingStateDesc, NewComObject(comPointers, &m_raytracingState)));
+        m_raytracingState->SetName(L"RT State");
 
-        LoadRaytracingShaderTables(config->raytracingState, L"MyRaygenShader", L"MyMissShader", L"MyHitGroup");
+        LoadRaytracingShaderTables(m_raytracingState, L"MyRaygenShader", L"MyMissShader", L"MyHitGroup");
     }
 
     OUTPUT_TIMERW(timer, L"Create Pipeline State");
@@ -1047,7 +1047,8 @@ size_t EngineCore::CreateEntity(const size_t materialIndex, MeshData* meshData)
 {
     MaterialData& material = m_materials.at(materialIndex);
 
-    EntityData* entity = material.entities.newElement() = NewObject(levelArena, EntityData);
+    EntityData* entity = NewObject(entityDataArena, EntityData);
+    material.entities.newElement() = entity;
     entity->entityIndex = material.entities.size - 1;
     entity->materialIndex = materialIndex;
     entity->meshData = meshData;
@@ -1106,8 +1107,8 @@ void EngineCore::BuildTopLevelAccelerationStructure(ID3D12GraphicsCommandList4* 
 
     ID3D12Device5* dxrDevice = nullptr;
     ThrowIfFailed(m_device->QueryInterface(IID_PPV_ARGS(&dxrDevice)));
-
-    size_t instanceCount = m_materials[1].entities.size;
+    
+    size_t instanceCount = entityDataArena.Count();
 
     // Get required sizes for an acceleration structure.
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS topLevelInputs = {};
@@ -1120,7 +1121,7 @@ void EngineCore::BuildTopLevelAccelerationStructure(ID3D12GraphicsCommandList4* 
     dxrDevice->GetRaytracingAccelerationStructurePrebuildInfo(&topLevelInputs, &topLevelPrebuildInfo);
     ThrowIfFailed(topLevelPrebuildInfo.ResultDataMaxSizeInBytes > 0);
 
-    AllocateUAVBuffer(dxrDevice, topLevelPrebuildInfo.ScratchDataSizeInBytes, NewComObject(comPointersTextureUpload, &m_topLevelScratchResource), D3D12_RESOURCE_STATE_COMMON);
+    AllocateUAVBuffer(dxrDevice, topLevelPrebuildInfo.ScratchDataSizeInBytes, NewComObjectReplace(comPointers, &m_topLevelScratchResource), D3D12_RESOURCE_STATE_COMMON);
     m_topLevelScratchResource->SetName(L"ScratchResource (Top Level Accel)");
 
     // Allocate resources for acceleration structures.
@@ -1130,22 +1131,25 @@ void EngineCore::BuildTopLevelAccelerationStructure(ID3D12GraphicsCommandList4* 
     // and must have resource flag D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS. The ALLOW_UNORDERED_ACCESS requirement simply acknowledges both: 
     //  - the system will be doing this type of access in its implementation of acceleration structure builds behind the scenes.
     //  - from the app point of view, synchronization of writes/reads to acceleration structures is accomplished using UAV barriers.
-    AllocateUAVBuffer(dxrDevice, topLevelPrebuildInfo.ResultDataMaxSizeInBytes, NewComObject(comPointersTextureUpload, &m_topLevelAccelerationStructure), D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
+    AllocateUAVBuffer(dxrDevice, topLevelPrebuildInfo.ResultDataMaxSizeInBytes, NewComObjectReplace(comPointers, &m_topLevelAccelerationStructure), D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
     m_topLevelAccelerationStructure->SetName(L"TopLevelAccelerationStructure");
 
     // Create an instance desc for the bottom-level acceleration structure.
     D3D12_RAYTRACING_INSTANCE_DESC* instanceDescData = NewArrayAligned(frameArena, D3D12_RAYTRACING_INSTANCE_DESC, instanceCount, D3D12_RAYTRACING_INSTANCE_DESCS_BYTE_ALIGNMENT);
-    for (int i = 0; i < instanceCount; i++)
+    
+    int index = 0;
+    for (EntityData& entity : entityDataArena)
     {
-        EntityData* entity = m_materials[1].entities[i];
-        D3D12_RAYTRACING_INSTANCE_DESC& instanceDesc = instanceDescData[i];
+        D3D12_RAYTRACING_INSTANCE_DESC& instanceDesc = instanceDescData[index];
         for (int row = 0; row < 3; row++)
             for (int col = 0; col < 4; col++)
-                instanceDesc.Transform[row][col] = entity->constantBuffer.data.worldTransform.r[row].m128_f32[col];
+                instanceDesc.Transform[row][col] = entity.constantBuffer.data.worldTransform.r[row].m128_f32[col];
         instanceDesc.InstanceMask = 1;
-        instanceDesc.AccelerationStructure = entity->meshData->bottomLevelAccelerationStructure->GetGPUVirtualAddress();
+        instanceDesc.AccelerationStructure = entity.meshData->bottomLevelAccelerationStructure->GetGPUVirtualAddress();
+        index++;
     }
-    AllocateUploadBuffer(dxrDevice, instanceDescData, instanceCount * sizeof(D3D12_RAYTRACING_INSTANCE_DESC), &m_topLevelInstanceDescs, L"InstanceDescs");
+    AllocateUploadBuffer(dxrDevice, instanceDescData, instanceCount * sizeof(D3D12_RAYTRACING_INSTANCE_DESC), NewComObjectReplace(comPointers, &m_topLevelInstanceDescs), &m_topLevelInstanceDescs);
+    m_topLevelInstanceDescs->SetName(L"TopLevelInstanceDescs");
 
     // Top Level Acceleration Structure desc
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC topLevelBuildDesc = {};
@@ -1169,15 +1173,9 @@ void EngineCore::UploadVertices()
 
     if (m_raytracingSupport)
     {
-        //ThrowIfFailed(m_raytracingCommandList->Close());
-        //ThrowIfFailed(m_raytracingCommandAllocators[m_frameIndex]->Reset());
-        //ThrowIfFailed(m_raytracingCommandList->Reset(m_raytracingCommandAllocators[m_frameIndex], nullptr));
         ID3D12GraphicsCommandList4* dxrCommandList = nullptr;
         ThrowIfFailed(m_uploadCommandList->QueryInterface(IID_PPV_ARGS(&dxrCommandList)));
         BuildBottomLevelAccelerationStructures(dxrCommandList);
-        BuildTopLevelAccelerationStructure(dxrCommandList);
-        //ExecCommandList(m_raytracingCommandList);
-        //WaitForGpu();
     }
 }
 
@@ -1223,10 +1221,6 @@ void EngineCore::OnUpdate()
 
     m_game->UpdateGame(*this);
     ThrowIfFailed(m_uploadCommandList->Close());
-
-    BeginProfile("Build RT Acceleration Structure", ImColor::HSV(.66f, .33f, 1.f));
-    //UpdateTopLevelAccelerationStructure();
-    EndProfile("Build RT Acceleration Structure");
 
     if (m_resetLevel)
     {
@@ -1316,6 +1310,14 @@ void EngineCore::PopulateCommandList()
     ID3D12Resource* renderTargetMsaa = m_msaaRenderTargets[m_frameIndex];
     ID3D12Resource* renderTargetWindow = m_renderTargets[m_frameIndex];
     EndProfile("Render Setup");
+
+    // Ray tracing
+    if (m_raytracingEnabled)
+    {
+		BeginProfile("Raytracing", ImColor::HSV(.5, .1, 1.));
+		BuildTopLevelAccelerationStructure(m_renderCommandList);
+		EndProfile("Raytracing");
+	}
 
     // Shadows
     BeginProfile("Render Shadows", ImColor::HSV(.5, .1, 1.));
@@ -1458,7 +1460,7 @@ void EngineCore::LoadRaytracingShaderTables(ID3D12StateObject* dxrStateObject, c
 
 void EngineCore::RenderShadows(ID3D12GraphicsCommandList4* renderList)
 {
-    bool doRaytracing = m_shadowConfig->raytracingState != nullptr && m_raytracingEnabled && m_raytracingSupport;
+    bool doRaytracing = m_raytracingState != nullptr && m_raytracingEnabled && m_raytracingSupport;
 
     // Set raytracing pipeline
     if (doRaytracing)
@@ -1488,7 +1490,7 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList4* renderList)
         dispatchDesc.Width = m_width;
         dispatchDesc.Height = m_height;
         dispatchDesc.Depth = 1;
-        renderList->SetPipelineState1(m_shadowConfig->raytracingState);
+        renderList->SetPipelineState1(m_raytracingState);
         renderList->DispatchRays(&dispatchDesc);
     }
 

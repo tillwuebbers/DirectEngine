@@ -166,7 +166,7 @@ inline void AllocateUAVBuffer(ID3D12Device* pDevice, UINT64 bufferSize, const II
         ppvResource));
 }
 
-inline void AllocateUploadBuffer(ID3D12Device* pDevice, void *pData, UINT64 datasize, ID3D12Resource **ppResource, const wchar_t* resourceName = nullptr)
+inline void AllocateUploadBuffer(ID3D12Device* pDevice, void *pData, UINT64 datasize, const IID& riidResource, void** ppvResource, ID3D12Resource** resource)
 {
     auto uploadHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
     auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(datasize);
@@ -176,15 +176,12 @@ inline void AllocateUploadBuffer(ID3D12Device* pDevice, void *pData, UINT64 data
         &bufferDesc,
         D3D12_RESOURCE_STATE_GENERIC_READ,
         nullptr,
-        IID_PPV_ARGS(ppResource)));
-    if (resourceName)
-    {
-        (*ppResource)->SetName(resourceName);
-    }
+        riidResource,
+        ppvResource));
     void *pMappedData;
-    (*ppResource)->Map(0, nullptr, &pMappedData);
+    (*resource)->Map(0, nullptr, &pMappedData);
     memcpy(pMappedData, pData, datasize);
-    (*ppResource)->Unmap(0, nullptr);
+    (*resource)->Unmap(0, nullptr);
 }
 
 // Pretty-print a state object tree.
