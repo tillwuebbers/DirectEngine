@@ -10,9 +10,9 @@ struct Gizmo
 	Entity* rotateArrows[3];
 	Entity* scaleArrows[3];
 
-	D3D12_VERTEX_BUFFER_VIEW translateArrowMesh;
-	D3D12_VERTEX_BUFFER_VIEW rotateArrowMesh;
-	D3D12_VERTEX_BUFFER_VIEW scaleArrowMesh;
+	MeshData* translateArrowMesh;
+	MeshData* rotateArrowMesh;
+	MeshData* scaleArrowMesh;
 
 	bool gizmoLocal = true;
 	bool editMode = false;

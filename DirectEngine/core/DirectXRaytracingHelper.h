@@ -152,7 +152,7 @@ public:
     }
 };
 
-inline void AllocateUAVBuffer(ID3D12Device* pDevice, UINT64 bufferSize, ID3D12Resource **ppResource, D3D12_RESOURCE_STATES initialResourceState = D3D12_RESOURCE_STATE_COMMON, const wchar_t* resourceName = nullptr)
+inline void AllocateUAVBuffer(ID3D12Device* pDevice, UINT64 bufferSize, const IID& riidResource, void** ppvResource, D3D12_RESOURCE_STATES initialResourceState = D3D12_RESOURCE_STATE_COMMON)
 {
     auto uploadHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
     auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
@@ -162,11 +162,8 @@ inline void AllocateUAVBuffer(ID3D12Device* pDevice, UINT64 bufferSize, ID3D12Re
         &bufferDesc,
         initialResourceState,
         nullptr,
-        IID_PPV_ARGS(ppResource)));
-    if (resourceName)
-    {
-        (*ppResource)->SetName(resourceName);
-    }
+        riidResource,
+        ppvResource));
 }
 
 inline void AllocateUploadBuffer(ID3D12Device* pDevice, void *pData, UINT64 datasize, ID3D12Resource **ppResource, const wchar_t* resourceName = nullptr)

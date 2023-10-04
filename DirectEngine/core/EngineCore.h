@@ -155,6 +155,15 @@ struct ExtendedMatrix
     }
 };
 
+struct MeshData
+{
+    D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
+    D3D12_INDEX_BUFFER_VIEW indexBufferView = {};
+    D3D12_RAYTRACING_GEOMETRY_DESC geometryDesc = {};
+    ID3D12Resource* bottomLevelAccelerationStructure = {};
+    ID3D12Resource* scratchResource = {};
+};
+
 struct EntityData
 {
     bool visible = true;
@@ -165,8 +174,7 @@ struct EntityData
     ConstantBuffer<EntityConstantBuffer> constantBuffer = {};
     ConstantBuffer<BoneMatricesBuffer> boneConstantBuffer = {};
     ConstantBuffer<BoneMatricesBuffer> firstPersonBoneConstantBuffer = {};
-    D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
-    D3D12_INDEX_BUFFER_VIEW indexBufferView = {};
+    MeshData* meshData;
 };
 
 struct MaterialData
@@ -424,7 +432,7 @@ public:
     FixedList<MaterialData> m_materials{ engineArena, MAX_MATERIALS };
     FixedList<Texture> m_textures = { engineArena, MAX_TEXTURE_UPLOADS };
     FixedList<CameraData> m_cameras = { engineArena, MAX_CAMERAS };
-    std::unordered_map<uint64_t, D3D12_VERTEX_BUFFER_VIEW> m_meshes{};
+    FixedList<MeshData> m_meshes = { engineArena, MAX_MESHES };
 
     ImGuiUI m_imgui = {};
     CameraData* mainCamera = nullptr;
@@ -434,9 +442,9 @@ public:
     ID3D12RootSignature* m_raytracingGlobalRootSignature = nullptr;
     ID3D12RootSignature* m_raytracingLocalRootSignature = nullptr;
     Texture* m_raytracingOutput = nullptr;
-    ComPtr<ID3D12Resource> m_topLevelAccelerationStructure = nullptr;
-    ComPtr<ID3D12Resource> m_bottomLevelAccelerationStructure = nullptr;
-    ComPtr<ID3D12Resource> m_scratchResource = nullptr;
+    ID3D12Resource* m_topLevelAccelerationStructure = nullptr;
+    ID3D12Resource* m_topLevelScratchResource = nullptr;
+    ComPtr<ID3D12Resource> m_topLevelInstanceDescs = nullptr;
     ComPtr<ID3D12Resource> m_missShaderTable = nullptr;
     ComPtr<ID3D12Resource> m_hitGroupShaderTable = nullptr;
     ComPtr<ID3D12Resource> m_rayGenShaderTable = nullptr;
@@ -474,8 +482,6 @@ public:
     bool m_inUpdate = false;
     DebugLineData m_debugLineData{ engineArena };
 
-    // TODO: don't init this in game
-    D3D12_VERTEX_BUFFER_VIEW cubeVertexView;
     const float m_renderTargetClearColor[4] = {0.0f, 0.0f, 0.0f, 1.0f};
     
     // Audio
@@ -509,10 +515,10 @@ public:
     Texture* CreateTexture(const std::wstring& filePath);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
     size_t CreateMaterial(const std::vector<Texture*>& textures, const std::wstring& shaderName);
-    D3D12_VERTEX_BUFFER_VIEW CreateMesh(const void* vertexData, const size_t vertexCount, const void* indexData, const size_t indexCount, const uint64_t id);
-    size_t CreateEntity(const size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshIndex);
-    void BuildAccelerationStructures();
-    void UpdateAccelerationStructure();
+    MeshData* CreateMesh(const void* vertexData, const size_t vertexCount, const void* indexData, const size_t indexCount);
+    size_t CreateEntity(const size_t materialIndex, MeshData* meshData);
+    void BuildBottomLevelAccelerationStructures(ID3D12GraphicsCommandList4* commandList);
+    void BuildTopLevelAccelerationStructure(ID3D12GraphicsCommandList4* commandList);
     void UploadVertices();
     void RenderShadows(ID3D12GraphicsCommandList4* renderList);
     void RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);

@@ -63,8 +63,7 @@ void Game::StartGame(EngineCore& engine)
 
 	// Meshes
 	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", globalArena).meshes[0];
-	auto cubeMeshView = engine.CreateMesh(cubeMeshFile.vertices, cubeMeshFile.vertexCount, nullptr, 0, 0);
-	engine.cubeVertexView = cubeMeshView;
+	cubeMeshData = engine.CreateMesh(cubeMeshFile.vertices, cubeMeshFile.vertexCount, nullptr, 0);
 
 	LOG_TIMER(timer, "Default Meshes");
 	RESET_TIMER(timer);
@@ -190,7 +189,7 @@ void Game::LoadLevel(EngineCore& engine)
 
 	for (int i = 0; i < 16; i++)
 	{
-		Entity* yea = CreateMeshEntity(engine, materialIndices[Material::Ground], engine.cubeVertexView);
+		Entity* yea = CreateMeshEntity(engine, materialIndices[Material::Ground], cubeMeshData);
 		yea->name = "Yea";
 		yea->SetLocalPosition({ 3.f, 0.5f + i * 16.f, 0.f });
 		btBoxShape* boxShape = NewObject(levelArena, btBoxShape, ToBulletVec3({ .5f, .5f, .5f }));
@@ -620,21 +619,21 @@ Entity* Game::CreateEmptyEntity(EngineCore& engine)
 	return entity;
 }
 
-Entity* Game::CreateMeshEntity(EngineCore& engine, size_t materialIndex, D3D12_VERTEX_BUFFER_VIEW& meshView)
+Entity* Game::CreateMeshEntity(EngineCore& engine, size_t materialIndex, MeshData* meshData)
 {
 	Entity* entity = NewObject(entityArena, Entity);
 	entity->engine = &engine;
 	entity->isRendered = true;
 	entity->materialIndex = materialIndex;
-	entity->dataIndex = engine.CreateEntity(materialIndex, meshView);
+	entity->dataIndex = engine.CreateEntity(materialIndex, meshData);
 	return entity;
 }
 
 Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical)
 {
 	MeshFile file = vertical ? CreateQuadY(width, height, globalArena) : CreateQuad(width, height, globalArena);
-	auto meshView = engine.CreateMesh(file.vertices, file.vertexCount, nullptr, 0, file.meshHash);
-	Entity* entity = CreateMeshEntity(engine, materialIndex, meshView);
+	MeshData* meshData = engine.CreateMesh(file.vertices, file.vertexCount, nullptr, 0);
+	Entity* entity = CreateMeshEntity(engine, materialIndex, meshData);
 	entity->SetLocalPosition({-width / 2.f, 0.f, -height / 2.f});
 
 	return entity;
@@ -683,11 +682,11 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, const s
 		RESET_TIMER(timer);
 
 		size_t materialIndex = engine.CreateMaterial(textures, shaderName);
-		D3D12_VERTEX_BUFFER_VIEW meshView = engine.CreateMesh(meshFile.vertices, meshFile.vertexCount, nullptr, 0, meshFile.meshHash);
+		MeshData* meshData = engine.CreateMesh(meshFile.vertices, meshFile.vertexCount, nullptr, 0);
 		LOG_TIMER(timer, "Create material and mesh for model");
 		RESET_TIMER(timer);
 
-		Entity* child = CreateMeshEntity(engine, materialIndex, meshView);
+		Entity* child = CreateMeshEntity(engine, materialIndex, meshData);
 		child->name = meshFile.textureName.c_str();
 		if (gltfResult.transformHierachy != nullptr) child->isSkinnedMesh = true;
 		mainEntity->AddChild(child, false);

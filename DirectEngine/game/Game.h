@@ -138,6 +138,9 @@ public:
 	btDiscreteDynamicsWorld* dynamicsWorld = nullptr;
 	PhysicsDebugDrawer physicsDebug{};
 
+	// Meshes
+	MeshData* cubeMeshData = nullptr;
+
 	// Materials and Lighting
 	std::unordered_map<Material, size_t> materialIndices{};
 	
@@ -185,7 +188,7 @@ public:
 	void DrawDebugUI(EngineCore& engine);
 
 	Entity* CreateEmptyEntity(EngineCore& engine) override;
-	Entity* CreateMeshEntity(EngineCore& engine, size_t drawCallIndex, D3D12_VERTEX_BUFFER_VIEW& meshView) override;
+	Entity* CreateMeshEntity(EngineCore& engine, size_t drawCallIndex, MeshData* meshData) override;
 	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical = false) override;
 	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, PhysicsInit& physicsInit, bool vertical = false) override;
 	Entity* CreateEntityFromGltf(EngineCore& engine, const char* path, const std::wstring& shaderName) override;

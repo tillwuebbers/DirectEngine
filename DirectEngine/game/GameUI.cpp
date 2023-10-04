@@ -614,12 +614,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 			}
 
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 20.f);
-
-			if (ImGui::Button("Add Cube"))
-			{
-				CreateMeshEntity(engine, newEntityMaterialIndex, engine.cubeVertexView);
-			}
-
+			
 			ImGui::SameLine();
 
 			ImGui::Combo("##entitymaterial", &newEntityMaterialIndex, [](void* data, int idx, const char** out_text)
