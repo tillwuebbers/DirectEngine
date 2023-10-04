@@ -14,7 +14,7 @@ MemoryArena::MemoryArena(size_t capacity) :
 	allocationGranularity = info.dwAllocationGranularity;
 }
 
-inline size_t Align(size_t value, size_t alignment)
+size_t Align(size_t value, size_t alignment)
 {
 	return (value + alignment - 1) & ~(alignment - 1);
 }

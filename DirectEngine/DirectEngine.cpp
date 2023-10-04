@@ -271,7 +271,11 @@ int CALLBACK wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 	MSG msg = {};
 	{
+#ifdef GAME_DEBUG
 		HMODULE gameModule = LoadLibrary(L"../game/Debug/Game.dll");
+#else
+		HMODULE gameModule = LoadLibrary(L"../game/Release/Game.dll");
+#endif
 		if (gameModule == nullptr)
 		{
 			MessageBox(0, L"Failed to load Game.dll", L"Error", MB_OK);
