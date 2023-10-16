@@ -67,10 +67,12 @@ struct RayPayload
 void MyRaygenShader()
 {
     uint2 rayIndexPos = DispatchRaysIndex().xy;
+    uint2 outputDimensions = DispatchRaysDimensions().xy;
+    float2 uv = float2(rayIndexPos) / float2(outputDimensions);
     
     RayDesc myRay =
     {
-        float3(rayIndexPos.x - 100., 5.0, rayIndexPos.y - 100.),
+        float3(uv.x * 40. - 20., 5.0, uv.y * 40. - 20.),
         0.1,
         float3(0.0, -1.0, 0.0),
         1000.0

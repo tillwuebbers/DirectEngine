@@ -5,6 +5,8 @@
 #include <DirectXMath.h>
 using namespace DirectX;
 
+#include "Constants.h"
+
 struct DescriptorHandle
 {
     CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle = {};
@@ -44,6 +46,7 @@ public:
     size_t textureSlotCount = 0;
     UINT sampleCount = 1;
 	D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    DXGI_FORMAT format = DISPLAY_FORMAT;
 
     ID3D12PipelineState* pipelineState = nullptr;
     ID3D12RootSignature* rootSignature = nullptr;

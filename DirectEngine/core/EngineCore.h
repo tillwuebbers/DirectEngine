@@ -408,6 +408,7 @@ public:
     bool m_msaaEnabled = true;
     UINT m_msaaSampleCount = 4;
     bool m_raytracingEnabled = true;
+    PipelineConfig* m_gBufferNormalConfig;
     PipelineConfig* m_shadowConfig;
     PipelineConfig* m_wireframeConfig;
     PipelineConfig* m_debugLineConfig;
@@ -427,6 +428,7 @@ public:
     ConstantBuffer<SceneConstantBuffer> m_sceneConstantBuffer = {};
     ConstantBuffer<LightConstantBuffer> m_lightConstantBuffer = {};
     ShadowMap* m_shadowmap = nullptr;
+    RenderTexture* m_gBufferNormalTexture = nullptr;
     ID3D12Resource* m_textureUploadHeaps[MAX_TEXTURE_UPLOADS] = {};
     size_t m_textureUploadIndex = 0;
     GeometryBuffer m_geometryBuffer = {};
@@ -512,7 +514,7 @@ public:
     CD3DX12_CPU_DESCRIPTOR_HANDLE CreateDepthStencilView(UINT width, UINT height, ComStack& comStack, ID3D12Resource** bufferTarget, int fixedOffset = -1, UINT sampleCount = 1);
     void CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount);
     void CreatePipelineState(PipelineConfig* config, bool hotloadShaders = false);
-    RenderTexture* CreateRenderTexture(UINT width, UINT height);
+    void CreateRenderTexture(UINT width, UINT height, bool msaaEnabled, RenderTexture& renderTexture, CameraData* camera = nullptr, DXGI_FORMAT textureFormat = DISPLAY_FORMAT);
     void CreateEmptyTexture(int width, int height, std::wstring name, Texture& texture, const IID& riidTexture, void** ppvTexture, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
     Texture* CreateTexture(const std::wstring& filePath);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
@@ -522,7 +524,9 @@ public:
     void BuildBottomLevelAccelerationStructures(ID3D12GraphicsCommandList4* commandList);
     void BuildTopLevelAccelerationStructure(ID3D12GraphicsCommandList4* commandList);
     void UploadVertices();
-    void RenderShadows(ID3D12GraphicsCommandList4* renderList);
+    void RenderGBuffer(ID3D12GraphicsCommandList4* renderList);
+    void RaytraceShadows(ID3D12GraphicsCommandList4* renderList);
+    void RenderShadows(ID3D12GraphicsCommandList* renderList);
     void RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);
     void RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);
     void RenderDebugLines(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);
