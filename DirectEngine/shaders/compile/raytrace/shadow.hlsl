@@ -66,11 +66,13 @@ struct RayPayload
 [shader("raygeneration")]
 void MyRaygenShader()
 {
+    uint2 rayIndexPos = DispatchRaysIndex().xy;
+    
     RayDesc myRay =
     {
-        float3(0.0, 0.0, 0.0),
+        float3(rayIndexPos.x - 100., 5.0, rayIndexPos.y - 100.),
         0.1,
-        float3(1.0, 0.0, 0.0),
+        float3(0.0, -1.0, 0.0),
         1000.0
     };
 
@@ -79,20 +81,21 @@ void MyRaygenShader()
     TraceRay(
         accelerationStructure,
         0x0,
-        0x0,
+        0x1,
         0,
         0,
         0,
         myRay,
         payload);
 
-    renderTarget[uint2(DispatchRaysIndex().x, DispatchRaysIndex().y)] = payload.color;
+    renderTarget[rayIndexPos.xy] = payload.color;
 }
 
 [shader("closesthit")]
 void MyClosestHitShader(inout RayPayload payload, in MyAttributes attr)
 {
-    payload.color = float4(1.f, 0.f, 0.f, 1.f);
+    float3 hitColor = float3(1.0, 0.0, 0.0) * (RayTCurrent() / 5.0);
+    payload.color = float4(hitColor, 1.0);
 }
 
 [shader("miss")]

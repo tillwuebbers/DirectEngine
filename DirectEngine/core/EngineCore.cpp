@@ -1475,6 +1475,7 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList4* renderList)
 
     if (doRaytracing)
     {
+        Transition(renderList, m_raytracingOutput->buffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         renderList->SetComputeRootDescriptorTable(0, m_raytracingOutput->handle.gpuHandle);
         renderList->SetComputeRootShaderResourceView(1, m_topLevelAccelerationStructure->GetGPUVirtualAddress());
         
@@ -1493,6 +1494,7 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList4* renderList)
         dispatchDesc.Depth = 1;
         renderList->SetPipelineState1(m_raytracingState);
         renderList->DispatchRays(&dispatchDesc);
+        Transition(renderList, m_raytracingOutput->buffer, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     }
 
     // Set rasterization pipeline

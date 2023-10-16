@@ -54,9 +54,10 @@ void Game::StartGame(EngineCore& engine)
 	materialIndices.try_emplace(Material::Test,      engine.CreateMaterial({ memeTexture }, defaultShader));
 	materialIndices.try_emplace(Material::Ground,    engine.CreateMaterial({}, groundShader));
 	materialIndices.try_emplace(Material::Laser,     engine.CreateMaterial({}, laserShader));
-	materialIndices.try_emplace(Material::Portal1,   engine.CreateMaterial({ &engine.m_renderTextures[0]->texture}, portalShader));
-	materialIndices.try_emplace(Material::Portal2,   engine.CreateMaterial({ &engine.m_renderTextures[1]->texture}, portalShader));
+	materialIndices.try_emplace(Material::Portal1,   engine.CreateMaterial({ &engine.m_renderTextures[0]->texture }, portalShader));
+	materialIndices.try_emplace(Material::Portal2,   engine.CreateMaterial({ &engine.m_renderTextures[1]->texture }, portalShader));
 	materialIndices.try_emplace(Material::Crosshair, engine.CreateMaterial({}, crosshairShader));
+	materialIndices.try_emplace(Material::RTOutput, engine.CreateMaterial({ engine.m_raytracingOutput }, textureQuad));
 
 	LOG_TIMER(timer, "Materials");
 	RESET_TIMER(timer);
