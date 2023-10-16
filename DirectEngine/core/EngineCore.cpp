@@ -364,6 +364,13 @@ void EngineCore::LoadSizeDependentResources()
     {
 		m_msaaDsvHandle = CreateDepthStencilView(m_width, m_height, comPointersSizeDependent, &m_msaaDepthStencilBuffer, 1, m_msaaSampleCount);
 	}
+
+    // Raytracing
+    if (m_raytracingOutput == nullptr)
+    {
+        m_raytracingOutput = &m_textures.newElement();
+    }
+    CreateEmptyTexture(m_width, m_height, L"Raytracing Output", *m_raytracingOutput, NewComObject(comPointersSizeDependent, &m_raytracingOutput->buffer), D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 }
 
 CD3DX12_CPU_DESCRIPTOR_HANDLE EngineCore::CreateDepthStencilView(UINT width, UINT height, ComStack& comStack, ID3D12Resource** bufferTarget, int fixedOffset, UINT sampleCount)
@@ -797,9 +804,6 @@ void EngineCore::LoadAssets()
         // complete before continuing.
         WaitForGpu();
     }
-
-    // Raytracing
-    m_raytracingOutput = CreateEmptyTexture(m_width, m_height, "Raytracing Output");
 }
 
 void EngineCore::ResetLevelData()
@@ -884,19 +888,19 @@ RenderTexture* EngineCore::CreateRenderTexture(UINT width, UINT height)
     return renderTexture;
 }
 
-Texture* EngineCore::CreateEmptyTexture(int width, int height, std::string name)
+void EngineCore::CreateEmptyTexture(int width, int height, std::wstring name, Texture& texture, const IID& riidTexture, void** ppvTexture, D3D12_RESOURCE_FLAGS flags)
 {
-    Texture& texture = m_textures.newElement();
     texture.name = name;
 
     D3D12_RESOURCE_DESC textureDesc = CD3DX12_RESOURCE_DESC::Tex2D(DISPLAY_FORMAT, width, height);
-    textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+    textureDesc.Flags = flags;
+    textureDesc.MipLevels = 1;
 
     CD3DX12_CLEAR_VALUE clearColor(DISPLAY_FORMAT, m_renderTargetClearColor);
 
     CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_DEFAULT);
-    m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clearColor, NewComObject(comPointers, &texture.buffer));
-    texture.buffer->SetName(L"Render Texture");
+    m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_COMMON, nullptr, riidTexture, ppvTexture);
+    texture.buffer->SetName(name.c_str());
 
     // SRV
     texture.handle = GetNewDescriptorHandle();
@@ -906,23 +910,20 @@ Texture* EngineCore::CreateEmptyTexture(int width, int height, std::string name)
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Texture2D.MipLevels = 1;
     m_device->CreateShaderResourceView(texture.buffer, &srvDesc, texture.handle.cpuHandle);
-
-    return &texture;
 }
 
 Texture* EngineCore::CreateTexture(const std::wstring& filePath)
 {
-    std::string textureId(filePath.begin(), filePath.end());
     for (Texture& tex : m_textures)
 	{
-        if (tex.name == textureId)
+        if (tex.name == filePath)
         {
 			return &tex;
 		}
 	}
 
     Texture& texture = m_textures.newElement();
-    texture.name = textureId;
+    texture.name = filePath;
 
     TextureData header = ParseDDSHeader(filePath.c_str());
 

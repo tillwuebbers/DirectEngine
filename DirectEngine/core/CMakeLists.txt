@@ -9,10 +9,11 @@ add_library (${PROJECT_NAME}
                 ${SHADER_CODE}
                 ${SHADER_CODE_RT})
 
-set_source_files_properties(${SHADER_CODE} ${SHADER_CODE_RT} PROPERTIES VS_TOOL_OVERRIDE "None")
+set_source_files_properties(${SHADER_CODE} ${SHADER_CODE_RT} ${CORE_CODE} PROPERTIES VS_TOOL_OVERRIDE "None")
 
 source_group("Rasterize Shader Files" FILES ${SHADER_CODE})
 source_group("Raytrace Shader Files" FILES ${SHADER_CODE_RT})
+source_group("Code" FILES ${CORE_CODE})
 
 DEPS(${PROJECT_NAME})
 

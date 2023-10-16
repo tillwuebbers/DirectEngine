@@ -612,16 +612,6 @@ void Game::DrawDebugUI(EngineCore& engine)
 				}
 				ImGui::PopID();
 			}
-
-			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 20.f);
-			
-			ImGui::SameLine();
-
-			ImGui::Combo("##entitymaterial", &newEntityMaterialIndex, [](void* data, int idx, const char** out_text)
-				{
-					*out_text = ((EngineCore*)data)->m_materials[idx].name.c_str();
-					return true;
-				}, &engine, engine.m_materials.size);
 		}
 		ImGui::End();
 	}
@@ -644,7 +634,8 @@ void Game::DrawDebugUI(EngineCore& engine)
 					for (Texture* tex : mat.textures)
 					{
 						ImGui::PushID(tex);
-						if (ImGui::TreeNode(tex->name.empty() ? "texture" : tex->name.c_str()))
+						std::string name = tex->name.empty() ? "texture" : std::string(tex->name.begin(), tex->name.end());
+						if (ImGui::TreeNode(name.c_str()))
 						{
 							auto desc = tex->buffer->GetDesc();
 							float aspectRatio = static_cast<float>(desc.Width) / static_cast<float>(desc.Height);

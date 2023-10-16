@@ -513,7 +513,7 @@ public:
     void CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount);
     void CreatePipelineState(PipelineConfig* config, bool hotloadShaders = false);
     RenderTexture* CreateRenderTexture(UINT width, UINT height);
-    Texture* CreateEmptyTexture(int width, int height, std::string name);
+    void CreateEmptyTexture(int width, int height, std::wstring name, Texture& texture, const IID& riidTexture, void** ppvTexture, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
     Texture* CreateTexture(const std::wstring& filePath);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
     size_t CreateMaterial(const std::vector<Texture*>& textures, const std::wstring& shaderName);
