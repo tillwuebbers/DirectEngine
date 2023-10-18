@@ -286,9 +286,19 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
         {
             CD3DX12_DESCRIPTOR_RANGE UAVDescriptor;
             UAVDescriptor.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
-            CD3DX12_ROOT_PARAMETER rootParameters[2];
+
+            CD3DX12_DESCRIPTOR_RANGE SRVDescriptor1;
+            SRVDescriptor1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1);
+
+            CD3DX12_DESCRIPTOR_RANGE SRVDescriptor2;
+            SRVDescriptor2.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2);
+
+            CD3DX12_ROOT_PARAMETER rootParameters[4];
             rootParameters[0].InitAsDescriptorTable(1, &UAVDescriptor);
             rootParameters[1].InitAsShaderResourceView(0);
+            rootParameters[2].InitAsDescriptorTable(1, &SRVDescriptor1);
+            rootParameters[3].InitAsDescriptorTable(1, &SRVDescriptor2);
+
             CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
             SerializeAndCreateRaytracingRootSignature(globalRootSignatureDesc, &m_raytracingGlobalRootSignature);
         }
@@ -366,11 +376,11 @@ void EngineCore::LoadSizeDependentResources()
 	}
 
     // GBuffers
-    if (m_gBufferNormalTexture == nullptr)
+    if (m_gBuffer == nullptr)
     {
-        m_gBufferNormalTexture = NewObject(engineArena, RenderTexture);
+        m_gBuffer = NewObject(engineArena, GBuffer);
     }
-    CreateRenderTexture(m_width, m_height, false, *m_gBufferNormalTexture, mainCamera, DXGI_FORMAT_R16G16B16A16_FLOAT);
+    CreateGBuffer(m_width, m_height, *m_gBuffer, DXGI_FORMAT_R16G16B16A16_FLOAT);
 
     // Raytracing
     if (m_raytracingOutput == nullptr)
@@ -679,8 +689,11 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
     psoDesc.DepthStencilState.DepthWriteMask = config->ignoreDepth ? D3D12_DEPTH_WRITE_MASK_ZERO : D3D12_DEPTH_WRITE_MASK_ALL;
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.PrimitiveTopologyType = config->topologyType;
-    psoDesc.NumRenderTargets = 1;
-    psoDesc.RTVFormats[0] = config->format;
+    psoDesc.NumRenderTargets = config->renderTargetCount;
+    for (int i = 0; i < config->renderTargetCount; i++)
+    {
+        psoDesc.RTVFormats[i] = config->format;
+    }
     psoDesc.SampleDesc.Count = config->sampleCount;
     psoDesc.DSVFormat = DEPTH_BUFFER_FORMAT;
 
@@ -707,9 +720,10 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
 
 void EngineCore::LoadAssets()
 {
-    m_gBufferNormalConfig = NewObject(engineArena, PipelineConfig, L"gBufferNormal", 0);
-    m_gBufferNormalConfig->format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-    CreatePipeline(m_gBufferNormalConfig, 0, 0);
+    m_gBufferConfig = NewObject(engineArena, PipelineConfig, L"gbuffer", 0);
+    m_gBufferConfig->format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    m_gBufferConfig->renderTargetCount = GBuffer::BUFFER_COUNT;
+    CreatePipeline(m_gBufferConfig, 0, 0);
 
     m_shadowConfig = NewObject(engineArena, PipelineConfig, L"shadow", 0);
     m_shadowConfig->shadow = true;
@@ -895,6 +909,52 @@ void EngineCore::CreateRenderTexture(UINT width, UINT height, bool msaaEnabled, 
         rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
         m_device->CreateRenderTargetView(renderTexture.texture.buffer, &rtvDesc, renderTexture.rtvHandle);
     }
+}
+
+void EngineCore::CreateGBuffer(UINT width, UINT height, GBuffer& gBuffer, DXGI_FORMAT textureFormat)
+{
+    gBuffer.width = width;
+    gBuffer.height = height;
+    gBuffer.format = textureFormat;
+    gBuffer.viewport = CD3DX12_VIEWPORT{ 0.f, 0.f, static_cast<float>(width), static_cast<float>(height) };
+    gBuffer.scissorRect = CD3DX12_RECT{ 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
+
+    D3D12_RESOURCE_DESC textureDesc = CD3DX12_RESOURCE_DESC::Tex2D(textureFormat, width, height);
+    textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+    CD3DX12_CLEAR_VALUE clearColor(textureFormat, m_renderTargetClearColor);
+
+    CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_DEFAULT);
+
+    int idx = 0;
+    for (auto& texture : gBuffer.textures)
+    {
+        m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clearColor, NewComObject(comPointersSizeDependent, &texture.buffer));
+        texture.buffer->SetName(L"GBuffer Texture");
+
+        // SRV
+        texture.handle = GetNewDescriptorHandle();
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Format = textureFormat;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MipLevels = 1;
+        m_device->CreateShaderResourceView(texture.buffer, &srvDesc, texture.handle.cpuHandle);
+
+        // RTV
+        assert(idx < _countof(gBuffer.rtvHandles));
+        CD3DX12_CPU_DESCRIPTOR_HANDLE& rtv = gBuffer.rtvHandles[idx];
+        rtv = GetNewRTVHandle();
+        D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+        rtvDesc.Format = textureFormat;
+        rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+        m_device->CreateRenderTargetView(texture.buffer, &rtvDesc, rtv);
+
+        idx++;
+    }
+
+    // DSV
+    gBuffer.dsvHandle = CreateDepthStencilView(width, height, comPointersSizeDependent, &gBuffer.dsvBuffer);
 }
 
 void EngineCore::CreateEmptyTexture(int width, int height, std::wstring name, Texture& texture, const IID& riidTexture, void** ppvTexture, D3D12_RESOURCE_FLAGS flags)
@@ -1478,27 +1538,36 @@ void EngineCore::RenderGBuffer(ID3D12GraphicsCommandList4* renderList)
 
     // Set rasterization pipeline
     renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    renderList->SetPipelineState(m_gBufferNormalConfig->pipelineState);
-    renderList->SetGraphicsRootSignature(m_gBufferNormalConfig->rootSignature);
-    renderList->RSSetViewports(1, &m_gBufferNormalTexture->viewport);
-    renderList->RSSetScissorRects(1, &m_gBufferNormalTexture->scissorRect);
+    renderList->SetPipelineState(m_gBufferConfig->pipelineState);
+    renderList->SetGraphicsRootSignature(m_gBufferConfig->rootSignature);
+    renderList->RSSetViewports(1, &m_gBuffer->viewport);
+    renderList->RSSetScissorRects(1, &m_gBuffer->scissorRect);
 
     renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
     renderList->SetGraphicsRootDescriptorTable(CAMERA, mainCamera->constantBuffer.handles[m_frameIndex].gpuHandle);
 
-    Transition(renderList, m_gBufferNormalTexture->texture.buffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
-    renderList->OMSetRenderTargets(1, &m_gBufferNormalTexture->rtvHandle, FALSE, &m_gBufferNormalTexture->dsvHandle);
+    // Set up render targets
+    for (Texture& gBufferTexture : m_gBuffer->textures)
+    {
+        Transition(renderList, gBufferTexture.buffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    }
+    renderList->OMSetRenderTargets(_countof(m_gBuffer->rtvHandles), m_gBuffer->rtvHandles, FALSE, &m_gBuffer->dsvHandle);
 
     // Run Rasterization
-    renderList->ClearRenderTargetView(m_gBufferNormalTexture->rtvHandle, m_game->GetClearColor(), 0, nullptr);
-    renderList->ClearDepthStencilView(m_gBufferNormalTexture->dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+    for (auto& gBufferHandle : m_gBuffer->rtvHandles)
+	{
+		renderList->ClearRenderTargetView(gBufferHandle, m_game->GetClearColor(), 0, nullptr);
+	}
+    renderList->ClearDepthStencilView(m_gBuffer->dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     for (MaterialData& data : m_materials)
     {
         for (EntityData* entity : data.entities)
         {
+            if (!entity->visible || entity->wireframe) continue;
+
             renderList->IASetVertexBuffers(0, 1, &entity->meshData->vertexBufferView);
             renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
             renderList->SetGraphicsRootDescriptorTable(BONES, entity->boneConstantBuffer.handles[m_frameIndex].gpuHandle);
@@ -1506,7 +1575,10 @@ void EngineCore::RenderGBuffer(ID3D12GraphicsCommandList4* renderList)
         }
     }
 
-    Transition(renderList, m_gBufferNormalTexture->texture.buffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    for (Texture& gBufferTexture : m_gBuffer->textures)
+    {
+        Transition(renderList, gBufferTexture.buffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    }
 }
 
 void EngineCore::RaytraceShadows(ID3D12GraphicsCommandList4* renderList)
@@ -1522,6 +1594,8 @@ void EngineCore::RaytraceShadows(ID3D12GraphicsCommandList4* renderList)
     Transition(renderList, m_raytracingOutput->buffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     renderList->SetComputeRootDescriptorTable(0, m_raytracingOutput->handle.gpuHandle);
     renderList->SetComputeRootShaderResourceView(1, m_topLevelAccelerationStructure->GetGPUVirtualAddress());
+    renderList->SetComputeRootDescriptorTable(2, m_gBuffer->textures[0].handle.gpuHandle);
+    renderList->SetComputeRootDescriptorTable(3, m_gBuffer->textures[1].handle.gpuHandle);
 
     // Run Raytracing
     D3D12_DISPATCH_RAYS_DESC dispatchDesc{};

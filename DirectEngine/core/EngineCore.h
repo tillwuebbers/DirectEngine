@@ -335,6 +335,23 @@ struct RenderTexture
     CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle{};
 };
 
+struct GBuffer
+{
+    constexpr static size_t BUFFER_COUNT = 2;
+
+    UINT width;
+    UINT height;
+    DXGI_FORMAT format;
+    CD3DX12_VIEWPORT viewport;
+    CD3DX12_RECT scissorRect;
+
+    Texture textures[BUFFER_COUNT];
+    ID3D12Resource* dsvBuffer;
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandles[BUFFER_COUNT];
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle;
+};
+
 // TODO: move this somewhere else
 struct RTViewport
 {
@@ -408,7 +425,7 @@ public:
     bool m_msaaEnabled = true;
     UINT m_msaaSampleCount = 4;
     bool m_raytracingEnabled = true;
-    PipelineConfig* m_gBufferNormalConfig;
+    PipelineConfig* m_gBufferConfig;
     PipelineConfig* m_shadowConfig;
     PipelineConfig* m_wireframeConfig;
     PipelineConfig* m_debugLineConfig;
@@ -428,7 +445,7 @@ public:
     ConstantBuffer<SceneConstantBuffer> m_sceneConstantBuffer = {};
     ConstantBuffer<LightConstantBuffer> m_lightConstantBuffer = {};
     ShadowMap* m_shadowmap = nullptr;
-    RenderTexture* m_gBufferNormalTexture = nullptr;
+    GBuffer* m_gBuffer = nullptr;
     ID3D12Resource* m_textureUploadHeaps[MAX_TEXTURE_UPLOADS] = {};
     size_t m_textureUploadIndex = 0;
     GeometryBuffer m_geometryBuffer = {};
@@ -515,6 +532,7 @@ public:
     void CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount);
     void CreatePipelineState(PipelineConfig* config, bool hotloadShaders = false);
     void CreateRenderTexture(UINT width, UINT height, bool msaaEnabled, RenderTexture& renderTexture, CameraData* camera = nullptr, DXGI_FORMAT textureFormat = DISPLAY_FORMAT);
+    void CreateGBuffer(UINT width, UINT height, GBuffer& gBuffer, DXGI_FORMAT textureFormat);
     void CreateEmptyTexture(int width, int height, std::wstring name, Texture& texture, const IID& riidTexture, void** ppvTexture, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
     Texture* CreateTexture(const std::wstring& filePath);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);

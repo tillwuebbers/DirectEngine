@@ -45,6 +45,7 @@ public:
     std::wstring shaderName;
     size_t textureSlotCount = 0;
     UINT sampleCount = 1;
+    UINT renderTargetCount = 1;
 	D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     DXGI_FORMAT format = DISPLAY_FORMAT;
 

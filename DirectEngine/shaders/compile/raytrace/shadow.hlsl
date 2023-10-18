@@ -19,6 +19,9 @@ GlobalRootSignature MyGlobalRootSignature =
 {
     "DescriptorTable( UAV( u0 ) ),"                        // Output texture
     "SRV( t0 ),"                                           // Acceleration structure
+    "DescriptorTable( SRV( t1 ) ),"                        // GBuffer (normals)
+    "DescriptorTable( SRV( t2 ) ),"                        // GBuffer (world positions)
+    //"CBV( b0 )"                                            // Scene constant buffer
 };
 
 LocalRootSignature MyLocalRootSignature =
@@ -55,6 +58,8 @@ struct SceneConstantBuffer
 
 RaytracingAccelerationStructure accelerationStructure : register(t0, space0);
 RWTexture2D<float4> renderTarget : register(u0);
+Texture2D<float4> gBufferNormal : register(t1);
+Texture2D<float4> gBufferWorldPosition : register(t2);
 ConstantBuffer<SceneConstantBuffer> sceneConstantBuffer : register(b0);
 
 typedef BuiltInTriangleIntersectionAttributes MyAttributes;
@@ -70,11 +75,15 @@ void MyRaygenShader()
     uint2 outputDimensions = DispatchRaysDimensions().xy;
     float2 uv = float2(rayIndexPos) / float2(outputDimensions);
     
+    int3 samplePos = int3(rayIndexPos, 0);
+    float4 normalAndDepth = gBufferNormal.Load(samplePos);
+    float4 worldPosition = gBufferWorldPosition.Load(samplePos);
+    
     RayDesc myRay =
     {
-        float3(uv.x * 40. - 20., 5.0, uv.y * 40. - 20.),
+        worldPosition.xyz,
         0.1,
-        float3(0.0, -1.0, 0.0),
+        normalAndDepth.xyz,
         1000.0
     };
 
