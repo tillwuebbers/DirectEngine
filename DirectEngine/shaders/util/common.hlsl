@@ -110,7 +110,7 @@ LightData PSCalcLightData(PSInputDefault input, float ambientIntensity, float di
 	result.ambientLight = ambientIntensity * ambientLightColor;
 
 	// Diffuse
-	float diffuseIntensityAdjusted = normalSunAngle * diffuseIntensity;
+    float diffuseIntensityAdjusted = lerp(.5, 1., normalSunAngle) * diffuseIntensity;
 	float3 diffuseLightColor = float3(1., 1., 1.);
 	result.diffuseLight = diffuseIntensityAdjusted * diffuseLightColor;
 
@@ -122,7 +122,7 @@ LightData PSCalcLightData(PSInputDefault input, float ambientIntensity, float di
 	result.specularLight = specularIntensity * specularLightColor;
 
 	// Shadow
-	float2 shadowMapPos;
+	/*float2 shadowMapPos;
 	shadowMapPos.x = input.lightSpacePosition.x / input.lightSpacePosition.w * .5f + .5f;
 	shadowMapPos.y = -input.lightSpacePosition.y / input.lightSpacePosition.w * .5f + .5f;
 
@@ -138,7 +138,15 @@ LightData PSCalcLightData(PSInputDefault input, float ambientIntensity, float di
 		    + SampleShadowMap(shadowMapPos, offset + float2( 0.5, -1.5), input.lightSpacePosition, bias)) * 0.25;
 
 	result.diffuseLight *= 1. - shadow;
-	result.specularLight *= 1. - shadow;
+	result.specularLight *= 1. - shadow;*/
+	
+	// Raytraced Shadow
+    float inShadow = shadowmapTexture.Load(int3(input.position.xy, 0)).r;
+	if (inShadow < 0.99)
+    {
+        result.diffuseLight *= 0.5;
+		result.specularLight *= 0.5;
+    }
 
 	return result;
 }

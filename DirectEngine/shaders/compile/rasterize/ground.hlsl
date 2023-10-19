@@ -11,7 +11,7 @@ PSInputDefault VSMain(float4 position : POSITION, float4 vertColor : COLOR, floa
 
 float4 PSMain(PSInputDefault input) : SV_TARGET
 {
-	LightData lightData = PSCalcLightData(input, .01f, 1.f, .0f, 32);
+    LightData lightData = PSCalcLightData(input, .01f, 1.f, .0f, 32);
 	float3 litColor = lightData.ambientLight + lightData.diffuseLight + lightData.specularLight;
 	float3 baseColor = float3(.02, .02, .02);
 	float2 gridCell = floor(input.uv * 2. + 102.);

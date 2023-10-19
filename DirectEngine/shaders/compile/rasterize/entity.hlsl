@@ -18,7 +18,7 @@ PSInputDefault VSMain(float4 position : POSITION, float4 vertColor : COLOR, floa
 
 float4 PSMain(PSInputDefault input) : SV_TARGET
 {
-	LightData lightData = PSCalcLightData(input, .2f, 1.f, .0f, 32);
+    LightData lightData = PSCalcLightData(input, .2f, 1.f, .0f, 32);
 	float3 litColor = lightData.ambientLight + lightData.diffuseLight + lightData.specularLight;
 
 	float4 diffuseTex = diffuseTexture.Sample(smoothSampler, input.uv);

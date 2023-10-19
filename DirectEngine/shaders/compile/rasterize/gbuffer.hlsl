@@ -27,7 +27,7 @@ PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 norm
 PSOutput PSMain(PSInput input)
 {
     PSOutput result;
-    result.normal = input.worldNormal;
-    result.worldPosition = input.worldPosition;
+    result.normal = float4(input.worldNormal.xyz, input.position.z);
+    result.worldPosition = float4(input.worldPosition.xyz, 1.0);
     return result;
 }

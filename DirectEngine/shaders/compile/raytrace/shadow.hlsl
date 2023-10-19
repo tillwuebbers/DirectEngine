@@ -21,7 +21,7 @@ GlobalRootSignature MyGlobalRootSignature =
     "SRV( t0 ),"                                           // Acceleration structure
     "DescriptorTable( SRV( t1 ) ),"                        // GBuffer (normals)
     "DescriptorTable( SRV( t2 ) ),"                        // GBuffer (world positions)
-    //"CBV( b0 )"                                            // Scene constant buffer
+    "DescriptorTable( CBV( b0 ) )"                         // Scene constant buffer
 };
 
 LocalRootSignature MyLocalRootSignature =
@@ -52,15 +52,18 @@ RaytracingPipelineConfig MyPipelineConfig =
     1 // max trace recursion depth
 };
 
-struct SceneConstantBuffer
+struct LightConstantBuffer
 {
+    float4x4 lightView;
+    float4x4 lightProjection;
+    float4 sunDirection;
 };
 
-RaytracingAccelerationStructure accelerationStructure : register(t0, space0);
 RWTexture2D<float4> renderTarget : register(u0);
+RaytracingAccelerationStructure accelerationStructure : register(t0, space0);
 Texture2D<float4> gBufferNormal : register(t1);
 Texture2D<float4> gBufferWorldPosition : register(t2);
-ConstantBuffer<SceneConstantBuffer> sceneConstantBuffer : register(b0);
+ConstantBuffer<LightConstantBuffer> lightConstantBuffer : register(b0);
 
 typedef BuiltInTriangleIntersectionAttributes MyAttributes;
 struct RayPayload
@@ -78,12 +81,19 @@ void MyRaygenShader()
     int3 samplePos = int3(rayIndexPos, 0);
     float4 normalAndDepth = gBufferNormal.Load(samplePos);
     float4 worldPosition = gBufferWorldPosition.Load(samplePos);
+    float3 lightDirection = -lightConstantBuffer.sunDirection.xyz;
+    
+    if (dot(normalAndDepth.xyz, lightDirection) < .2 || worldPosition.a < 0.01)
+    {
+        renderTarget[rayIndexPos.xy] = float4(0.0, 0.0, 0.0, 0.0);
+        return;
+    }
     
     RayDesc myRay =
     {
         worldPosition.xyz,
-        0.1,
-        normalAndDepth.xyz,
+        0.01,
+        lightDirection,
         1000.0
     };
 
@@ -105,14 +115,13 @@ void MyRaygenShader()
 [shader("closesthit")]
 void MyClosestHitShader(inout RayPayload payload, in MyAttributes attr)
 {
-    float3 hitColor = float3(1.0, 0.0, 0.0) * (RayTCurrent() / 5.0);
-    payload.color = float4(hitColor, 1.0);
+    payload.color = float4(0.0, 0.0, 0.0, 1.0);
 }
 
 [shader("miss")]
 void MyMissShader(inout RayPayload payload)
 {
-    payload.color = float4(0.0f, 0.2f, 0.4f, 1.0f);
+    payload.color = float4(1.0f, 1.0f, 1.0f, 1.0f);
 }
 
 #endif // RAYTRACING_HLSL

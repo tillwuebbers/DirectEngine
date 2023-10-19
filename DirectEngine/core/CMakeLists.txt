@@ -26,6 +26,7 @@ foreach(SHADER_FILE ${SHADER_CODE})
         OUTPUT "${SHADER_OUT_DIR}/${SHADER_NAME}.vert.cso" "${SHADER_OUT_DIR}/${SHADER_NAME}.frag.cso"
         COMMAND echo ${SHADER_NAME} "including" ${SHADER_DIR_NATIVE} && dxc /T vs_6_0 /E "VSMain" /Fo "${SHADER_OUT_DIR}/${SHADER_NAME}.vert.cso" /I ${SHADER_DIR_NATIVE} "${SHADER_FILE}" && dxc /T ps_6_0 /E "PSMain" /Fo "${SHADER_OUT_DIR}/${SHADER_NAME}.frag.cso" /I ${SHADER_DIR_NATIVE} "${SHADER_FILE}"
         MAIN_DEPENDENCY "${SHADER_FILE}"
+        DEPENDS "${SHADER_DIR}/util/common.hlsl"
     )
 endforeach()
 
@@ -36,6 +37,7 @@ foreach(SHADER_FILE_RT ${SHADER_CODE_RT})
         OUTPUT "${SHADER_OUT_DIR}/${SHADER_NAME_RT}.rt.cso"
         COMMAND echo ${SHADER_NAME_RT} "including" ${SHADER_DIR_NATIVE} && dxc /T lib_6_3 /Fo "${SHADER_OUT_DIR}/${SHADER_NAME_RT}.rt.cso" /I ${SHADER_DIR_NATIVE} "${SHADER_FILE_RT}"
         MAIN_DEPENDENCY "${SHADER_FILE_RT}"
+        DEPENDS "${SHADER_DIR}/util/common.hlsl"
     )
 endforeach()
 

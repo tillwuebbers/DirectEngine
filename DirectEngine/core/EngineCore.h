@@ -503,7 +503,7 @@ public:
     bool m_inUpdate = false;
     DebugLineData m_debugLineData{ engineArena };
 
-    const float m_renderTargetClearColor[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    const float m_renderTargetClearColor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     
     // Audio
     IXAudio2* m_audio;

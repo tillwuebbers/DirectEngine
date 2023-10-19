@@ -293,11 +293,15 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
             CD3DX12_DESCRIPTOR_RANGE SRVDescriptor2;
             SRVDescriptor2.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2);
 
-            CD3DX12_ROOT_PARAMETER rootParameters[4];
+            CD3DX12_DESCRIPTOR_RANGE CBVDescriptor;
+            CBVDescriptor.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
+
+            CD3DX12_ROOT_PARAMETER rootParameters[5];
             rootParameters[0].InitAsDescriptorTable(1, &UAVDescriptor);
             rootParameters[1].InitAsShaderResourceView(0);
             rootParameters[2].InitAsDescriptorTable(1, &SRVDescriptor1);
             rootParameters[3].InitAsDescriptorTable(1, &SRVDescriptor2);
+            rootParameters[4].InitAsDescriptorTable(1, &CBVDescriptor);
 
             CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
             SerializeAndCreateRaytracingRootSignature(globalRootSignatureDesc, &m_raytracingGlobalRootSignature);
@@ -568,21 +572,21 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
         GetModuleFileName(nullptr, exePath, MAX_PATH);
         std::wstring shaderDir = std::wstring(exePath);
         shaderDir = shaderDir.substr(0, shaderDir.find_last_of(L"\\"));
-        shaderDir.append(L"/../../../../DirectEngine/shaders/");
-        SetCurrentDirectory(shaderDir.c_str());
+        shaderDir.append(L"/../../../../../DirectEngine/shaders/");
+        assert(SetCurrentDirectory(shaderDir.c_str()) != 0);
 
         // Enable better shader debugging with the graphics debugging tools.
         UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-        const wchar_t* shaderPath = std::wstring(L"compile/rasterize/").append(config->shaderName).append(L".hlsl").c_str();
-        const wchar_t* shaderPathRT = std::wstring(L"compile/raytrace/").append(config->shaderName).append(L".hlsl").c_str();
+        const std::wstring shaderPath = std::wstring(L"compile/rasterize/").append(config->shaderName).append(L".hlsl");
+        const std::wstring shaderPathRT = std::wstring(L"compile/raytrace/").append(config->shaderName).append(L".hlsl");
         Sleep(100);
 
-        WaitUntilFileFree(shaderPath);
+        WaitUntilFileFree(shaderPath.c_str());
 
-        bool raytracingShaderExists = PathFileExists(shaderPathRT);
+        bool raytracingShaderExists = PathFileExists(shaderPathRT.c_str());
         if (raytracingShaderExists)
         {
-            WaitUntilFileFree(shaderPathRT);
+            WaitUntilFileFree(shaderPathRT.c_str());
         }
 
         ComPtr<ID3DBlob> vsErrors;
@@ -591,7 +595,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
 
         m_shaderError.clear();
 
-        config->creationError = D3DCompileFromFile(shaderPath, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_VS, SHADER_VERSION_VS, compileFlags, 0, &vertexShader, &vsErrors);
+        config->creationError = D3DCompileFromFile(shaderPath.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_VS, SHADER_VERSION_VS, compileFlags, 0, &vertexShader, &vsErrors);
         if (vsErrors)
         {
             m_shaderError = std::format("Vertex Shader Errors:\n{}\n", (LPCSTR)vsErrors->GetBufferPointer());
@@ -600,7 +604,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
         }
         if (FAILED(config->creationError)) return;
 
-        config->creationError = D3DCompileFromFile(shaderPath, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_PS, SHADER_VERSION_PS, compileFlags, 0, &pixelShader, &psErrors);
+        config->creationError = D3DCompileFromFile(shaderPath.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_PS, SHADER_VERSION_PS, compileFlags, 0, &pixelShader, &psErrors);
         if (psErrors)
         {
             m_shaderError = std::format("Pixel Shader Errors:\n{}\n", (LPCSTR)psErrors->GetBufferPointer());
@@ -611,11 +615,11 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
 
         if (raytracingShaderExists)
         {
-            config->creationError = D3DCompileFromFile(shaderPathRT, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_RT, SHADER_VERSION_RT, compileFlags, 0, &rtShader, &rtErrors);
+            config->creationError = D3DCompileFromFile(shaderPathRT.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_RT, SHADER_VERSION_RT, compileFlags, 0, &rtShader, &rtErrors);
             if (rtErrors)
             {
                 m_shaderError = std::format("Ray Tracing Shader Errors:\n{}\n", (LPCSTR)rtErrors->GetBufferPointer());
-                OutputDebugString(std::format(L"{}\n", shaderPathRT).c_str());
+                OutputDebugString(std::format(L"{}\n", shaderPathRT.c_str()).c_str());
                 OutputDebugStringA(m_shaderError.c_str());
             }
         }
@@ -923,7 +927,6 @@ void EngineCore::CreateGBuffer(UINT width, UINT height, GBuffer& gBuffer, DXGI_F
     textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
     CD3DX12_CLEAR_VALUE clearColor(textureFormat, m_renderTargetClearColor);
-
     CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_DEFAULT);
 
     int idx = 0;
@@ -1393,7 +1396,7 @@ void EngineCore::PopulateCommandList()
     BeginProfile("Render Shadows", ImColor::HSV(.5, .1, 1.));
     RenderGBuffer(m_renderCommandList);
     RaytraceShadows(m_renderCommandList);
-    RenderShadows(m_renderCommandList);
+    //RenderShadows(m_renderCommandList);
     ExecCommandList(m_renderCommandList);
     EndProfile("Render Shadows");
 
@@ -1557,7 +1560,7 @@ void EngineCore::RenderGBuffer(ID3D12GraphicsCommandList4* renderList)
     // Run Rasterization
     for (auto& gBufferHandle : m_gBuffer->rtvHandles)
 	{
-		renderList->ClearRenderTargetView(gBufferHandle, m_game->GetClearColor(), 0, nullptr);
+		renderList->ClearRenderTargetView(gBufferHandle, m_renderTargetClearColor, 0, nullptr);
 	}
     renderList->ClearDepthStencilView(m_gBuffer->dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -1596,6 +1599,7 @@ void EngineCore::RaytraceShadows(ID3D12GraphicsCommandList4* renderList)
     renderList->SetComputeRootShaderResourceView(1, m_topLevelAccelerationStructure->GetGPUVirtualAddress());
     renderList->SetComputeRootDescriptorTable(2, m_gBuffer->textures[0].handle.gpuHandle);
     renderList->SetComputeRootDescriptorTable(3, m_gBuffer->textures[1].handle.gpuHandle);
+    renderList->SetComputeRootDescriptorTable(4, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
 
     // Run Raytracing
     D3D12_DISPATCH_RAYS_DESC dispatchDesc{};
@@ -1670,7 +1674,15 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
         renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
         renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
         renderList->SetGraphicsRootDescriptorTable(CAMERA, camera->constantBuffer.handles[m_frameIndex].gpuHandle);
-        renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
+
+        if (m_raytracingEnabled)
+        {
+            renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_raytracingOutput->handle.gpuHandle);
+        }
+        else
+        {
+            renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
+        }
 
         bool skipRender = false;
         for (int textureIdx = 0; textureIdx < data.pipeline->textureSlotCount; textureIdx++)

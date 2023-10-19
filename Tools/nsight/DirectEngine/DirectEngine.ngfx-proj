@@ -50,7 +50,7 @@
         "activity/cpp/vulkan/usewritewatch": "Auto",
         "activity/cpp/vulkan/vulkanscreservecommandbuffers": 800,
         "activity/fd/automaticcaptureframeindex": 10,
-        "activity/fd/capturemode": "By Frame Index",
+        "activity/fd/capturemode": "Manual",
         "activity/fd/d3d/d3d12replayfencebehavior": "Default",
         "activity/fd/d3d/enablecachedpipelinestatesupport": false,
         "activity/fd/d3d/forceminimalshaderbindtables": false,
