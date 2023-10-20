@@ -52,7 +52,7 @@ void Game::StartGame(EngineCore& engine)
 
 	// Materials
 	materialIndices.try_emplace(Material::Test,      engine.CreateMaterial({ memeTexture }, defaultShader));
-	materialIndices.try_emplace(Material::Ground,    engine.CreateMaterial({}, groundShader));
+	materialIndices.try_emplace(Material::Ground,    engine.CreateMaterial({ diffuseTexture }, groundShader));
 	materialIndices.try_emplace(Material::Laser,     engine.CreateMaterial({}, laserShader));
 	materialIndices.try_emplace(Material::Portal1,   engine.CreateMaterial({ &engine.m_renderTextures[0]->texture }, portalShader));
 	materialIndices.try_emplace(Material::Portal2,   engine.CreateMaterial({ &engine.m_renderTextures[1]->texture }, portalShader));
@@ -131,6 +131,7 @@ void Game::LoadLevel(EngineCore& engine)
 		portalRenderQuad->name = "PortalQuad";
 		portal->AddChild(portalRenderQuad, false);
 		portalRenderQuad->SetLocalPosition({ -1.f, 2.f, 0.f });
+		portalRenderQuad->GetData().raytraceVisible = false;
 
 		return portal;
 	};

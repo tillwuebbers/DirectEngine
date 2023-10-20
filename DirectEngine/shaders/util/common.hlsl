@@ -110,16 +110,16 @@ LightData PSCalcLightData(PSInputDefault input, float ambientIntensity, float di
 	result.ambientLight = ambientIntensity * ambientLightColor;
 
 	// Diffuse
-    float diffuseIntensityAdjusted = lerp(.5, 1., normalSunAngle) * diffuseIntensity;
+    float diffuseIntensityAdjusted = normalSunAngle * diffuseIntensity;
 	float3 diffuseLightColor = float3(1., 1., 1.);
 	result.diffuseLight = diffuseIntensityAdjusted * diffuseLightColor;
 
 	// Specular (TODO: fucked)
 	float3 viewDir = normalize(worldCameraPos - input.worldPosition.xyz);
 	float3 halfwayDir = normalize(-sunDirection + viewDir);
-	float specularIntensityAdjusted = pow(max(dot(input.worldNormal, -halfwayDir), 0.), specularity) * specularIntensity;
+	float specularIntensityAdjusted = pow(max(dot(input.worldNormal, halfwayDir), 0.), specularity) * specularIntensity;
 	float3 specularLightColor = float3(1., 1., 1.);
-	result.specularLight = specularIntensity * specularLightColor;
+    result.specularLight = specularIntensityAdjusted * specularLightColor;
 
 	// Shadow
 	/*float2 shadowMapPos;
@@ -144,8 +144,8 @@ LightData PSCalcLightData(PSInputDefault input, float ambientIntensity, float di
     float inShadow = shadowmapTexture.Load(int3(input.position.xy, 0)).r;
 	if (inShadow < 0.99)
     {
-        result.diffuseLight *= 0.5;
-		result.specularLight *= 0.5;
+        result.diffuseLight = 0;
+		result.specularLight = 0;
     }
 
 	return result;

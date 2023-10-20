@@ -167,6 +167,7 @@ struct MeshData
 struct EntityData
 {
     bool visible = true;
+    bool raytraceVisible = true;
     bool wireframe = false;
     bool mainOnly = false;
     size_t entityIndex = 0;

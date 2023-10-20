@@ -760,6 +760,8 @@ void EngineCore::LoadAssets()
 
     {
         // General vertex buffer
+        m_geometryBuffer.indexCount = 0;
+        m_geometryBuffer.vertexCount = 0;
         m_geometryBuffer.vertexStride = sizeof(Vertex);
 
         // Create vertex buffer for upload
@@ -1181,7 +1183,20 @@ void EngineCore::BuildTopLevelAccelerationStructure(ID3D12GraphicsCommandList4* 
     ID3D12Device5* dxrDevice = nullptr;
     ThrowIfFailed(m_device->QueryInterface(IID_PPV_ARGS(&dxrDevice)));
 
-    size_t instanceCount = entityDataArena.Count();
+    D3D12_RAYTRACING_INSTANCE_DESC* instanceDescData = NewArrayAligned(frameArena, D3D12_RAYTRACING_INSTANCE_DESC, entityDataArena.Count(), D3D12_RAYTRACING_INSTANCE_DESCS_BYTE_ALIGNMENT);
+    size_t instanceCount = 0;
+    for (EntityData& entity : entityDataArena)
+    {
+        if (!entity.visible || !entity.raytraceVisible || entity.wireframe || entity.meshData == nullptr) continue;
+
+        D3D12_RAYTRACING_INSTANCE_DESC& instanceDesc = instanceDescData[instanceCount];
+        for (int row = 0; row < 3; row++)
+            for (int col = 0; col < 4; col++)
+                instanceDesc.Transform[row][col] = entity.constantBuffer.data.worldTransform.r[row].m128_f32[col];
+        instanceDesc.InstanceMask = 1;
+        instanceDesc.AccelerationStructure = entity.meshData->bottomLevelAccelerationStructure->GetGPUVirtualAddress();
+        instanceCount++;
+    }
 
     // Get required sizes for an acceleration structure.
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS topLevelInputs = {};
@@ -1208,19 +1223,8 @@ void EngineCore::BuildTopLevelAccelerationStructure(ID3D12GraphicsCommandList4* 
     m_topLevelAccelerationStructure->SetName(L"TopLevelAccelerationStructure");
 
     // Create an instance desc for the bottom-level acceleration structure.
-    D3D12_RAYTRACING_INSTANCE_DESC* instanceDescData = NewArrayAligned(frameArena, D3D12_RAYTRACING_INSTANCE_DESC, instanceCount, D3D12_RAYTRACING_INSTANCE_DESCS_BYTE_ALIGNMENT);
 
-    int index = 0;
-    for (EntityData& entity : entityDataArena)
-    {
-        D3D12_RAYTRACING_INSTANCE_DESC& instanceDesc = instanceDescData[index];
-        for (int row = 0; row < 3; row++)
-            for (int col = 0; col < 4; col++)
-                instanceDesc.Transform[row][col] = entity.constantBuffer.data.worldTransform.r[row].m128_f32[col];
-        instanceDesc.InstanceMask = 1;
-        instanceDesc.AccelerationStructure = entity.meshData->bottomLevelAccelerationStructure->GetGPUVirtualAddress();
-        index++;
-    }
+    
     AllocateUploadBuffer(dxrDevice, instanceDescData, instanceCount * sizeof(D3D12_RAYTRACING_INSTANCE_DESC), NewComObjectReplace(comPointers, &m_topLevelInstanceDescs), &m_topLevelInstanceDescs);
     m_topLevelInstanceDescs->SetName(L"TopLevelInstanceDescs");
 

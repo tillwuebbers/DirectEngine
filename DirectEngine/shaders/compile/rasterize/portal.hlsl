@@ -23,5 +23,5 @@ float4 PSMain(PSInput input) : SV_TARGET
 {
 	float2 uv = input.screenPosition.xy / input.screenPosition.w;
 	float4 diffuseColor = diffuseTexture.Sample(smoothSampler, uv);
-	return float4(PostProcess(diffuseColor.rgb, input.worldPosition.xyz), 1.);
+    return float4(diffuseColor.rgb, 1.);
 }

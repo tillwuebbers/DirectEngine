@@ -1,0 +1,6 @@
+{
+  "hlsl.additionalIncludeDirectories": [
+    ".",
+    "./util/"
+  ]
+}

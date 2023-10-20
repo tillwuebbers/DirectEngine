@@ -46,7 +46,7 @@ MemoryArena wndProcArena{};
 // Watch development files for quick reload of shaders
 DWORD WINAPI FileWatcherThread(LPVOID lpParameter)
 {
-	HANDLE changeNotificationHandle = FindFirstChangeNotification(L"../../../../DirectEngine/shaders", FALSE, FILE_NOTIFY_CHANGE_LAST_WRITE);
+	HANDLE changeNotificationHandle = FindFirstChangeNotification(L"../../../../DirectEngine/shaders", TRUE, FILE_NOTIFY_CHANGE_LAST_WRITE);
 	if (changeNotificationHandle == INVALID_HANDLE_VALUE)
 	{
 		OutputDebugString(L"Folder change notification failed");
