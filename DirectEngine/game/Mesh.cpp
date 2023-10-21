@@ -386,7 +386,7 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 				vert.tangent.y = tangentData[idx * 4 + 1];
 				vert.tangent.z = tangentData[idx * 4 + 2];
 
-				XMVECTOR bitangent = XMVectorScale(XMVector3Cross(XMLoadFloat3(&vert.normal), XMLoadFloat3(&vert.tangent)), vert.tangent.z);
+				XMVECTOR bitangent = XMVectorScale(XMVector3Cross(XMLoadFloat3(&vert.normal), XMLoadFloat3(&vert.tangent)), tangentData[idx * 4 + 3]);
 				XMStoreFloat3(&vert.bitangent, bitangent);
 
 				vert.uv.x = uvData[idx * 2 + 0];

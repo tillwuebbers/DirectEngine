@@ -74,7 +74,7 @@
 
 #define LOG_SIZE 1024
 
-#ifdef GAME_DEBUG
+#ifdef _DEBUG
 #define ISDEBUG true
 #else
 #define ISDEBUG false

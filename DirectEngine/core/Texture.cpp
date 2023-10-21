@@ -14,11 +14,28 @@ TextureData ParseDDSHeader(const wchar_t* path)
 	file.read(headerData, sizeof(DDS_HEADER));
 
 	DDS_HEADER* header = reinterpret_cast<DDS_HEADER*>(headerData);
+	assert(header->ddspf.flags & DDS_FOURCC);
+
+	DXGI_FORMAT textureFormat = DXGI_FORMAT_UNKNOWN;
+	if (header->ddspf.fourCC == MAKEFOURCC('D', 'X', 'T', '1'))
+	{
+		textureFormat = DXGI_FORMAT_BC1_UNORM_SRGB;
+	}
+	else if (header->ddspf.fourCC == MAKEFOURCC('D', 'X', '1', '0'))
+	{
+		char dx10HeaderData[sizeof(DDS_HEADER_DXT10)];
+		file.read(dx10HeaderData, sizeof(DDS_HEADER_DXT10));
+		DDS_HEADER_DXT10* header10 = reinterpret_cast<DDS_HEADER_DXT10*>(dx10HeaderData);
+		textureFormat = header10->dxgiFormat;
+	}
+
+	assert(textureFormat == DXGI_FORMAT_BC1_UNORM_SRGB || textureFormat == DXGI_FORMAT_BC5_UNORM);
+
 	result.width = header->width;
 	result.height = header->height;
-	result.blockSize = 8; // BC1
+	result.blockSize = textureFormat == DXGI_FORMAT_BC1_UNORM_SRGB ? 8 : 16;
 	result.mipmapCount = header->mipMapCount;
-	result.format = DXGI_FORMAT_BC1_UNORM_SRGB;
+	result.format = textureFormat;
 	result.rowPitch = std::max(1ULL, (result.width + 3ULL) / 4ULL) * result.blockSize;
 	result.slicePitch = result.rowPitch * result.height;
 

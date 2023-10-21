@@ -977,14 +977,6 @@ void EngineCore::CreateEmptyTexture(int width, int height, std::wstring name, Te
 
 Texture* EngineCore::CreateTexture(const std::wstring& filePath)
 {
-    for (Texture& tex : m_textures)
-    {
-        if (tex.name == filePath)
-        {
-            return &tex;
-        }
-    }
-
     Texture& texture = m_textures.newElement();
     texture.name = filePath;
 

@@ -44,7 +44,8 @@ void Game::StartGame(EngineCore& engine)
 	std::wstring portalShader = L"portal";
 
 	// Textures
-	diffuseTexture = engine.CreateTexture(L"textures/ground_D.dds");
+	groundDiffuse = engine.CreateTexture(L"textures/ground_D.dds");
+	groundNormal = engine.CreateTexture(L"textures/ground_N.dds");
 	memeTexture = engine.CreateTexture(L"textures/cat_D.dds");
 
 	LOG_TIMER(timer, "Textures");
@@ -52,7 +53,7 @@ void Game::StartGame(EngineCore& engine)
 
 	// Materials
 	materialIndices.try_emplace(Material::Test,      engine.CreateMaterial({ memeTexture }, defaultShader));
-	materialIndices.try_emplace(Material::Ground,    engine.CreateMaterial({ diffuseTexture }, groundShader));
+	materialIndices.try_emplace(Material::Ground,    engine.CreateMaterial({ groundDiffuse, groundNormal }, groundShader));
 	materialIndices.try_emplace(Material::Laser,     engine.CreateMaterial({}, laserShader));
 	materialIndices.try_emplace(Material::Portal1,   engine.CreateMaterial({ &engine.m_renderTextures[0]->texture }, portalShader));
 	materialIndices.try_emplace(Material::Portal2,   engine.CreateMaterial({ &engine.m_renderTextures[1]->texture }, portalShader));

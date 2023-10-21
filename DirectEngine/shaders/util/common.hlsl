@@ -45,8 +45,13 @@ struct PSInputDefault
 	float4 worldPosition : POSITION;
 	float4 lightSpacePosition : TEXCOORD1;
 	float4 color : COLOR;
-	float3 worldNormal : NORMAL;
+	float3 worldNormal : TEXCOORD2;
+    float3 normal : NORMAL;
+    float3 tangent : TANGENT;
+    float3 bitangent : BITANGENT;
 	float2 uv : UV;
+    float3 lightDirectionTS : TEXCOORD3;
+    float3 cameraDirectionTS : TEXCOORD4;
 };
 
 float4x4 VSGetVP()
@@ -54,7 +59,7 @@ float4x4 VSGetVP()
 	return mul(cameraView, cameraProjection);
 }
 
-PSInputDefault VSCalcDefault(float4 position, float3 normal, float2 uv)
+PSInputDefault VSCalcDefault(float4 position, float3 normal, float3 tangent, float3 bitangent, float2 uv)
 {
 	PSInputDefault result;
 
@@ -66,8 +71,15 @@ PSInputDefault VSCalcDefault(float4 position, float3 normal, float2 uv)
 	float4x4 lightVP = mul(lightView, lightProjection);
 	result.lightSpacePosition = mul(float4(worldPos.xyz, 1.0), lightVP);
 
-	result.worldNormal = mul(float4(normal, 0.), worldTransform).xyz;
+    result.normal = normal;
+    result.worldNormal = normalize(mul(float4(normal, 0), worldTransform).xyz);
+    result.tangent = normalize(mul(float4(tangent, 0), worldTransform).xyz);
+    result.bitangent = normalize(mul(float4(bitangent, 0), worldTransform).xyz);
 	result.uv = uv;
+	
+    float3x3 TBN = float3x3(result.tangent, result.bitangent, result.worldNormal);
+    result.lightDirectionTS = mul(TBN, -sunDirection);
+	result.cameraDirectionTS = mul(normalize(worldCameraPos - worldPos.xyz), TBN);
 	return result;
 }
 
@@ -103,7 +115,7 @@ float SampleShadowMap(float2 shadowMapPos, float2 offset, float4 lightSpacePosit
 LightData PSCalcLightData(PSInputDefault input, float ambientIntensity, float diffuseIntensity, float specularIntensity, float specularity)
 {
 	LightData result;
-	float normalSunAngle = max(dot(input.worldNormal, -sunDirection), 0.);
+	float normalSunAngle = max(dot(input.normal, input.lightDirectionTS), 0.);
 
 	// Ambient
 	float3 ambientLightColor = float3(1., 1., 1.);
@@ -114,31 +126,11 @@ LightData PSCalcLightData(PSInputDefault input, float ambientIntensity, float di
 	float3 diffuseLightColor = float3(1., 1., 1.);
 	result.diffuseLight = diffuseIntensityAdjusted * diffuseLightColor;
 
-	// Specular (TODO: fucked)
-	float3 viewDir = normalize(worldCameraPos - input.worldPosition.xyz);
-	float3 halfwayDir = normalize(-sunDirection + viewDir);
-	float specularIntensityAdjusted = pow(max(dot(input.worldNormal, halfwayDir), 0.), specularity) * specularIntensity;
+	// Specular
+	float3 halfwayDir = normalize(input.lightDirectionTS + input.cameraDirectionTS);
+	float specularIntensityAdjusted = pow(max(dot(input.normal, halfwayDir), 0.), specularity) * specularIntensity;
 	float3 specularLightColor = float3(1., 1., 1.);
     result.specularLight = specularIntensityAdjusted * specularLightColor;
-
-	// Shadow
-	/*float2 shadowMapPos;
-	shadowMapPos.x = input.lightSpacePosition.x / input.lightSpacePosition.w * .5f + .5f;
-	shadowMapPos.y = -input.lightSpacePosition.y / input.lightSpacePosition.w * .5f + .5f;
-
-	float shadow = 0.;
-	float bias = 0.00025;
-	
-	float2 offset = (float)(frac(input.position * 0.5) > 0.25);
-	offset.y += offset.x;
-	if (offset.y > 1.1) offset.y = 0;
-	shadow = (SampleShadowMap(shadowMapPos, offset + float2(-1.5,  0.5), input.lightSpacePosition, bias)
-		    + SampleShadowMap(shadowMapPos, offset + float2( 0.5,  0.5), input.lightSpacePosition, bias)
-		    + SampleShadowMap(shadowMapPos, offset + float2(-1.5, -1.5), input.lightSpacePosition, bias)
-		    + SampleShadowMap(shadowMapPos, offset + float2( 0.5, -1.5), input.lightSpacePosition, bias)) * 0.25;
-
-	result.diffuseLight *= 1. - shadow;
-	result.specularLight *= 1. - shadow;*/
 	
 	// Raytraced Shadow
     float inShadow = shadowmapTexture.Load(int3(input.position.xy, 0)).r;
