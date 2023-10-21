@@ -656,17 +656,6 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
     OUTPUT_TIMERW(timer, L"Load Shaders");
     RESET_TIMER(timer);
 
-    // Define the vertex input layout.
-    D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
-    {
-        { "POSITION",     0, DXGI_FORMAT_R32G32B32_FLOAT,    0,  0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "COLOR",        0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "NORMAL",       0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 28, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "UV",           0, DXGI_FORMAT_R32G32_FLOAT,       0, 40, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "BONE_WEIGHTS", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 48, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "BONE_INDICES", 0, DXGI_FORMAT_R32G32B32A32_UINT,  0, 64, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-    };
-
     // Rasterizer
     CD3DX12_RASTERIZER_DESC rasterizerDesc(D3D12_DEFAULT);
     if (config->wireframe)
@@ -682,7 +671,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
 
     // Describe and create the graphics pipeline state object (PSO).
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-    psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
+    psoDesc.InputLayout = { VertexData::VERTEX_DESCS, _countof(VertexData::VERTEX_DESCS) };
     psoDesc.pRootSignature = config->rootSignature;
     psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.Get());
     psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
@@ -694,7 +683,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.PrimitiveTopologyType = config->topologyType;
     psoDesc.NumRenderTargets = config->renderTargetCount;
-    for (int i = 0; i < config->renderTargetCount; i++)
+    for (int i = 0; i < static_cast<int>(config->renderTargetCount); i++)
     {
         psoDesc.RTVFormats[i] = config->format;
     }
@@ -748,21 +737,21 @@ void EngineCore::LoadAssets()
     {
         // Debug lines
         CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-        CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(MAX_DEBUG_LINE_VERTICES * sizeof(Vertex));
+        CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(MAX_DEBUG_LINE_VERTICES * sizeof(VertexData::Vertex));
         ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, NewComObject(comPointers, &m_debugLineData.vertexBuffer)));
         m_debugLineData.vertexBuffer->SetName(L"Debug Line Vertex Buffer");
 
         m_debugLineData.vertexBufferView = {};
         m_debugLineData.vertexBufferView.BufferLocation = m_debugLineData.vertexBuffer->GetGPUVirtualAddress();
-        m_debugLineData.vertexBufferView.StrideInBytes = sizeof(Vertex);
-        m_debugLineData.vertexBufferView.SizeInBytes = MAX_DEBUG_LINE_VERTICES * sizeof(Vertex);
+        m_debugLineData.vertexBufferView.StrideInBytes = sizeof(VertexData::Vertex);
+        m_debugLineData.vertexBufferView.SizeInBytes = MAX_DEBUG_LINE_VERTICES * sizeof(VertexData::Vertex);
     }
 
     {
         // General vertex buffer
         m_geometryBuffer.indexCount = 0;
         m_geometryBuffer.vertexCount = 0;
-        m_geometryBuffer.vertexStride = sizeof(Vertex);
+        m_geometryBuffer.vertexStride = sizeof(VertexData::Vertex);
 
         // Create vertex buffer for upload
         const size_t maxVertexByteCount = m_geometryBuffer.maxVertexCount * m_geometryBuffer.vertexStride;
@@ -1780,7 +1769,7 @@ void EngineCore::RenderDebugLines(ID3D12GraphicsCommandList* renderList, D3D12_C
     UINT8* pVertexDataBegin = nullptr;
     CD3DX12_RANGE readRange(0, 0);
     CHECK_HRCMD(m_debugLineData.vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)));
-    memcpy(pVertexDataBegin, m_debugLineData.lineVertices.base, m_debugLineData.lineVertices.size * sizeof(Vertex));
+    memcpy(pVertexDataBegin, m_debugLineData.lineVertices.base, m_debugLineData.lineVertices.size * sizeof(VertexData::Vertex));
     m_debugLineData.vertexBuffer->Unmap(0, nullptr);
 
     // Record commands.

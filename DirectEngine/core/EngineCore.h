@@ -26,6 +26,7 @@
 
 #include "UI.h"
 #include "Log.h"
+#include "Vertex.h"
 
 #include "../Helpers.h"
 #include "Constants.h"
@@ -204,7 +205,7 @@ class DebugLineData
 public:
     DebugLineData(MemoryArena& arena) : lineVertices(arena, MAX_DEBUG_LINE_VERTICES) {}
 
-    FixedList<Vertex> lineVertices;
+    FixedList<VertexData::Vertex> lineVertices;
     ID3D12Resource* vertexBuffer = nullptr;
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
 

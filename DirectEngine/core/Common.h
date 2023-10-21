@@ -20,16 +20,6 @@ struct Texture
     std::wstring name = {};
 };
 
-struct Vertex
-{
-    XMFLOAT3 position;
-    XMFLOAT4 color;
-    XMFLOAT3 normal;
-    XMFLOAT2 uv;
-    XMFLOAT4 boneWeights;
-    XMUINT4 boneIndices;
-};
-
 class PipelineConfig
 {
 public:

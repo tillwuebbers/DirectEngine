@@ -2,12 +2,14 @@
 
 #define GLTF_POSITION "POSITION"
 #define GLTF_NORMAL "NORMAL"
+#define GLTF_TANGENT "TANGENT"
 #define GLTF_TEXCOORD0 "TEXCOORD_0"
 #define GLTF_JOINTS "JOINTS_0"
 #define GLTF_WEIGHTS "WEIGHTS_0"
 
 #include "../core/Memory.h"
 #include "../core/Common.h"
+#include "../core/Vertex.h"
 
 #include <string>
 #include <vector>
@@ -77,7 +79,7 @@ struct TransformHierachy
 
 struct MeshFile
 {
-	Vertex* vertices;
+	VertexData::Vertex* vertices;
 	size_t vertexCount = 0;
 	std::string textureName{};
 	size_t textureCount = 0; // TODO use better solution

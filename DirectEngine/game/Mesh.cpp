@@ -1,6 +1,8 @@
 #include "Mesh.h"
 #include "../Helpers.h"
 #include "../core/Log.h"
+#include "../core/Vertex.h"
+using namespace VertexData;
 
 #include <format>
 
@@ -19,12 +21,12 @@ MeshFile CreateQuad(float width, float height, MemoryArena& vertexArena)
 
 	uint64_t hash = 0;
 	Vertex* vertices = NewArray(vertexArena, Vertex, VERTEX_COUNT);
-	vertices[0] = { { 0.f  , 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f}, {}, {} };
-	vertices[1] = { { width, 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f}, {}, {} };
-	vertices[2] = { { width, 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f}, {}, {} };
-	vertices[3] = { { 0.f  , 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f}, {}, {} };
-	vertices[4] = { { 0.f  , 0.f, height }, {}, {0.f, 1.f, 0.f }, {0.f, 1.f}, {}, {} };
-	vertices[5] = { { width, 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f}, {}, {} };
+	vertices[0] = { { 0.f  , 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f, 0.f}, {0.f, 0.f, 1.f}, {0.f, 0.f}, {}, {} };
+	vertices[1] = { { width, 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f, 0.f}, {0.f, 0.f, 1.f}, {1.f, 1.f}, {}, {} };
+	vertices[2] = { { width, 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f, 0.f}, {0.f, 0.f, 1.f}, {1.f, 0.f}, {}, {} };
+	vertices[3] = { { 0.f  , 0.f, 0.f    }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f, 0.f}, {0.f, 0.f, 1.f}, {0.f, 0.f}, {}, {} };
+	vertices[4] = { { 0.f  , 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f, 0.f}, {0.f, 0.f, 1.f}, {0.f, 1.f}, {}, {} };
+	vertices[5] = { { width, 0.f, height }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f, 0.f}, {0.f, 0.f, 1.f}, {1.f, 1.f}, {}, {} };
 
 	for (int i = 0; i < 6; i++)
 	{
@@ -42,12 +44,12 @@ MeshFile CreateQuadY(float width, float height, MemoryArena& vertexArena)
 
 	uint64_t hash = 0;
 	Vertex* vertices = NewArray(vertexArena, Vertex, VERTEX_COUNT);
-	vertices[0] = { { 0.f  , 0.f   , 0.f }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f}, {}, {} };
-	vertices[1] = { { width, height, 0.f }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f}, {}, {} };
-	vertices[2] = { { width, 0.f   , 0.f }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f}, {}, {} };
-	vertices[3] = { { 0.f  , 0.f   , 0.f }, {}, {0.f, 1.f, 0.f }, {0.f, 0.f}, {}, {} };
-	vertices[4] = { { 0.f  , height, 0.f }, {}, {0.f, 1.f, 0.f }, {0.f, 1.f}, {}, {} };
-	vertices[5] = { { width, height, 0.f }, {}, {0.f, 1.f, 0.f }, {1.f, 1.f}, {}, {} };
+	vertices[0] = { { 0.f  , 0.f   , 0.f }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f, 0.f}, {0.f, 0.f, 1.f}, {0.f, 0.f}, {}, {} };
+	vertices[1] = { { width, height, 0.f }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f, 0.f}, {0.f, 0.f, 1.f}, {1.f, 1.f}, {}, {} };
+	vertices[2] = { { width, 0.f   , 0.f }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f, 0.f}, {0.f, 0.f, 1.f}, {1.f, 0.f}, {}, {} };
+	vertices[3] = { { 0.f  , 0.f   , 0.f }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f, 0.f}, {0.f, 0.f, 1.f}, {0.f, 0.f}, {}, {} };
+	vertices[4] = { { 0.f  , height, 0.f }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f, 0.f}, {0.f, 0.f, 1.f}, {0.f, 1.f}, {}, {} };
+	vertices[5] = { { width, height, 0.f }, {}, {0.f, 1.f, 0.f }, {1.f, 0.f, 0.f}, {0.f, 0.f, 1.f}, {1.f, 1.f}, {}, {} };
 
 	for (int i = 0; i < 6; i++)
 	{
@@ -127,6 +129,15 @@ TransformNode* CreateMatrices(Model& model, int jointIndex, TransformNode* paren
 		}
 	}
 	return &nodeList[jointIndex];
+}
+
+Accessor& CheckAccessor(tinygltf::Model& model, Primitive& primitive, const char* attribute, int type)
+{
+	assert(primitive.attributes.contains(attribute));
+	Accessor& accessor = model.accessors[primitive.attributes[attribute]];
+	assert(accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+	assert(accessor.type == type);
+	return accessor;
 }
 
 GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
@@ -338,19 +349,13 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 			assert(indexAccessor.type == TINYGLTF_TYPE_SCALAR);
 			const uint16_t* indexData = ReadBuffer<uint16_t>(model, indexAccessor);
 
-			Accessor& positionAccessor = model.accessors[primitive.attributes[GLTF_POSITION]];
-			assert(positionAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
-			assert(positionAccessor.type == TINYGLTF_TYPE_VEC3);
+			Accessor& positionAccessor = CheckAccessor(model, primitive, GLTF_POSITION, TINYGLTF_TYPE_VEC3);
 			const float* positionData = ReadBuffer<float>(model, positionAccessor);
-
-			Accessor& normalAccessor = model.accessors[primitive.attributes[GLTF_NORMAL]];
-			assert(normalAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
-			assert(normalAccessor.type == TINYGLTF_TYPE_VEC3);
+			Accessor& normalAccessor = CheckAccessor(model, primitive, GLTF_NORMAL, TINYGLTF_TYPE_VEC3);
 			const float* normalData = ReadBuffer<float>(model, normalAccessor);
-
-			Accessor& uvAccessor = model.accessors[primitive.attributes[GLTF_TEXCOORD0]];
-			assert(uvAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
-			assert(uvAccessor.type == TINYGLTF_TYPE_VEC2);
+			Accessor& tangentAccessor = CheckAccessor(model, primitive, GLTF_TANGENT, TINYGLTF_TYPE_VEC4);
+			const float* tangentData = ReadBuffer<float>(model, tangentAccessor);
+			Accessor& uvAccessor = CheckAccessor(model, primitive, GLTF_TEXCOORD0, TINYGLTF_TYPE_VEC2);
 			const float* uvData = ReadBuffer<float>(model, uvAccessor);
 
 			
@@ -362,6 +367,7 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 				uint16_t idx = indexData[i];
 				assert(idx < positionAccessor.count);
 				assert(idx < normalAccessor.count);
+				assert(idx < tangentAccessor.count);
 				assert(idx < uvAccessor.count);
 				Vertex& vert = vertices[i] = {};
 
@@ -375,6 +381,13 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 				vert.normal.x = normalData[idx * 3 + 0];
 				vert.normal.y = normalData[idx * 3 + 1];
 				vert.normal.z = normalData[idx * 3 + 2];
+
+				vert.tangent.x = tangentData[idx * 4 + 0];
+				vert.tangent.y = tangentData[idx * 4 + 1];
+				vert.tangent.z = tangentData[idx * 4 + 2];
+
+				XMVECTOR bitangent = XMVectorScale(XMVector3Cross(XMLoadFloat3(&vert.normal), XMLoadFloat3(&vert.tangent)), vert.tangent.z);
+				XMStoreFloat3(&vert.bitangent, bitangent);
 
 				vert.uv.x = uvData[idx * 2 + 0];
 				vert.uv.y = uvData[idx * 2 + 1];
