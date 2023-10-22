@@ -9,6 +9,7 @@ TextureData ParseDDSHeader(const wchar_t* path)
 
 	char magic[DDS_MAGIC_BYTE_COUNT];
 	file.read(magic, DDS_MAGIC_BYTE_COUNT);
+	assert(magic[0] == 'D' && magic[1] == 'D' && magic[2] == 'S' && magic[3] == ' ');
 
 	char headerData[sizeof(DDS_HEADER)];
 	file.read(headerData, sizeof(DDS_HEADER));

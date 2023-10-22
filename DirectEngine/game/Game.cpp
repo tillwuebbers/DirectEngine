@@ -36,29 +36,30 @@ void Game::StartGame(EngineCore& engine)
 	}
 
 	// Shaders
-	std::wstring defaultShader = L"entity";
-	std::wstring groundShader = L"ground";
-	std::wstring laserShader = L"laser";
+	std::wstring defaultShader   = L"entity";
+	std::wstring groundShader    = L"ground";
+	std::wstring laserShader     = L"laser";
 	std::wstring crosshairShader = L"crosshair";
-	std::wstring textureQuad = L"texturequad";
-	std::wstring portalShader = L"portal";
+	std::wstring textureQuad     = L"texturequad";
+	std::wstring portalShader    = L"portal";
 
 	// Textures
-	groundDiffuse = engine.CreateTexture(L"textures/ground_D.dds");
-	groundNormal = engine.CreateTexture(L"textures/ground_N.dds");
-	memeTexture = engine.CreateTexture(L"textures/cat_D.dds");
+	Texture* groundDiffuse  = engine.CreateTexture(L"textures/ground_D.dds");
+	Texture* groundNormal   = engine.CreateTexture(L"textures/ground_N.dds");
+	Texture* groundSpecular = engine.CreateTexture(L"textures/ground_S.dds");
+	Texture* memeTexture    = engine.CreateTexture(L"textures/cat_D.dds");
 
 	LOG_TIMER(timer, "Textures");
 	RESET_TIMER(timer);
 
 	// Materials
 	materialIndices.try_emplace(Material::Test,      engine.CreateMaterial({ memeTexture }, defaultShader));
-	materialIndices.try_emplace(Material::Ground,    engine.CreateMaterial({ groundDiffuse, groundNormal }, groundShader));
+	materialIndices.try_emplace(Material::Ground,    engine.CreateMaterial({ groundDiffuse, groundNormal, groundSpecular }, groundShader));
 	materialIndices.try_emplace(Material::Laser,     engine.CreateMaterial({}, laserShader));
 	materialIndices.try_emplace(Material::Portal1,   engine.CreateMaterial({ &engine.m_renderTextures[0]->texture }, portalShader));
 	materialIndices.try_emplace(Material::Portal2,   engine.CreateMaterial({ &engine.m_renderTextures[1]->texture }, portalShader));
 	materialIndices.try_emplace(Material::Crosshair, engine.CreateMaterial({}, crosshairShader));
-	materialIndices.try_emplace(Material::RTOutput, engine.CreateMaterial({ engine.m_raytracingOutput }, textureQuad));
+	materialIndices.try_emplace(Material::RTOutput,  engine.CreateMaterial({ engine.m_raytracingOutput }, textureQuad));
 
 	LOG_TIMER(timer, "Materials");
 	RESET_TIMER(timer);

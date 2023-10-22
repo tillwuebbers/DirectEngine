@@ -146,9 +146,6 @@ public:
 	std::unordered_map<Material, size_t> materialIndices{};
 	
 	DirectionalLight light{};
-	Texture* groundDiffuse{};
-	Texture* groundNormal{};
-	Texture* memeTexture{};
 	XMVECTOR baseClearColor = { .1f, .2f, .4f, 1.f };
 	XMVECTOR clearColor = { .1f, .2f, .4f, 1.f };
 	XMVECTOR fogColor = { .03f, .01f, .01f, 1.f };
