@@ -53,7 +53,6 @@ void Game::StartGame(EngineCore& engine)
 	RESET_TIMER(timer);
 
 	// Materials
-	materialIndices.try_emplace(Material::Test,      engine.CreateMaterial({ memeTexture }, defaultShader));
 	materialIndices.try_emplace(Material::Ground,    engine.CreateMaterial({ groundDiffuse, groundNormal, groundSpecular }, groundShader));
 	materialIndices.try_emplace(Material::Laser,     engine.CreateMaterial({}, laserShader));
 	materialIndices.try_emplace(Material::Portal1,   engine.CreateMaterial({ &engine.m_renderTextures[0]->texture }, portalShader));
@@ -64,9 +63,28 @@ void Game::StartGame(EngineCore& engine)
 	LOG_TIMER(timer, "Materials");
 	RESET_TIMER(timer);
 
-	// Meshes
+	// Meshes & Collision
 	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", globalArena).meshes[0];
 	cubeMeshData = engine.CreateMesh(cubeMeshFile.vertices, cubeMeshFile.vertexCount, nullptr, 0);
+
+	GltfResult level1Gltf = LoadGltfFromFile("models/level1.glb", globalArena);
+	btTriangleMesh* levelCollisionMesh = NewObject(globalArena, btTriangleMesh, true, false);
+	for (MeshFile& meshFile : level1Gltf.meshes)
+	{
+		for (int i = 0; i < meshFile.vertexCount / 3; i++)
+		{
+			levelCollisionMesh->addTriangle(
+				ToBulletVec3(meshFile.vertices[i * 3 + 0].position),
+				ToBulletVec3(meshFile.vertices[i * 3 + 1].position),
+				ToBulletVec3(meshFile.vertices[i * 3 + 2].position)
+			);
+		}
+
+		level1MeshData.newElement() = engine.CreateMesh(meshFile.vertices, meshFile.vertexCount, nullptr, 0);
+	}
+	btTriangleIndexVertexArray* levelMeshInterface = NewObject(globalArena, btTriangleIndexVertexArray);
+	levelMeshInterface->addIndexedMesh(levelCollisionMesh->getIndexedMeshArray()[0]);
+	levelShape = NewObject(levelArena, btBvhTriangleMeshShape, levelMeshInterface, true);
 
 	LOG_TIMER(timer, "Default Meshes");
 	RESET_TIMER(timer);
@@ -151,7 +169,7 @@ void Game::LoadLevel(EngineCore& engine)
 	playerEntity->name = "Player";
 	playerEntity->SetLocalPosition({ 0.f, 1.f, 0.f });
 
-	btBoxShape* playerPhysicsShape = NewObject(levelArena, btBoxShape, ToBulletVec3({ .5f, 1.f, .5f }));
+	btBoxShape* playerPhysicsShape = NewObject(levelArena, btBoxShape, btVector3{ .5f, 1.f, .5f });
 	playerEntity->physicsShapeOffset = { 0.f, 1.f, 0.f };
 	PhysicsInit playerPhysics{ 10.f, PhysicsInitType::RigidBodyDynamic };
 	playerPhysics.ownCollisionLayers = CollisionLayers::CL_Player;
@@ -182,21 +200,39 @@ void Game::LoadLevel(EngineCore& engine)
 
 	playerEntity->AddChild(playerModelEntity, false);
 
+	// Level
+	PhysicsInit levelPhysics{ 0.f, PhysicsInitType::RigidBodyStatic };
+	levelPhysics.ownCollisionLayers = CollisionLayers::CL_World;
+	levelPhysics.collidesWithLayers = CollisionLayers::CL_Player | CollisionLayers::CL_Entity;
+	
+	bool addedCollision = false; // TODO: ugly
+	for (MeshData* meshData : level1MeshData)
+	{
+		Entity* levelPart = CreateMeshEntity(engine, materialIndices[Material::Ground], meshData);
+		levelPart->name = "Level1";
+		if (!addedCollision)
+		{
+			levelPart->AddRigidBody(levelArena, dynamicsWorld, levelShape, levelPhysics);
+			addedCollision = true;
+		}
+	}
+
 	// Ground
-	PhysicsInit groundPhysics{ 0.f, PhysicsInitType::RigidBodyStatic };
+	/*PhysicsInit groundPhysics{0.f, PhysicsInitType::RigidBodyStatic};
 	groundPhysics.ownCollisionLayers = CollisionLayers::CL_World;
 	groundPhysics.collidesWithLayers = CollisionLayers::CL_Player | CollisionLayers::CL_Entity;
 	Entity* groundEntity = CreateQuadEntity(engine, materialIndices[Material::Ground], 100.f, 100.f, groundPhysics);
 	groundEntity->name = "Ground";
 	groundEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
-	groundEntity->SetLocalPosition(XMVectorSetY(groundEntity->localMatrix.translation, -.01f));
+	groundEntity->SetLocalPosition(XMVectorSetY(groundEntity->localMatrix.translation, -.01f));*/
 
+	// Cubes
 	for (int i = 0; i < 16; i++)
 	{
 		Entity* yea = CreateMeshEntity(engine, materialIndices[Material::Ground], cubeMeshData);
 		yea->name = "Yea";
 		yea->SetLocalPosition({ 3.f, 0.5f + i * 16.f, 0.f });
-		btBoxShape* boxShape = NewObject(levelArena, btBoxShape, ToBulletVec3({ .5f, .5f, .5f }));
+		btBoxShape* boxShape = NewObject(levelArena, btBoxShape, btVector3{ .5f, .5f, .5f });
 		PhysicsInit yeaPhysics{ 1.f, PhysicsInitType::RigidBodyDynamic };
 		yeaPhysics.ownCollisionLayers = CollisionLayers::CL_Entity;
 		yeaPhysics.collidesWithLayers = CollisionLayers::CL_Player | CollisionLayers::CL_World;
@@ -649,7 +685,7 @@ Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float w
 
 	if (physicsInit.type != PhysicsInitType::None)
 	{
-		btBoxShape* physicsShape = NewObject(levelArena, btBoxShape, ToBulletVec3({ width / 2.f, 0.05f, height / 2.f }));
+		btBoxShape* physicsShape = NewObject(levelArena, btBoxShape, btVector3{ width / 2.f, 0.05f, height / 2.f });
 		entity->physicsShapeOffset = XMVECTOR{ width / 2.f, -.05f, height / 2.f };
 		entity->AddRigidBody(levelArena, dynamicsWorld, physicsShape, physicsInit);
 	}

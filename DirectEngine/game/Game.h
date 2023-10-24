@@ -32,7 +32,6 @@ struct ShadowSpaceBounds
 
 enum class Material
 {
-	Test,
 	Ground,
 	Laser,
 	Portal1,
@@ -141,6 +140,8 @@ public:
 
 	// Meshes
 	MeshData* cubeMeshData = nullptr;
+	FixedList<MeshData*> level1MeshData = { globalArena, 4 };
+	btBvhTriangleMeshShape* levelShape = nullptr;
 
 	// Materials and Lighting
 	std::unordered_map<Material, size_t> materialIndices{};

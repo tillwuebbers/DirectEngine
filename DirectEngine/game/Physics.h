@@ -81,6 +81,11 @@ inline btVector3 ToBulletVec3(XMVECTOR vec)
     return { XMVectorGetX(vec), XMVectorGetY(vec), XMVectorGetZ(vec) };
 }
 
+inline btVector3 ToBulletVec3(XMFLOAT3 vec)
+{
+	return { vec.x, vec.y, vec.z };
+}
+
 inline btQuaternion ToBulletQuat(XMVECTOR quat)
 {
     return { XMVectorGetX(quat), XMVectorGetY(quat), XMVectorGetZ(quat), XMVectorGetW(quat) };
