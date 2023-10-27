@@ -136,6 +136,11 @@ void Entity::UpdateWorldMatrix()
 		GetBuffer().worldTransform = worldMatrix.matrixT;
 	}
 
+	if (rigidBody != nullptr)
+	{
+		rigidBody->setWorldTransform(btTransform{ ToBulletQuat(worldMatrix.rotation), ToBulletVec3(worldMatrix.translation + physicsShapeOffset) });
+	}
+
 	for (EntityHandle child : children)
 	{
 		if (child.Get() == nullptr) continue;

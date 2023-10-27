@@ -173,7 +173,7 @@ void Game::LoadLevel(EngineCore& engine)
 	playerEntity->physicsShapeOffset = { 0.f, 1.f, 0.f };
 	PhysicsInit playerPhysics{ 10.f, PhysicsInitType::RigidBodyDynamic };
 	playerPhysics.ownCollisionLayers = CollisionLayers::CL_Player;
-	playerPhysics.collidesWithLayers = CollisionLayers::CL_World | CollisionLayers::CL_Entity | CollisionLayers::CL_Portal;
+	playerPhysics.collidesWithLayers = CollisionLayers::CL_Entity | CollisionLayers::CL_Portal;
 	playerEntity->AddRigidBody(levelArena, dynamicsWorld, playerPhysicsShape, playerPhysics);
 	if (playerEntity->rigidBody != nullptr)
 	{
@@ -201,7 +201,7 @@ void Game::LoadLevel(EngineCore& engine)
 	playerEntity->AddChild(playerModelEntity, false);
 
 	// Level
-	PhysicsInit levelPhysics{ 0.f, PhysicsInitType::RigidBodyStatic };
+	/*PhysicsInit levelPhysics{0.f, PhysicsInitType::RigidBodyStatic};
 	levelPhysics.ownCollisionLayers = CollisionLayers::CL_World;
 	levelPhysics.collidesWithLayers = CollisionLayers::CL_Player | CollisionLayers::CL_Entity;
 	
@@ -215,19 +215,19 @@ void Game::LoadLevel(EngineCore& engine)
 			levelPart->AddRigidBody(levelArena, dynamicsWorld, levelShape, levelPhysics);
 			addedCollision = true;
 		}
-	}
+	}*/
 
 	// Ground
-	/*PhysicsInit groundPhysics{0.f, PhysicsInitType::RigidBodyStatic};
+	PhysicsInit groundPhysics{0.f, PhysicsInitType::RigidBodyStatic};
 	groundPhysics.ownCollisionLayers = CollisionLayers::CL_World;
-	groundPhysics.collidesWithLayers = CollisionLayers::CL_Player | CollisionLayers::CL_Entity;
+	groundPhysics.collidesWithLayers = CollisionLayers::CL_Entity;
 	Entity* groundEntity = CreateQuadEntity(engine, materialIndices[Material::Ground], 100.f, 100.f, groundPhysics);
 	groundEntity->name = "Ground";
 	groundEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
-	groundEntity->SetLocalPosition(XMVectorSetY(groundEntity->localMatrix.translation, -.01f));*/
+	groundEntity->SetLocalPosition(XMVectorSetY(groundEntity->localMatrix.translation, -.01f));
 
 	// Cubes
-	for (int i = 0; i < 16; i++)
+	/*for (int i = 0; i < 16; i++)
 	{
 		Entity* yea = CreateMeshEntity(engine, materialIndices[Material::Ground], cubeMeshData);
 		yea->name = "Yea";
@@ -237,7 +237,7 @@ void Game::LoadLevel(EngineCore& engine)
 		yeaPhysics.ownCollisionLayers = CollisionLayers::CL_Entity;
 		yeaPhysics.collidesWithLayers = CollisionLayers::CL_Player | CollisionLayers::CL_World;
 		yea->AddRigidBody(levelArena, dynamicsWorld, boxShape, yeaPhysics);
-	}
+	}*/
 }
 
 void PlayerMovement::Update(EngineInput& input, TimeData& time, Entity* playerEntity, Entity* playerLookEntity, Entity* cameraEntity, btDynamicsWorld* dynamicsWorld, bool frameStep)
@@ -313,12 +313,15 @@ void PlayerMovement::Update(EngineInput& input, TimeData& time, Entity* playerEn
 		btCollisionWorld::ClosestRayResultCallback callback{ ToBulletVec3(groundRayStart), ToBulletVec3(groundRayEnd) };
 		dynamicsWorld->rayTest(ToBulletVec3(groundRayStart), ToBulletVec3(groundRayEnd), callback);
 		playerOnGround = callback.hasHit();
-		if (callback.hasHit() && frameStep) LOG("Hit ground: {}", callback.m_closestHitFraction);
 
 		if (playerOnGround)
 		{
-			// Stop falling speed
-			playerVelocity = XMVectorSetY(playerVelocity, std::max(XMVectorGetY(playerVelocity), 0.f));
+			if (frameStep) LOG("HIT GROUND");
+			if (!input.KeyDown(VK_SPACE))
+			{
+				playerEntity->SetWorldPosition(XMVectorSetY(playerEntity->GetWorldPosition(), callback.m_hitPointWorld.getY()));
+				if (frameStep) LOG("Reset position to: {}", playerEntity->rigidBody->getWorldTransform().getOrigin().getY());
+			}
 
 			// Apply jump
 			if (input.KeyDown(VK_SPACE) && (lastJumpPressTime + jumpBufferDuration >= time.timeSinceStart || movementSettings->autojump))
@@ -329,6 +332,9 @@ void PlayerMovement::Update(EngineInput& input, TimeData& time, Entity* playerEn
 			}
 			else
 			{
+				// Stop falling speed
+				playerVelocity = XMVectorSetY(playerVelocity, 0.f);
+
 				// Apply friction when no input
 				if (std::abs(horizontalInput) <= inputDeadzone && std::abs(verticalInput) <= inputDeadzone)
 				{
@@ -348,6 +354,7 @@ void PlayerMovement::Update(EngineInput& input, TimeData& time, Entity* playerEn
 
 		// Apply velocity
 		playerEntity->rigidBody->setLinearVelocity(ToBulletVec3(playerVelocity));
+		if (frameStep) LOG("Set velocity to: {:.2f} {:.2f} {:.2f}", SPLIT_V3_BT(playerEntity->rigidBody->getLinearVelocity()));
 	}
 }
 
@@ -494,7 +501,7 @@ void Game::UpdateGame(EngineCore& engine)
 		beforePos = playerEntity->rigidBody->getWorldTransform().getOrigin();
 		beforeVel = playerEntity->rigidBody->getLinearVelocity();
 	}
-	dynamicsWorld->stepSimulation(engine.m_updateDeltaTime, 3, MAX_PHYSICS_STEP);
+	dynamicsWorld->stepSimulation(engine.m_updateDeltaTime, 0, MAX_PHYSICS_STEP);
 	if (playerEntity->rigidBody != nullptr && frameStep)
 	{
 		btVector3 afterPos = playerEntity->rigidBody->getWorldTransform().getOrigin();
