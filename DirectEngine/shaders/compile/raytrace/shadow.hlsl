@@ -21,12 +21,13 @@ GlobalRootSignature MyGlobalRootSignature =
     "SRV( t0 ),"                                           // Acceleration structure
     "DescriptorTable( SRV( t1 ) ),"                        // GBuffer (normals)
     "DescriptorTable( SRV( t2 ) ),"                        // GBuffer (world positions)
-    "DescriptorTable( CBV( b0 ) )"                         // Scene constant buffer
+    "DescriptorTable( CBV( b0 ) ),"                        // Scene constant buffer
+    "DescriptorTable( CBV( b1 ) ),"                        // Camera constant buffer
 };
 
 LocalRootSignature MyLocalRootSignature =
 {
-    "RootConstants( num32BitConstants = 4, b1 )"           // Cube constants        
+    "RootConstants( num32BitConstants = 4, b2 )"           // Cube constants        
 };
 
 TriangleHitGroup MyHitGroup =
@@ -59,11 +60,21 @@ struct LightConstantBuffer
     float4 sunDirection;
 };
 
+struct CameraConstantBuffer
+{
+    float4x4 cameraView;
+    float4x4 cameraProjection;
+    float4 postProcessing;
+    float3 fogColor;
+    float3 worldCameraPos;
+};
+
 RWTexture2D<float4> renderTarget : register(u0);
 RaytracingAccelerationStructure accelerationStructure : register(t0, space0);
 Texture2D<float4> gBufferNormal : register(t1);
 Texture2D<float4> gBufferWorldPosition : register(t2);
 ConstantBuffer<LightConstantBuffer> lightConstantBuffer : register(b0);
+ConstantBuffer<CameraConstantBuffer> cameraConstantBuffer : register(b1);
 
 typedef BuiltInTriangleIntersectionAttributes MyAttributes;
 struct RayPayload
@@ -80,12 +91,13 @@ void MyRaygenShader()
     
     int3 samplePos = int3(rayIndexPos, 0);
     float4 normalAndDepth = gBufferNormal.Load(samplePos);
-    float4 worldPosition = gBufferWorldPosition.Load(samplePos);
+    float4 worldPositionAndSky = gBufferWorldPosition.Load(samplePos);
     
-    float3 rayOrigin = worldPosition.xyz + normalAndDepth.xyz * 0.05;
+    float3 worldPosition = worldPositionAndSky.xyz + cameraConstantBuffer.worldCameraPos;
+    float3 rayOrigin = worldPosition + normalAndDepth.xyz * 0.05;
     float3 lightDirection = -lightConstantBuffer.sunDirection.xyz;
     
-    if (dot(normalAndDepth.xyz, lightDirection) <= 0. || worldPosition.a < 0.01)
+    if (dot(normalAndDepth.xyz, lightDirection) <= 0. || worldPositionAndSky.a < 0.01)
     {
         renderTarget[rayIndexPos.xy] = float4(0.0, 0.0, 0.0, 0.0);
         return;
@@ -93,7 +105,7 @@ void MyRaygenShader()
     
     RayDesc myRay =
     {
-        worldPosition.xyz,
+        worldPosition,
         0.01,
         lightDirection,
         1000.0

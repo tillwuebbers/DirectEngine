@@ -227,7 +227,7 @@ void Game::LoadLevel(EngineCore& engine)
 	groundEntity->SetLocalPosition(XMVectorSetY(groundEntity->localMatrix.translation, -.01f));
 
 	// Cubes
-	/*for (int i = 0; i < 16; i++)
+	for (int i = 0; i < 16; i++)
 	{
 		Entity* yea = CreateMeshEntity(engine, materialIndices[Material::Ground], cubeMeshData);
 		yea->name = "Yea";
@@ -237,7 +237,7 @@ void Game::LoadLevel(EngineCore& engine)
 		yeaPhysics.ownCollisionLayers = CollisionLayers::CL_Entity;
 		yeaPhysics.collidesWithLayers = CollisionLayers::CL_Player | CollisionLayers::CL_World;
 		yea->AddRigidBody(levelArena, dynamicsWorld, boxShape, yeaPhysics);
-	}*/
+	}
 }
 
 void PlayerMovement::Update(EngineInput& input, TimeData& time, Entity* playerEntity, Entity* playerLookEntity, Entity* cameraEntity, btDynamicsWorld* dynamicsWorld, bool frameStep)

@@ -293,15 +293,19 @@ void EngineCore::LoadPipeline(LUID* requiredLuid)
             CD3DX12_DESCRIPTOR_RANGE SRVDescriptor2;
             SRVDescriptor2.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2);
 
-            CD3DX12_DESCRIPTOR_RANGE CBVDescriptor;
-            CBVDescriptor.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
+            CD3DX12_DESCRIPTOR_RANGE SceneDescriptorRange;
+            SceneDescriptorRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
 
-            CD3DX12_ROOT_PARAMETER rootParameters[5];
+            CD3DX12_DESCRIPTOR_RANGE CameraDescriptorRange;
+            CameraDescriptorRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1);
+
+            CD3DX12_ROOT_PARAMETER rootParameters[6];
             rootParameters[0].InitAsDescriptorTable(1, &UAVDescriptor);
             rootParameters[1].InitAsShaderResourceView(0);
             rootParameters[2].InitAsDescriptorTable(1, &SRVDescriptor1);
             rootParameters[3].InitAsDescriptorTable(1, &SRVDescriptor2);
-            rootParameters[4].InitAsDescriptorTable(1, &CBVDescriptor);
+            rootParameters[4].InitAsDescriptorTable(1, &SceneDescriptorRange);
+            rootParameters[5].InitAsDescriptorTable(1, &CameraDescriptorRange);
 
             CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
             SerializeAndCreateRaytracingRootSignature(globalRootSignatureDesc, &m_raytracingGlobalRootSignature);
@@ -1585,6 +1589,7 @@ void EngineCore::RaytraceShadows(ID3D12GraphicsCommandList4* renderList)
     renderList->SetComputeRootDescriptorTable(2, m_gBuffer->textures[0].handle.gpuHandle);
     renderList->SetComputeRootDescriptorTable(3, m_gBuffer->textures[1].handle.gpuHandle);
     renderList->SetComputeRootDescriptorTable(4, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
+    renderList->SetComputeRootDescriptorTable(5, mainCamera->constantBuffer.handles[m_frameIndex].gpuHandle);
 
     // Run Raytracing
     D3D12_DISPATCH_RAYS_DESC dispatchDesc{};

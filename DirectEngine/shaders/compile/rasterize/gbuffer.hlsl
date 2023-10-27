@@ -28,6 +28,6 @@ PSOutput PSMain(PSInput input)
 {
     PSOutput result;
     result.normal = float4(input.worldNormal.xyz, input.position.z);
-    result.worldPosition = float4(input.worldPosition.xyz, 1.0);
+    result.worldPosition = float4(input.worldPosition.xyz - worldCameraPos, 1.0);
     return result;
 }
