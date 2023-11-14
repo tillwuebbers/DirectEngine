@@ -47,7 +47,6 @@ void Game::StartGame(EngineCore& engine)
 	Texture* groundDiffuse  = engine.CreateTexture(L"textures/ground_D.dds");
 	Texture* groundNormal   = engine.CreateTexture(L"textures/ground_N.dds");
 	Texture* groundSpecular = engine.CreateTexture(L"textures/ground_S.dds");
-	Texture* memeTexture    = engine.CreateTexture(L"textures/cat_D.dds");
 
 	LOG_TIMER(timer, "Textures");
 	RESET_TIMER(timer);
@@ -63,32 +62,6 @@ void Game::StartGame(EngineCore& engine)
 	LOG_TIMER(timer, "Materials");
 	RESET_TIMER(timer);
 
-	// Meshes & Collision
-	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", globalArena).meshes[0];
-	cubeMeshData = engine.CreateMesh(cubeMeshFile.vertices, cubeMeshFile.vertexCount, nullptr, 0);
-
-	GltfResult level1Gltf = LoadGltfFromFile("models/level1.glb", globalArena);
-	btTriangleMesh* levelCollisionMesh = NewObject(globalArena, btTriangleMesh, true, false);
-	for (MeshFile& meshFile : level1Gltf.meshes)
-	{
-		for (int i = 0; i < meshFile.vertexCount / 3; i++)
-		{
-			levelCollisionMesh->addTriangle(
-				ToBulletVec3(meshFile.vertices[i * 3 + 0].position),
-				ToBulletVec3(meshFile.vertices[i * 3 + 1].position),
-				ToBulletVec3(meshFile.vertices[i * 3 + 2].position)
-			);
-		}
-
-		level1MeshData.newElement() = engine.CreateMesh(meshFile.vertices, meshFile.vertexCount, nullptr, 0);
-	}
-	btTriangleIndexVertexArray* levelMeshInterface = NewObject(globalArena, btTriangleIndexVertexArray);
-	levelMeshInterface->addIndexedMesh(levelCollisionMesh->getIndexedMeshArray()[0]);
-	levelShape = NewObject(levelArena, btBvhTriangleMeshShape, levelMeshInterface, true);
-
-	LOG_TIMER(timer, "Default Meshes");
-	RESET_TIMER(timer);
-
 	// Defaults
 	playerPitch = XM_PI;
 
@@ -102,13 +75,6 @@ void Game::StartGame(EngineCore& engine)
 	soundFiles[(size_t)AudioFile::EnemyDeath] = LoadAudioFile(L"audio/tada.wav", globalArena);
 	soundFiles[(size_t)AudioFile::Shoot] = LoadAudioFile(L"audio/laser.wav", globalArena);
 	
-	// Physics
-	collisionConfiguration = NewObject(globalArena, btDefaultCollisionConfiguration);
-	dispatcher = NewObject(globalArena, btCollisionDispatcher, collisionConfiguration);
-	broadphase = NewObject(globalArena, btDbvtBroadphase);
-	solver = NewObject(globalArena, btSequentialImpulseConstraintSolver);
-	physicsDebug.engine = &engine;
-
 	// Finish setup
 	LoadLevel(engine);
 	engine.UploadVertices();
@@ -125,13 +91,44 @@ void Game::LoadLevel(EngineCore& engine)
 	// TODO: this (all) arena should be in the engine
 	entityArena.Reset();
 
-	// Gizmo
-	gizmo.Init(levelArena, this, engine, materialIndices[Material::Laser]);
-
 	// Physics
+	collisionConfiguration = NewObject(levelArena, btDefaultCollisionConfiguration);
+	dispatcher = NewObject(levelArena, btCollisionDispatcher, collisionConfiguration);
+	broadphase = NewObject(levelArena, btDbvtBroadphase);
+	solver = NewObject(levelArena, btSequentialImpulseConstraintSolver);
+	physicsDebug.engine = &engine;
+
 	dynamicsWorld = NewObject(levelArena, btDiscreteDynamicsWorld, dispatcher, broadphase, solver, collisionConfiguration);
 	dynamicsWorld->setGravity(btVector3(0.f, -10.f, 0.f));
 	dynamicsWorld->setDebugDrawer(&physicsDebug);
+
+	// Gizmo
+	gizmo.Init(levelArena, this, engine, materialIndices[Material::Laser]);
+
+	// Level Meshes & Collision
+	level1MeshData.clear();
+
+	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", levelArena).meshes[0];
+	cubeMeshData = engine.CreateMesh(cubeMeshFile.vertices, cubeMeshFile.vertexCount, nullptr, 0);
+
+	GltfResult level1Gltf = LoadGltfFromFile("models/level1.glb", levelArena);
+	btTriangleMesh* levelCollisionMesh = NewObject(levelArena, btTriangleMesh, true, false);
+	for (MeshFile& meshFile : level1Gltf.meshes)
+	{
+		for (int i = 0; i < meshFile.vertexCount / 3; i++)
+		{
+			levelCollisionMesh->addTriangle(
+				ToBulletVec3(meshFile.vertices[i * 3 + 0].position),
+				ToBulletVec3(meshFile.vertices[i * 3 + 1].position),
+				ToBulletVec3(meshFile.vertices[i * 3 + 2].position)
+			);
+		}
+
+		level1MeshData.newElement() = engine.CreateMesh(meshFile.vertices, meshFile.vertexCount, nullptr, 0);
+	}
+	btTriangleIndexVertexArray* levelMeshInterface = NewObject(levelArena, btTriangleIndexVertexArray);
+	levelMeshInterface->addIndexedMesh(levelCollisionMesh->getIndexedMeshArray()[0]);
+	levelShape = NewObject(levelArena, btBvhTriangleMeshShape, levelMeshInterface, true);
 
 	// Portals
 	auto createPortal = [&](Material material, XMVECTOR pos, const char* name) {
@@ -155,8 +152,8 @@ void Game::LoadLevel(EngineCore& engine)
 
 		return portal;
 	};
-	portal1 = createPortal(Material::Portal1, { 0.f, 0.f, 0.f }, "Portal 1");
-	portal2 = createPortal(Material::Portal2, { 0.f, 0.f, 0.f }, "Portal 2");
+	portal1 = createPortal(Material::Portal1, { 4.f, 1.5f, 2.f }, "Portal 1");
+	portal2 = createPortal(Material::Portal2, { -4.f, 1.5f, 2.f }, "Portal 2");
 	portal2->SetLocalRotation(XMQuaternionRotationRollPitchYaw(0.f, XM_PI, 0.f));
 
 	// Crosshair
@@ -678,7 +675,7 @@ Entity* Game::CreateMeshEntity(EngineCore& engine, size_t materialIndex, MeshDat
 
 Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical)
 {
-	MeshFile file = vertical ? CreateQuadY(width, height, globalArena) : CreateQuad(width, height, globalArena);
+	MeshFile file = vertical ? CreateQuadY(width, height, levelArena) : CreateQuad(width, height, levelArena);
 	MeshData* meshData = engine.CreateMesh(file.vertices, file.vertexCount, nullptr, 0);
 	Entity* entity = CreateMeshEntity(engine, materialIndex, meshData);
 	entity->SetLocalPosition({-width / 2.f, 0.f, -height / 2.f});

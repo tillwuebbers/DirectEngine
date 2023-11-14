@@ -451,7 +451,7 @@ public:
     ID3D12Resource* m_textureUploadHeaps[MAX_TEXTURE_UPLOADS] = {};
     size_t m_textureUploadIndex = 0;
     GeometryBuffer m_geometryBuffer = {};
-    FixedList<MaterialData> m_materials{ engineArena, MAX_MATERIALS };
+    FixedList<MaterialData> m_materials = { engineArena, MAX_MATERIALS };
     FixedList<Texture> m_textures = { engineArena, MAX_TEXTURE_UPLOADS };
     FixedList<CameraData> m_cameras = { engineArena, MAX_CAMERAS };
     FixedList<MeshData> m_meshes = { engineArena, MAX_MESHES };
@@ -543,6 +543,7 @@ public:
     size_t CreateEntity(const size_t materialIndex, MeshData* meshData);
     void BuildBottomLevelAccelerationStructures(ID3D12GraphicsCommandList4* commandList);
     void BuildTopLevelAccelerationStructure(ID3D12GraphicsCommandList4* commandList);
+    void ResetVertexBuffer();
     void UploadVertices();
     void RenderGBuffer(ID3D12GraphicsCommandList4* renderList);
     void RaytraceShadows(ID3D12GraphicsCommandList4* renderList);

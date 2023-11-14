@@ -75,11 +75,11 @@ public:
 	Game(GAME_CREATION_PARAMS);
 
 	// Memory (keep this up here!)
-	MemoryArena& globalArena;
+	MemoryArena& globalArena;               // Never cleared
 	MemoryArena& configArena;
-	MemoryArena& levelArena;
-	TypedMemoryArena<Entity> entityArena{};
-
+	MemoryArena& levelArena;                // Cleared on every level reload
+	TypedMemoryArena<Entity> entityArena{}; // Cleared on every level reload
+	
 	// Logging
 	bool showLog = ISDEBUG;
 	bool stopLog = false;
@@ -140,7 +140,7 @@ public:
 
 	// Meshes
 	MeshData* cubeMeshData = nullptr;
-	FixedList<MeshData*> level1MeshData = { globalArena, 4 };
+	FixedList<MeshData*> level1MeshData = { levelArena, 4 };
 	btBvhTriangleMeshShape* levelShape = nullptr;
 
 	// Materials and Lighting

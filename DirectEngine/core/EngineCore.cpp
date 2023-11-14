@@ -753,9 +753,7 @@ void EngineCore::LoadAssets()
 
     {
         // General vertex buffer
-        m_geometryBuffer.indexCount = 0;
-        m_geometryBuffer.vertexCount = 0;
-        m_geometryBuffer.vertexStride = sizeof(VertexData::Vertex);
+        ResetVertexBuffer();
 
         // Create vertex buffer for upload
         const size_t maxVertexByteCount = m_geometryBuffer.maxVertexCount * m_geometryBuffer.vertexStride;
@@ -834,12 +832,15 @@ void EngineCore::LoadAssets()
 void EngineCore::ResetLevelData()
 {
     WaitForGpu();
+
     for (MaterialData& material : m_materials)
     {
         material.entities.clear();
     }
+
     comPointersLevel.Clear();
     levelArena.Reset();
+    ResetVertexBuffer();
 }
 
 CameraData* EngineCore::CreateCamera()
@@ -1224,6 +1225,13 @@ void EngineCore::BuildTopLevelAccelerationStructure(ID3D12GraphicsCommandList4* 
 
     // Build acceleration structure.
     commandList->BuildRaytracingAccelerationStructure(&topLevelBuildDesc, 0, nullptr);
+}
+
+void EngineCore::ResetVertexBuffer()
+{
+    m_geometryBuffer.indexCount = 0;
+    m_geometryBuffer.vertexCount = 0;
+    m_geometryBuffer.vertexStride = sizeof(VertexData::Vertex);
 }
 
 void EngineCore::UploadVertices()
