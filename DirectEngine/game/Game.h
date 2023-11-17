@@ -38,6 +38,7 @@ enum class Material
 	Portal2,
 	Crosshair,
 	RTOutput,
+	ShellTexture,
 };
 
 struct GameContactPoint
@@ -176,6 +177,7 @@ public:
 	PlayerMovement playerMovement{};
 	XMVECTOR defaultPlayerLookPosition = { 0.f, 1.85f, 0.f };
 
+	// Player
 	float playerPitch = 0.f;
 	float playerYaw = 0.f;
 	

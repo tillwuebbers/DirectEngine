@@ -179,12 +179,23 @@ struct EntityData
     MeshData* meshData;
 };
 
-struct MaterialData
+class MaterialData
 {
+public:
     CountingArray<EntityData*, MAX_ENTITIES_PER_MATERIAL> entities = {};
     CountingArray<Texture*, MAX_TEXTURES_PER_MATERIAL> textures = {};
+    CountingArray<UINT, MAX_ROOT_CONSTANTS_PER_MATERIAL> rootConstants = {};
     PipelineConfig* pipeline = nullptr;
     std::string name = "Material";
+    size_t shellCount = 0;
+
+    template <typename T>
+    void SetRootConstant(size_t index, T value)
+    {
+        assert(index < rootConstants.size);
+        T* rootConstAddr = reinterpret_cast<T*>(&rootConstants[index]);
+        *rootConstAddr = value;
+    }
 };
 
 struct GeometryBuffer
@@ -538,7 +549,7 @@ public:
     void CreateEmptyTexture(int width, int height, std::wstring name, Texture& texture, const IID& riidTexture, void** ppvTexture, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
     Texture* CreateTexture(const std::wstring& filePath);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
-    size_t CreateMaterial(const std::vector<Texture*>& textures, const std::wstring& shaderName);
+    size_t CreateMaterial(const std::wstring& shaderName, const std::vector<Texture*>& textures = {}, size_t rootConstantCount = 0);
     MeshData* CreateMesh(const void* vertexData, const size_t vertexCount, const void* indexData, const size_t indexCount);
     size_t CreateEntity(const size_t materialIndex, MeshData* meshData);
     void BuildBottomLevelAccelerationStructures(ID3D12GraphicsCommandList4* commandList);
