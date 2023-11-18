@@ -446,8 +446,9 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
             featureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
         }
 
+        size_t rootConstantSlotCount = rootConstantCount > 0 ? 1 : 0;
         std::vector<CD3DX12_DESCRIPTOR_RANGE1> ranges{ CUSTOM_START + config->textureSlotCount + constantBufferCount };
-        std::vector<CD3DX12_ROOT_PARAMETER1> rootParameters{ CUSTOM_START + config->textureSlotCount + constantBufferCount + rootConstantCount };
+        std::vector<CD3DX12_ROOT_PARAMETER1> rootParameters{ CUSTOM_START + config->textureSlotCount + constantBufferCount + rootConstantSlotCount };
 
         ranges[SCENE].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, SCENE, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         ranges[LIGHT].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, LIGHT, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
@@ -477,10 +478,10 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
             rootParameters[offset].InitAsDescriptorTable(1, &ranges[offset], D3D12_SHADER_VISIBILITY_ALL);
         }
 
-        for (int i = 0; i < rootConstantCount; i++)
+        if (rootConstantCount > 0)
         {
-            int offset = CUSTOM_START + config->textureSlotCount + constantBufferCount + i;
-            rootParameters[offset].InitAsConstants(1, offset);
+            int offset = CUSTOM_START + config->textureSlotCount + constantBufferCount;
+            rootParameters[offset].InitAsConstants(rootConstantCount, offset);
         }
 
         D3D12_STATIC_SAMPLER_DESC rawSampler = {};
@@ -1541,8 +1542,8 @@ void EngineCore::LoadRaytracingShaderTables(ID3D12StateObject* dxrStateObject, c
 
 void EngineCore::RunComputeShaderPrePass(ID3D12GraphicsCommandList4* renderList)
 {
-    renderList->SetComputeRootUnorderedAccessView(0, m_geometryBuffer.vertexBuffer->GetGPUVirtualAddress());
-    renderList->SetComputeRootDescriptorTable(0, m_geometryBuffer.vertexBuffer->GetGPUVirtualAddress());
+    //renderList->SetComputeRootUnorderedAccessView(0, m_geometryBuffer.vertexBuffer->GetGPUVirtualAddress());
+    //renderList->SetComputeRootDescriptorTable(0, m_geometryBuffer.vertexBuffer->GetGPUVirtualAddress());
 }
 
 void EngineCore::RenderGBuffer(ID3D12GraphicsCommandList4* renderList)
@@ -1579,11 +1580,6 @@ void EngineCore::RenderGBuffer(ID3D12GraphicsCommandList4* renderList)
 
     for (MaterialData& data : m_materials)
     {
-        for (int rootConstantIdx = 0; rootConstantIdx < data.pipeline->rootConstantCount; rootConstantIdx++)
-        {
-            renderList->SetGraphicsRoot32BitConstant(CUSTOM_START + data.pipeline->textureSlotCount + rootConstantIdx, data.rootConstants[rootConstantIdx], 0);
-        }
-
         for (EntityData* entity : data.entities)
         {
             if (!entity->visible || entity->wireframe) continue;
@@ -1721,8 +1717,6 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
             }
         }
 
-        renderList->SetGraphicsRoot32BitConstants(CUSTOM_START + data.pipeline->textureSlotCount, data.rootConstants.size, &data.rootConstants.base, 0);
-
         if (skipRender) continue;
 
         for (EntityData* entity : data.entities)
@@ -1733,6 +1727,10 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
             renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
             auto& boneBuffer = camera == mainCamera ? entity->firstPersonBoneConstantBuffer : entity->boneConstantBuffer;
             renderList->SetGraphicsRootDescriptorTable(BONES, boneBuffer.handles[m_frameIndex].gpuHandle);
+            if (data.rootConstants.size > 0)
+            {
+                renderList->SetGraphicsRoot32BitConstants(CUSTOM_START + data.pipeline->textureSlotCount, data.rootConstants.size, &data.rootConstants.base, 0);
+            }
             renderList->DrawInstanced(entity->meshData->vertexBufferView.SizeInBytes / entity->meshData->vertexBufferView.StrideInBytes, 1, 0, 0);
 
             for (int shellIdx = 0; shellIdx < data.shellCount; shellIdx++)

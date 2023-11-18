@@ -64,8 +64,8 @@ void Game::StartGame(EngineCore& engine)
 	materialIndices.try_emplace(Material::ShellTexture, shellMatIndex);
 	MaterialData& shellMat = engine.m_materials[shellMatIndex];
 	shellMat.SetRootConstant(0, 0);
-	shellMat.SetRootConstant(1, 0.1f);
-	shellMat.shellCount = 4;
+	shellMat.SetRootConstant(1, 0.005f);
+	shellMat.shellCount = 32;
 
 	LOG_TIMER(timer, "Materials");
 	RESET_TIMER(timer);
@@ -506,7 +506,7 @@ void Game::UpdateGame(EngineCore& engine)
 		beforePos = playerEntity->rigidBody->getWorldTransform().getOrigin();
 		beforeVel = playerEntity->rigidBody->getLinearVelocity();
 	}
-	dynamicsWorld->stepSimulation(engine.m_updateDeltaTime, 0, MAX_PHYSICS_STEP);
+	dynamicsWorld->stepSimulation(engine.m_updateDeltaTime, 3, MAX_PHYSICS_STEP);
 	if (playerEntity->rigidBody != nullptr && frameStep)
 	{
 		btVector3 afterPos = playerEntity->rigidBody->getWorldTransform().getOrigin();
