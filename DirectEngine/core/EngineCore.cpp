@@ -1731,13 +1731,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
             {
                 renderList->SetGraphicsRoot32BitConstants(CUSTOM_START + data.pipeline->textureSlotCount, data.rootConstants.size, &data.rootConstants.base, 0);
             }
-            renderList->DrawInstanced(entity->meshData->vertexBufferView.SizeInBytes / entity->meshData->vertexBufferView.StrideInBytes, 1, 0, 0);
-
-            for (int shellIdx = 0; shellIdx < data.shellCount; shellIdx++)
-            {
-                renderList->SetGraphicsRoot32BitConstant(CUSTOM_START + data.pipeline->textureSlotCount, shellIdx + 1, 0);
-                renderList->DrawInstanced(entity->meshData->vertexBufferView.SizeInBytes / entity->meshData->vertexBufferView.StrideInBytes, 1, 0, 0);
-            }
+            renderList->DrawInstanced(entity->meshData->vertexBufferView.SizeInBytes / entity->meshData->vertexBufferView.StrideInBytes, 1 + data.shellCount, 0, 0);
         }
     }
 }
