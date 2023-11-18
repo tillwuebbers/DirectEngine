@@ -42,8 +42,7 @@ void Game::StartGame(EngineCore& engine)
 	std::wstring crosshairShader = L"crosshair";
 	std::wstring textureQuad     = L"texturequad";
 	std::wstring portalShader    = L"portal";
-	std::wstring shellShader     = L"shell";
-	std::wstring shellCompute    = L"generateShell";
+	std::wstring shellTexShader  = L"shelltexture";
 
 	// Textures
 	Texture* groundDiffuse  = engine.CreateTexture(L"textures/ground_D.dds");
@@ -54,13 +53,19 @@ void Game::StartGame(EngineCore& engine)
 	RESET_TIMER(timer);
 
 	// Materials
-	materialIndices.try_emplace(Material::Ground,    engine.CreateMaterial({ groundDiffuse, groundNormal, groundSpecular }, groundShader));
-	materialIndices.try_emplace(Material::Laser,     engine.CreateMaterial({}, laserShader));
-	materialIndices.try_emplace(Material::Portal1,   engine.CreateMaterial({ &engine.m_renderTextures[0]->texture }, portalShader));
-	materialIndices.try_emplace(Material::Portal2,   engine.CreateMaterial({ &engine.m_renderTextures[1]->texture }, portalShader));
-	materialIndices.try_emplace(Material::Crosshair, engine.CreateMaterial({}, crosshairShader));
-	materialIndices.try_emplace(Material::RTOutput,  engine.CreateMaterial({ engine.m_raytracingOutput }, textureQuad));
-	materialIndices.try_emplace(Material::Shell,     engine.CreateMaterial({}, shellShader));
+	materialIndices.try_emplace(Material::Ground,       engine.CreateMaterial(groundShader, { groundDiffuse, groundNormal, groundSpecular }));
+	materialIndices.try_emplace(Material::Laser,        engine.CreateMaterial(laserShader));
+	materialIndices.try_emplace(Material::Portal1,      engine.CreateMaterial(portalShader, { &engine.m_renderTextures[0]->texture }));
+	materialIndices.try_emplace(Material::Portal2,      engine.CreateMaterial(portalShader, { &engine.m_renderTextures[1]->texture }));
+	materialIndices.try_emplace(Material::Crosshair,    engine.CreateMaterial(crosshairShader));
+	materialIndices.try_emplace(Material::RTOutput,     engine.CreateMaterial(textureQuad, { engine.m_raytracingOutput }));
+	
+	size_t shellMatIndex = engine.CreateMaterial(shellTexShader, {}, 2);
+	materialIndices.try_emplace(Material::ShellTexture, shellMatIndex);
+	MaterialData& shellMat = engine.m_materials[shellMatIndex];
+	shellMat.SetRootConstant(0, 0);
+	shellMat.SetRootConstant(1, 0.1f);
+	shellMat.shellCount = 4;
 
 	LOG_TIMER(timer, "Materials");
 	RESET_TIMER(timer);
@@ -229,7 +234,7 @@ void Game::LoadLevel(EngineCore& engine)
 	// Cubes
 	for (int i = 0; i < 16; i++)
 	{
-		Entity* yea = CreateMeshEntity(engine, materialIndices[Material::Shell], cubeMeshData);
+		Entity* yea = CreateMeshEntity(engine, materialIndices[Material::ShellTexture], cubeMeshData);
 		yea->name = "Yea";
 		yea->SetLocalPosition({ 3.f, 0.5f + i * 16.f, 0.f });
 		btBoxShape* boxShape = NewObject(levelArena, btBoxShape, btVector3{ .5f, .5f, .5f });
@@ -728,7 +733,7 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, const s
 		LOG_TIMER(timer, "Texture for model");
 		RESET_TIMER(timer);
 
-		size_t materialIndex = engine.CreateMaterial(textures, shaderName);
+		size_t materialIndex = engine.CreateMaterial(shaderName, textures);
 		MeshData* meshData = engine.CreateMesh(meshFile.vertices, meshFile.vertexCount, nullptr, 0);
 		LOG_TIMER(timer, "Create material and mesh for model");
 		RESET_TIMER(timer);

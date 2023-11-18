@@ -435,6 +435,7 @@ CD3DX12_CPU_DESCRIPTOR_HANDLE EngineCore::CreateDepthStencilView(UINT width, UIN
 void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount)
 {
     config->creationError = S_OK;
+    config->rootConstantCount = rootConstantCount;
 
     {
         D3D12_FEATURE_DATA_ROOT_SIGNATURE featureData = {};
@@ -1038,7 +1039,7 @@ void EngineCore::UploadTexture(const TextureData& textureData, std::vector<D3D12
     m_device->CreateShaderResourceView(targetTexture.buffer, &srvDesc, targetTexture.handle.cpuHandle);
 }
 
-size_t EngineCore::CreateMaterial(const std::vector<Texture*>& textures, const std::wstring& shaderName)
+size_t EngineCore::CreateMaterial(const std::wstring& shaderName, const std::vector<Texture*>& textures, size_t rootConstantCount)
 {
     INIT_TIMER(timer);
 
@@ -1049,6 +1050,11 @@ size_t EngineCore::CreateMaterial(const std::vector<Texture*>& textures, const s
     {
         data.textures.newElement() = tex;
     }
+    for (int i = 0; i < rootConstantCount; i++)
+    {
+        data.rootConstants.newElement();
+    }
+
     data.name = std::string(shaderName.begin(), shaderName.end());
 
     OUTPUT_TIMERW(timer, L"Init");
@@ -1056,7 +1062,7 @@ size_t EngineCore::CreateMaterial(const std::vector<Texture*>& textures, const s
 
     data.pipeline = NewObject(engineArena, PipelineConfig, shaderName, textures.size());
     if (m_msaaEnabled) data.pipeline->sampleCount = m_msaaSampleCount;
-    CreatePipeline(data.pipeline, 0, 0);
+    CreatePipeline(data.pipeline, 0, rootConstantCount);
 
     OUTPUT_TIMERW(timer, L"Pipeline");
     RESET_TIMER(timer);
@@ -1384,12 +1390,12 @@ void EngineCore::PopulateCommandList()
     // Compute Shaders
     RunComputeShaderPrePass(m_renderCommandList);
 
-    // Ray tracing
+    // Update ray tracing acceleration structure
     if (m_raytracingEnabled)
     {
-        BeginProfile("Raytracing", ImColor::HSV(.5, .1, 1.));
+        BeginProfile("RT Top Level Build", ImColor::HSV(.5, .1, 1.));
         BuildTopLevelAccelerationStructure(m_renderCommandList);
-        EndProfile("Raytracing");
+        EndProfile("RT Top Level Build");
     }
 
     // Shadows
@@ -1573,6 +1579,11 @@ void EngineCore::RenderGBuffer(ID3D12GraphicsCommandList4* renderList)
 
     for (MaterialData& data : m_materials)
     {
+        for (int rootConstantIdx = 0; rootConstantIdx < data.pipeline->rootConstantCount; rootConstantIdx++)
+        {
+            renderList->SetGraphicsRoot32BitConstant(CUSTOM_START + data.pipeline->textureSlotCount + rootConstantIdx, data.rootConstants[rootConstantIdx], 0);
+        }
+
         for (EntityData* entity : data.entities)
         {
             if (!entity->visible || entity->wireframe) continue;
@@ -1710,6 +1721,8 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
             }
         }
 
+        renderList->SetGraphicsRoot32BitConstants(CUSTOM_START + data.pipeline->textureSlotCount, data.rootConstants.size, &data.rootConstants.base, 0);
+
         if (skipRender) continue;
 
         for (EntityData* entity : data.entities)
@@ -1721,6 +1734,12 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
             auto& boneBuffer = camera == mainCamera ? entity->firstPersonBoneConstantBuffer : entity->boneConstantBuffer;
             renderList->SetGraphicsRootDescriptorTable(BONES, boneBuffer.handles[m_frameIndex].gpuHandle);
             renderList->DrawInstanced(entity->meshData->vertexBufferView.SizeInBytes / entity->meshData->vertexBufferView.StrideInBytes, 1, 0, 0);
+
+            for (int shellIdx = 0; shellIdx < data.shellCount; shellIdx++)
+            {
+                renderList->SetGraphicsRoot32BitConstant(CUSTOM_START + data.pipeline->textureSlotCount, shellIdx + 1, 0);
+                renderList->DrawInstanced(entity->meshData->vertexBufferView.SizeInBytes / entity->meshData->vertexBufferView.StrideInBytes, 1, 0, 0);
+            }
         }
     }
 }
