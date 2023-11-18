@@ -628,8 +628,6 @@ void Game::DrawDebugUI(EngineCore& engine)
 				{
 					float availableX = ImGui::GetContentRegionAvail().x;
 					ImGui::Text("Entities: %d", mat.entities.size);
-					ImGui::SameLine();
-					ImGui::SetCursorPosX(availableX / 2.f);
 
 					for (Texture* tex : mat.textures)
 					{
@@ -646,6 +644,23 @@ void Game::DrawDebugUI(EngineCore& engine)
 					}
 
 					ImGui::NewLine();
+
+					for (int i = 0; i < mat.rootConstants.size; i++)
+					{
+						RootConstantInfo& info = mat.rootConstants[i];
+						switch (info.type)
+						{
+						case RootConstantType::UINT:
+							ImGui::InputScalar(info.name.str, ImGuiDataType_U64, &mat.rootConstantData[i]);
+							break;
+						case RootConstantType::FLOAT:
+							ImGui::InputFloat(info.name.str, reinterpret_cast<float*>(&mat.rootConstantData[i]));
+							break;
+						default:
+							ImGui::Text("Unknown root constant type");
+							break;
+						}
+					}
 				}
 				ImGui::PopID();
 			}

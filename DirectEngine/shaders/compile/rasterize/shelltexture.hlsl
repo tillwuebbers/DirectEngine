@@ -3,6 +3,7 @@
 struct RootConstants
 {
     float layerOffset;
+    uint layerCount;
 };
 ConstantBuffer<RootConstants> rootConstants : register(b6);
 
@@ -41,7 +42,7 @@ float4 PSMain(PSInput input) : SV_TARGET
     float rand = lerp(0.2, 1.0, hash(seed));
 
     float centerDistance = length(localUV);
-    float normalizedShellHeight = float(input.instanceID) / 32.0;
+    float normalizedShellHeight = float(input.instanceID) / float(rootConstants.layerCount);
     float sdf = centerDistance - (rand - normalizedShellHeight);
 
     if (input.instanceID > 0 && sdf > 0.5)

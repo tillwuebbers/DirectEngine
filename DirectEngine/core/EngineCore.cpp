@@ -1040,7 +1040,7 @@ void EngineCore::UploadTexture(const TextureData& textureData, std::vector<D3D12
     m_device->CreateShaderResourceView(targetTexture.buffer, &srvDesc, targetTexture.handle.cpuHandle);
 }
 
-size_t EngineCore::CreateMaterial(const std::wstring& shaderName, const std::vector<Texture*>& textures, size_t rootConstantCount)
+size_t EngineCore::CreateMaterial(const std::wstring& shaderName, const std::vector<Texture*>& textures, const std::vector<RootConstantInfo>& rootConstants)
 {
     INIT_TIMER(timer);
 
@@ -1051,9 +1051,9 @@ size_t EngineCore::CreateMaterial(const std::wstring& shaderName, const std::vec
     {
         data.textures.newElement() = tex;
     }
-    for (int i = 0; i < rootConstantCount; i++)
+    for (const RootConstantInfo& rootConstantInfo : rootConstants)
     {
-        data.rootConstants.newElement();
+        data.rootConstants.newElement() = rootConstantInfo;
     }
 
     data.name = std::string(shaderName.begin(), shaderName.end());
@@ -1063,7 +1063,7 @@ size_t EngineCore::CreateMaterial(const std::wstring& shaderName, const std::vec
 
     data.pipeline = NewObject(engineArena, PipelineConfig, shaderName, textures.size());
     if (m_msaaEnabled) data.pipeline->sampleCount = m_msaaSampleCount;
-    CreatePipeline(data.pipeline, 0, rootConstantCount);
+    CreatePipeline(data.pipeline, 0, rootConstants.size());
 
     OUTPUT_TIMERW(timer, L"Pipeline");
     RESET_TIMER(timer);
@@ -1729,7 +1729,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
             renderList->SetGraphicsRootDescriptorTable(BONES, boneBuffer.handles[m_frameIndex].gpuHandle);
             if (data.rootConstants.size > 0)
             {
-                renderList->SetGraphicsRoot32BitConstants(CUSTOM_START + data.pipeline->textureSlotCount, data.rootConstants.size, &data.rootConstants.base, 0);
+                renderList->SetGraphicsRoot32BitConstants(CUSTOM_START + data.pipeline->textureSlotCount, data.rootConstants.size, &data.rootConstantData, 0);
             }
             renderList->DrawInstanced(entity->meshData->vertexBufferView.SizeInBytes / entity->meshData->vertexBufferView.StrideInBytes, 1 + data.shellCount, 0, 0);
         }

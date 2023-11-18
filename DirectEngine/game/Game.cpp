@@ -60,10 +60,11 @@ void Game::StartGame(EngineCore& engine)
 	materialIndices.try_emplace(Material::Crosshair,    engine.CreateMaterial(crosshairShader));
 	materialIndices.try_emplace(Material::RTOutput,     engine.CreateMaterial(textureQuad, { engine.m_raytracingOutput }));
 	
-	size_t shellMatIndex = engine.CreateMaterial(shellTexShader, {}, 1);
+	size_t shellMatIndex = engine.CreateMaterial(shellTexShader, {}, {{ RootConstantType::FLOAT, "layerOffset"}, {RootConstantType::UINT, "layerCount"}});
 	materialIndices.try_emplace(Material::ShellTexture, shellMatIndex);
 	MaterialData& shellMat = engine.m_materials[shellMatIndex];
 	shellMat.SetRootConstant(0, 0.005f);
+	shellMat.SetRootConstant(1, 32);
 	shellMat.shellCount = 32;
 
 	LOG_TIMER(timer, "Materials");
