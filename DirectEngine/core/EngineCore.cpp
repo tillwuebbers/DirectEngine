@@ -1381,6 +1381,9 @@ void EngineCore::PopulateCommandList()
     ID3D12Resource* renderTargetWindow = m_renderTargets[m_frameIndex];
     EndProfile("Render Setup");
 
+    // Compute Shaders
+    RunComputeShaderPrePass(m_renderCommandList);
+
     // Ray tracing
     if (m_raytracingEnabled)
     {
@@ -1528,6 +1531,12 @@ void EngineCore::LoadRaytracingShaderTables(ID3D12StateObject* dxrStateObject, c
         hitGroupShaderTable.push_back(ShaderRecord(hitGroupShaderIdentifier, shaderIdentifierSize));
         m_hitGroupShaderTable = hitGroupShaderTable.GetResource();
     }
+}
+
+void EngineCore::RunComputeShaderPrePass(ID3D12GraphicsCommandList4* renderList)
+{
+    renderList->SetComputeRootUnorderedAccessView(0, m_geometryBuffer.vertexBuffer->GetGPUVirtualAddress());
+    renderList->SetComputeRootDescriptorTable(0, m_geometryBuffer.vertexBuffer->GetGPUVirtualAddress());
 }
 
 void EngineCore::RenderGBuffer(ID3D12GraphicsCommandList4* renderList)

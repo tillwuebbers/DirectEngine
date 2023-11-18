@@ -42,6 +42,8 @@ void Game::StartGame(EngineCore& engine)
 	std::wstring crosshairShader = L"crosshair";
 	std::wstring textureQuad     = L"texturequad";
 	std::wstring portalShader    = L"portal";
+	std::wstring shellShader     = L"shell";
+	std::wstring shellCompute    = L"generateShell";
 
 	// Textures
 	Texture* groundDiffuse  = engine.CreateTexture(L"textures/ground_D.dds");
@@ -58,6 +60,7 @@ void Game::StartGame(EngineCore& engine)
 	materialIndices.try_emplace(Material::Portal2,   engine.CreateMaterial({ &engine.m_renderTextures[1]->texture }, portalShader));
 	materialIndices.try_emplace(Material::Crosshair, engine.CreateMaterial({}, crosshairShader));
 	materialIndices.try_emplace(Material::RTOutput,  engine.CreateMaterial({ engine.m_raytracingOutput }, textureQuad));
+	materialIndices.try_emplace(Material::Shell,     engine.CreateMaterial({}, shellShader));
 
 	LOG_TIMER(timer, "Materials");
 	RESET_TIMER(timer);
@@ -226,7 +229,7 @@ void Game::LoadLevel(EngineCore& engine)
 	// Cubes
 	for (int i = 0; i < 16; i++)
 	{
-		Entity* yea = CreateMeshEntity(engine, materialIndices[Material::Ground], cubeMeshData);
+		Entity* yea = CreateMeshEntity(engine, materialIndices[Material::Shell], cubeMeshData);
 		yea->name = "Yea";
 		yea->SetLocalPosition({ 3.f, 0.5f + i * 16.f, 0.f });
 		btBoxShape* boxShape = NewObject(levelArena, btBoxShape, btVector3{ .5f, .5f, .5f });

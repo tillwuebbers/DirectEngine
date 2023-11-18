@@ -33,6 +33,7 @@ file (GLOB IMPORT_CODE "imgui/remixicon.h"
                 "directx-tex/DDSTextureLoader12.cpp")
 file (GLOB SHADER_CODE "shaders/compile/rasterize/*.hlsl")
 file (GLOB SHADER_CODE_RT "shaders/compile/raytrace/*.hlsl")
+file (GLOB SHADER_CODE_CS "shaders/compile/compute/*.hlsl")
 
 function(DEPS PROJ)
     # imgui

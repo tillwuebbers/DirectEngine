@@ -545,6 +545,7 @@ public:
     void BuildTopLevelAccelerationStructure(ID3D12GraphicsCommandList4* commandList);
     void ResetVertexBuffer();
     void UploadVertices();
+    void RunComputeShaderPrePass(ID3D12GraphicsCommandList4* renderList);
     void RenderGBuffer(ID3D12GraphicsCommandList4* renderList);
     void RaytraceShadows(ID3D12GraphicsCommandList4* renderList);
     void RenderShadows(ID3D12GraphicsCommandList* renderList);

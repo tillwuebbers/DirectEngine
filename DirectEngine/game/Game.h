@@ -38,6 +38,7 @@ enum class Material
 	Portal2,
 	Crosshair,
 	RTOutput,
+	Shell,
 };
 
 struct GameContactPoint

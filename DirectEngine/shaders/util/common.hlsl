@@ -39,6 +39,18 @@ cbuffer CameraConstantBuffer : register(b4)
 
 Texture2D shadowmapTexture : register(t5);
 
+struct Vertex
+{
+	float3 position;
+	float4 color;
+	float3 normal;
+	float3 tangent;
+	float3 bitangent;
+	float2 uv;
+	float4 boneWeights;
+	uint4 boneIndices;
+};
+
 struct PSInputDefault
 {
 	float4 position : SV_POSITION;
