@@ -10,6 +10,7 @@ ConstantBuffer<RootConstants> rootConstants : register(b6);
 struct PSInput
 {
     float4 position : SV_POSITION;
+    float3 worldNormal : NORMAL;
     float2 uv : TEXCOORD_0;
     uint instanceID : SV_InstanceID;
 };
@@ -20,6 +21,8 @@ PSInput VSMain(float4 position : POSITION, float3 normal : NORMAL, float2 uv : U
     float3 newPos = position.xyz + normal * instanceID * rootConstants.layerOffset;
     float4 worldPos = mul(float4(newPos, 1.0), worldTransform);
     result.position = mul(worldPos, VSGetVP());
+
+    result.worldNormal = normalize(mul(float4(normal, 0), worldTransform).xyz);
     result.uv = uv;
     result.instanceID = instanceID;
     return result;
@@ -52,5 +55,8 @@ float4 PSMain(PSInput input) : SV_TARGET
 
     float3 color = float3(1.0, 1.0, 1.0);
     float ambientOcclusion = pow(normalizedShellHeight, 0.5);
-    return float4(color * ambientOcclusion, 1.0);
+    float lightStrength = max(dot(input.worldNormal, -sunDirection), 0.);
+    lightStrength = lightStrength * 0.5 + 0.5;
+    lightStrength = lightStrength * lightStrength;
+    return float4(color * ambientOcclusion * lightStrength, 1.0);
 }
