@@ -10,6 +10,7 @@
 #include "../core/Memory.h"
 #include "../core/Common.h"
 #include "../core/Vertex.h"
+using namespace VertexData;
 
 #include <string>
 #include <vector>
@@ -75,15 +76,6 @@ struct TransformHierachy
 
 	void UpdateNode(TransformNode* node);
 	void SetAnimationActive(std::string name, bool state);
-};
-
-struct MeshFile
-{
-	VertexData::Vertex* vertices;
-	size_t vertexCount = 0;
-	std::string textureName{};
-	size_t textureCount = 0; // TODO use better solution
-	uint64_t meshHash;
 };
 
 struct GltfResult

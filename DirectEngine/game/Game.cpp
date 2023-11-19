@@ -116,8 +116,7 @@ void Game::LoadLevel(EngineCore& engine)
 	// Level Meshes & Collision
 	level1MeshData.clear();
 
-	MeshFile cubeMeshFile = LoadGltfFromFile("models/cube.glb", levelArena).meshes[0];
-	cubeMeshData = engine.CreateMesh(cubeMeshFile.vertices, cubeMeshFile.vertexCount, nullptr, 0);
+	cubeMeshData = engine.CreateMesh(LoadGltfFromFile("models/cube.glb", levelArena).meshes[0]);
 
 	GltfResult level1Gltf = LoadGltfFromFile("models/level1.glb", levelArena);
 	btTriangleMesh* levelCollisionMesh = NewObject(levelArena, btTriangleMesh, true, false);
@@ -132,7 +131,7 @@ void Game::LoadLevel(EngineCore& engine)
 			);
 		}
 
-		level1MeshData.newElement() = engine.CreateMesh(meshFile.vertices, meshFile.vertexCount, nullptr, 0);
+		level1MeshData.newElement() = engine.CreateMesh(meshFile);
 	}
 	btTriangleIndexVertexArray* levelMeshInterface = NewObject(levelArena, btTriangleIndexVertexArray);
 	levelMeshInterface->addIndexedMesh(levelCollisionMesh->getIndexedMeshArray()[0]);
@@ -684,7 +683,7 @@ Entity* Game::CreateMeshEntity(EngineCore& engine, size_t materialIndex, MeshDat
 Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical)
 {
 	MeshFile file = vertical ? CreateQuadY(width, height, levelArena) : CreateQuad(width, height, levelArena);
-	MeshData* meshData = engine.CreateMesh(file.vertices, file.vertexCount, nullptr, 0);
+	MeshData* meshData = engine.CreateMesh(file);
 	Entity* entity = CreateMeshEntity(engine, materialIndex, meshData);
 	entity->SetLocalPosition({-width / 2.f, 0.f, -height / 2.f});
 
@@ -734,7 +733,7 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, const s
 		RESET_TIMER(timer);
 
 		size_t materialIndex = engine.CreateMaterial(shaderName, textures);
-		MeshData* meshData = engine.CreateMesh(meshFile.vertices, meshFile.vertexCount, nullptr, 0);
+		MeshData* meshData = engine.CreateMesh(meshFile);
 		LOG_TIMER(timer, "Create material and mesh for model");
 		RESET_TIMER(timer);
 

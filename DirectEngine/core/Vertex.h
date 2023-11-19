@@ -1,6 +1,8 @@
 #pragma once
 #include <d3d12.h>
 #include <DirectXMath.h>
+#include <string>
+#include "Constants.h"
 using namespace DirectX;
 
 namespace VertexData
@@ -15,6 +17,16 @@ namespace VertexData
         XMFLOAT2 uv;
         XMFLOAT4 boneWeights;
         XMUINT4 boneIndices;
+    };
+
+    struct MeshFile
+    {
+        VertexData::Vertex* vertices = nullptr;
+        size_t vertexCount = 0;
+        INDEX_BUFFER_TYPE* indices = nullptr;
+        size_t indexCount = 0;
+        std::string textureName{};
+        size_t textureCount = 0; // TODO use better solution
     };
 
     constexpr D3D12_INPUT_ELEMENT_DESC VERTEX_DESCS[] =

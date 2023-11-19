@@ -219,7 +219,8 @@ struct GeometryBuffer
     ID3D12Resource* vertexUploadBuffer = nullptr;
     ID3D12Resource* vertexBuffer = nullptr;
     size_t indexCount = 0;
-    size_t maxIndexCount = 0;
+    size_t maxIndexCount = 65536;
+    size_t indexStride = sizeof(uint16_t);
     ID3D12Resource* indexUploadBuffer = nullptr;
     ID3D12Resource* indexBuffer = nullptr;
 };
@@ -549,6 +550,8 @@ public:
     void CreateGameWindow(const wchar_t* windowClassName, HINSTANCE hInst, uint32_t width, uint32_t height);
     void LoadPipeline(LUID* requiredLuid);
     void LoadSizeDependentResources();
+    void CreateUploadBuffer(size_t bufferSizeBytes, ID3D12Resource** resource, wchar_t* name = L"Upload Buffer");
+    void CreateGPUBuffer(size_t bufferSizeBytes, ID3D12Resource** resource, wchar_t* name = L"Upload Buffer");
     void LoadAssets();
     void SerializeAndCreateRaytracingRootSignature(D3D12_ROOT_SIGNATURE_DESC& desc, ID3D12RootSignature** rootSig);
     void LoadRaytracingShaderTables(ID3D12StateObject* dxrStateObject, const wchar_t* raygenShaderName, const wchar_t* missShaderName, const wchar_t* hitGroupShaderName);
@@ -563,7 +566,7 @@ public:
     Texture* CreateTexture(const std::wstring& filePath);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
     size_t CreateMaterial(const std::wstring& shaderName, const std::vector<Texture*>& textures = {}, const std::vector<RootConstantInfo>& rootConstants = {});
-    MeshData* CreateMesh(const void* vertexData, const size_t vertexCount, const void* indexData, const size_t indexCount);
+    MeshData* CreateMesh(VertexData::MeshFile& meshFile);
     size_t CreateEntity(const size_t materialIndex, MeshData* meshData);
     void BuildBottomLevelAccelerationStructures(ID3D12GraphicsCommandList4* commandList);
     void BuildTopLevelAccelerationStructure(ID3D12GraphicsCommandList4* commandList);

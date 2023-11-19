@@ -717,6 +717,24 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
     RESET_TIMER(timer);
 }
 
+void EngineCore::CreateUploadBuffer(size_t bufferSizeBytes, ID3D12Resource** resource, wchar_t* name)
+{
+    assert(resource != nullptr);
+
+    CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+    CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(bufferSizeBytes);
+    ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, NewComObject(comPointers, resource)));
+    (*resource)->SetName(name);
+}
+
+void EngineCore::CreateGPUBuffer(size_t bufferSizeBytes, ID3D12Resource** resource, wchar_t* name)
+{
+    CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+    CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(bufferSizeBytes);
+    ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_COMMON, nullptr, NewComObject(comPointers, resource)));
+    (*resource)->SetName(name);
+}
+
 void EngineCore::LoadAssets()
 {
     m_gBufferConfig = NewObject(engineArena, PipelineConfig, L"gbuffer", 0);
@@ -757,18 +775,13 @@ void EngineCore::LoadAssets()
         // General vertex buffer
         ResetVertexBuffer();
 
-        // Create vertex buffer for upload
-        const size_t maxVertexByteCount = m_geometryBuffer.maxVertexCount * m_geometryBuffer.vertexStride;
-        CD3DX12_HEAP_PROPERTIES tempHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-        CD3DX12_RESOURCE_DESC tempBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(maxVertexByteCount);
-        ThrowIfFailed(m_device->CreateCommittedResource(&tempHeapProperties, D3D12_HEAP_FLAG_NONE, &tempBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, NewComObject(comPointers, &m_geometryBuffer.vertexUploadBuffer)));
-        m_geometryBuffer.vertexUploadBuffer->SetName(L"Vertex Upload Buffer");
+        size_t maxVertexByteCount = m_geometryBuffer.maxVertexCount * m_geometryBuffer.vertexStride;
+        CreateUploadBuffer(maxVertexByteCount, &m_geometryBuffer.vertexUploadBuffer);
+        CreateGPUBuffer(maxVertexByteCount, &m_geometryBuffer.vertexBuffer);
 
-        // Create real vertex buffer on gpu memory
-        CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-        CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(maxVertexByteCount);
-        ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_COMMON, nullptr, NewComObject(comPointers, &m_geometryBuffer.vertexBuffer)));
-        m_geometryBuffer.vertexBuffer->SetName(L"Vertex Buffer");
+        size_t maxIndexByteCount = m_geometryBuffer.maxIndexCount * m_geometryBuffer.indexStride;
+        CreateUploadBuffer(maxIndexByteCount, &m_geometryBuffer.indexUploadBuffer);
+        CreateGPUBuffer(maxIndexByteCount, &m_geometryBuffer.indexBuffer);
     }
 
     // Create the render command list
@@ -1071,39 +1084,56 @@ size_t EngineCore::CreateMaterial(const std::wstring& shaderName, const std::vec
     return dataIndex;
 }
 
-MeshData* EngineCore::CreateMesh(const void* vertexData, const size_t vertexCount, const void* indexData, const size_t indexCount)
+MeshData* EngineCore::CreateMesh(VertexData::MeshFile& meshFile)
 {
-    // Write to buffer
-    const size_t sizeInBytes = m_geometryBuffer.vertexStride * vertexCount;
-    const size_t offsetInBuffer = m_geometryBuffer.vertexCount * m_geometryBuffer.vertexStride;
-    assert(m_geometryBuffer.vertexCount + vertexCount <= m_geometryBuffer.maxVertexCount);
+    assert(meshFile.vertices != nullptr);
+    assert(meshFile.indices != nullptr);
+
+    // Calculate data sizes
+    size_t addedVertexBytes = m_geometryBuffer.vertexStride * meshFile.vertexCount;
+    size_t offsetInVertexBuffer = m_geometryBuffer.vertexCount * m_geometryBuffer.vertexStride;
+    assert(m_geometryBuffer.vertexCount + meshFile.vertexCount <= m_geometryBuffer.maxVertexCount);
+
+    size_t addedIndexBytes = m_geometryBuffer.indexStride * meshFile.indexCount;
+    size_t offsetInIndexBuffer = m_geometryBuffer.indexCount * m_geometryBuffer.indexStride;
+    assert(m_geometryBuffer.indexCount + meshFile.indexCount <= m_geometryBuffer.maxIndexCount);
 
     // Crate object
     MeshData& mesh = m_meshes.newElement();
-    mesh.vertexBufferView.BufferLocation = m_geometryBuffer.vertexBuffer->GetGPUVirtualAddress() + offsetInBuffer;
+    mesh.vertexBufferView.BufferLocation = m_geometryBuffer.vertexBuffer->GetGPUVirtualAddress() + offsetInVertexBuffer;
     mesh.vertexBufferView.StrideInBytes = m_geometryBuffer.vertexStride;
-    mesh.vertexBufferView.SizeInBytes = sizeInBytes;
+    mesh.vertexBufferView.SizeInBytes = addedVertexBytes;
+    
+    mesh.indexBufferView.BufferLocation = m_geometryBuffer.indexBuffer->GetGPUVirtualAddress() + offsetInIndexBuffer;
+    mesh.indexBufferView.Format = INDEX_BUFFER_FORMAT;
+    mesh.indexBufferView.SizeInBytes = addedIndexBytes;
 
-    // Write to temp buffer
-    UINT8* pVertexDataBegin = nullptr;
+    // Write to temp buffers
     CD3DX12_RANGE readRange(0, 0);
+
+    UINT8* pVertexDataBegin = nullptr;
     ThrowIfFailed(m_geometryBuffer.vertexUploadBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)));
-    memcpy(pVertexDataBegin + offsetInBuffer, vertexData, sizeInBytes);
+    memcpy(pVertexDataBegin + offsetInVertexBuffer, meshFile.vertices, addedVertexBytes);
     m_geometryBuffer.vertexUploadBuffer->Unmap(0, nullptr);
-    m_geometryBuffer.vertexCount += vertexCount;
+    m_geometryBuffer.vertexCount += meshFile.vertexCount;
+
+    UINT8* pIndexDataBegin = nullptr;
+    ThrowIfFailed(m_geometryBuffer.indexUploadBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pIndexDataBegin)));
+    memcpy(pIndexDataBegin + offsetInIndexBuffer, meshFile.indices, addedIndexBytes);
+    m_geometryBuffer.indexUploadBuffer->Unmap(0, nullptr);
+    m_geometryBuffer.indexCount += meshFile.indexCount;
 
     if (m_raytracingSupport)
     {
         mesh.geometryDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
 
-        // no index buffer
-        mesh.geometryDesc.Triangles.IndexBuffer = 0;
-        mesh.geometryDesc.Triangles.IndexCount = 0;
-        mesh.geometryDesc.Triangles.IndexFormat = DXGI_FORMAT_UNKNOWN;
+        mesh.geometryDesc.Triangles.IndexBuffer = m_geometryBuffer.indexBuffer->GetGPUVirtualAddress() + offsetInIndexBuffer;
+        mesh.geometryDesc.Triangles.IndexCount = meshFile.indexCount;
+        mesh.geometryDesc.Triangles.IndexFormat = INDEX_BUFFER_FORMAT;
 
         mesh.geometryDesc.Triangles.Transform3x4 = 0;
         mesh.geometryDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
-        mesh.geometryDesc.Triangles.VertexCount = mesh.vertexBufferView.SizeInBytes / mesh.vertexBufferView.StrideInBytes;
+        mesh.geometryDesc.Triangles.VertexCount = meshFile.vertexCount;
         mesh.geometryDesc.Triangles.VertexBuffer.StartAddress = mesh.vertexBufferView.BufferLocation;
         mesh.geometryDesc.Triangles.VertexBuffer.StrideInBytes = mesh.vertexBufferView.StrideInBytes;
     }
@@ -1162,8 +1192,10 @@ void EngineCore::BuildBottomLevelAccelerationStructures(ID3D12GraphicsCommandLis
         }
 
         Transition(commandList, m_geometryBuffer.vertexBuffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        Transition(commandList, m_geometryBuffer.indexBuffer, D3D12_RESOURCE_STATE_INDEX_BUFFER, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         commandList->BuildRaytracingAccelerationStructure(&bottomLevelBuildDesc, 0, nullptr);
         Transition(commandList, m_geometryBuffer.vertexBuffer, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+        Transition(commandList, m_geometryBuffer.indexBuffer, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_INDEX_BUFFER);
         auto UAV = CD3DX12_RESOURCE_BARRIER::UAV(meshData.bottomLevelAccelerationStructure);
         commandList->ResourceBarrier(1, &UAV);
     }
@@ -1243,9 +1275,15 @@ void EngineCore::ResetVertexBuffer()
 
 void EngineCore::UploadVertices()
 {
+    CD3DX12_RESOURCE_BARRIER transitions[2] = {};
+
     m_uploadCommandList->CopyResource(m_geometryBuffer.vertexBuffer, m_geometryBuffer.vertexUploadBuffer);
-    CD3DX12_RESOURCE_BARRIER transition = CD3DX12_RESOURCE_BARRIER::Transition(m_geometryBuffer.vertexBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-    m_uploadCommandList->ResourceBarrier(1, &transition);
+    m_uploadCommandList->CopyResource(m_geometryBuffer.indexBuffer, m_geometryBuffer.indexUploadBuffer);
+    
+    transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(m_geometryBuffer.vertexBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+    transitions[1] = CD3DX12_RESOURCE_BARRIER::Transition(m_geometryBuffer.indexBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDEX_BUFFER);
+    
+    m_uploadCommandList->ResourceBarrier(2, transitions);
     m_scheduleUpload = true;
 
     if (m_raytracingSupport)
@@ -1585,9 +1623,10 @@ void EngineCore::RenderGBuffer(ID3D12GraphicsCommandList4* renderList)
             if (!entity->visible || entity->wireframe) continue;
 
             renderList->IASetVertexBuffers(0, 1, &entity->meshData->vertexBufferView);
+            renderList->IASetIndexBuffer(&entity->meshData->indexBufferView);
             renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
             renderList->SetGraphicsRootDescriptorTable(BONES, entity->boneConstantBuffer.handles[m_frameIndex].gpuHandle);
-            renderList->DrawInstanced(entity->meshData->vertexBufferView.SizeInBytes / entity->meshData->vertexBufferView.StrideInBytes, 1, 0, 0);
+            renderList->DrawIndexedInstanced(entity->meshData->indexBufferView.SizeInBytes / sizeof(INDEX_BUFFER_TYPE), 1, 0, 0, 0);
         }
     }
 
@@ -1661,9 +1700,10 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
         {
             if (!entity->visible || entity->wireframe) continue;
             renderList->IASetVertexBuffers(0, 1, &entity->meshData->vertexBufferView);
+            renderList->IASetIndexBuffer(&entity->meshData->indexBufferView);
             renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
             renderList->SetGraphicsRootDescriptorTable(BONES, entity->boneConstantBuffer.handles[m_frameIndex].gpuHandle);
-            renderList->DrawInstanced(entity->meshData->vertexBufferView.SizeInBytes / entity->meshData->vertexBufferView.StrideInBytes, 1, 0, 0);
+            renderList->DrawIndexedInstanced(entity->meshData->indexBufferView.SizeInBytes / sizeof(INDEX_BUFFER_TYPE), 1, 0, 0, 0);
         }
     }
 
@@ -1724,6 +1764,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
             if (!entity->visible || entity->wireframe) continue;
             if (entity->mainOnly && camera != mainCamera) continue;
             renderList->IASetVertexBuffers(0, 1, &entity->meshData->vertexBufferView);
+            renderList->IASetIndexBuffer(&entity->meshData->indexBufferView);
             renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
             auto& boneBuffer = camera == mainCamera ? entity->firstPersonBoneConstantBuffer : entity->boneConstantBuffer;
             renderList->SetGraphicsRootDescriptorTable(BONES, boneBuffer.handles[m_frameIndex].gpuHandle);
@@ -1731,7 +1772,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
             {
                 renderList->SetGraphicsRoot32BitConstants(CUSTOM_START + data.pipeline->textureSlotCount, data.rootConstants.size, &data.rootConstantData, 0);
             }
-            renderList->DrawInstanced(entity->meshData->vertexBufferView.SizeInBytes / entity->meshData->vertexBufferView.StrideInBytes, 1 + data.shellCount, 0, 0);
+            renderList->DrawIndexedInstanced(entity->meshData->indexBufferView.SizeInBytes / sizeof(INDEX_BUFFER_TYPE), 1 + data.shellCount, 0, 0, 0);
         }
     }
 }
@@ -1765,9 +1806,10 @@ void EngineCore::RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CP
             if (entity->visible && entity->wireframe)
             {
                 renderList->IASetVertexBuffers(0, 1, &entity->meshData->vertexBufferView);
+                renderList->IASetIndexBuffer(&entity->meshData->indexBufferView);
                 renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
                 renderList->SetGraphicsRootDescriptorTable(BONES, entity->boneConstantBuffer.handles[m_frameIndex].gpuHandle);
-                renderList->DrawInstanced(entity->meshData->vertexBufferView.SizeInBytes / entity->meshData->vertexBufferView.StrideInBytes, 1, 0, 0);
+                renderList->DrawIndexedInstanced(entity->meshData->indexBufferView.SizeInBytes / sizeof(INDEX_BUFFER_TYPE), 1, 0, 0, 0);
             }
         }
     }
