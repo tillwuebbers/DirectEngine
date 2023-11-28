@@ -9,9 +9,11 @@
 
 size_t Align(size_t value, size_t alignment);
 
-// Custom allocation, still figuring out how to use this best.
-// WARNING: Anything allocated inside a memory arena won't get it's desctructor called (intentionally).
-// Don't store std::string or similar in here!
+/// <summary>
+/// Custom allocation, still figuring out how to use this best.
+/// WARNING: Anything allocated inside a memory arena won't get it's desctructor called (intentionally).
+/// Don't store std::string or similar in here!
+/// </summary>
 class MemoryArena
 {
 public:
@@ -147,6 +149,9 @@ namespace ArrayFunc
 	}
 }
 
+/// <summary>
+/// Stack allocated array, counts the number of elements if used with newElement().
+/// </summary>
 template <typename T, std::size_t CAPACITY>
 class CountingArray
 {
@@ -227,6 +232,9 @@ public:
     Iterator end() { return Iterator(reinterpret_cast<T*>(base + size)); }
 };
 
+/// <summary>
+/// Arena allocated array, counts the number of elements if used with newElement().
+/// </summary>
 template <typename T>
 class FixedList
 {
@@ -314,6 +322,7 @@ public:
     Iterator end() { return Iterator(reinterpret_cast<T*>(base + size)); }
 };
 
+// Used for short strings, to avoid std. This might not be a great idea but i'm trying it for fun here.
 struct FixedStr
 {
     constexpr static size_t SIZE = 128;
@@ -325,6 +334,7 @@ struct FixedStr
         return *this;
     }
 
+    // TODO: this isn't efficient, but we'll have to use std::move or something like that to make it better.
     FixedStr(const char* other)
     {
         strcpy_s((char*)str, SIZE, other);
