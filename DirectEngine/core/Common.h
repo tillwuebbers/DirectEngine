@@ -29,8 +29,6 @@ public:
         this->textureSlotCount = textureSlotCount;
     }
 
-    bool shadow = false;
-    bool wireframe = false;
     bool ignoreDepth = false;
     std::wstring shaderName;
     size_t textureSlotCount = 0;
@@ -38,6 +36,7 @@ public:
     UINT sampleCount = 1;
     UINT renderTargetCount = 1;
 	D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    D3D12_RASTERIZER_DESC rasterizerDesc = CD3DX12_RASTERIZER_DESC{ D3D12_DEFAULT };
     DXGI_FORMAT format = DISPLAY_FORMAT;
 
     ID3D12PipelineState* pipelineState = nullptr;

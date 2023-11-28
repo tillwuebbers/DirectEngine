@@ -565,7 +565,7 @@ public:
     void CreateEmptyTexture(int width, int height, std::wstring name, Texture& texture, const IID& riidTexture, void** ppvTexture, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
     Texture* CreateTexture(const std::wstring& filePath);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
-    size_t CreateMaterial(const std::wstring& shaderName, const std::vector<Texture*>& textures = {}, const std::vector<RootConstantInfo>& rootConstants = {});
+    size_t CreateMaterial(const std::wstring& shaderName, const std::vector<Texture*>& textures = {}, const std::vector<RootConstantInfo>& rootConstants = {}, const D3D12_RASTERIZER_DESC& rasterizerDesc = CD3DX12_RASTERIZER_DESC{ D3D12_DEFAULT });
     MeshData* CreateMesh(VertexData::MeshFile& meshFile);
     size_t CreateEntity(const size_t materialIndex, MeshData* meshData);
     void BuildBottomLevelAccelerationStructures(ID3D12GraphicsCommandList4* commandList);

@@ -60,7 +60,9 @@ void Game::StartGame(EngineCore& engine)
 	materialIndices.try_emplace(Material::Crosshair,    engine.CreateMaterial(crosshairShader));
 	materialIndices.try_emplace(Material::RTOutput,     engine.CreateMaterial(textureQuad, { engine.m_raytracingOutput }));
 	
-	size_t shellMatIndex = engine.CreateMaterial(shellTexShader, {}, {{ RootConstantType::FLOAT, "layerOffset"}, {RootConstantType::UINT, "layerCount"}});
+	D3D12_RASTERIZER_DESC shellRasterizerDesc = CD3DX12_RASTERIZER_DESC{ D3D12_DEFAULT };
+	shellRasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
+	size_t shellMatIndex = engine.CreateMaterial(shellTexShader, {}, {{ RootConstantType::FLOAT, "layerOffset"}, {RootConstantType::UINT, "layerCount"}}, shellRasterizerDesc);
 	materialIndices.try_emplace(Material::ShellTexture, shellMatIndex);
 	MaterialData& shellMat = engine.m_materials[shellMatIndex];
 	shellMat.SetRootConstant(0, 0.005f);

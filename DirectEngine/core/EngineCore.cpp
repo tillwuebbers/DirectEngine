@@ -662,26 +662,13 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
     OUTPUT_TIMERW(timer, L"Load Shaders");
     RESET_TIMER(timer);
 
-    // Rasterizer
-    CD3DX12_RASTERIZER_DESC rasterizerDesc(D3D12_DEFAULT);
-    if (config->wireframe)
-    {
-        rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
-        rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
-    }
-    if (config->shadow)
-    {
-        rasterizerDesc.CullMode = D3D12_CULL_MODE_FRONT;
-        rasterizerDesc.SlopeScaledDepthBias = 1.0;
-    }
-
     // Describe and create the graphics pipeline state object (PSO).
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
     psoDesc.InputLayout = { VertexData::VERTEX_DESCS, _countof(VertexData::VERTEX_DESCS) };
     psoDesc.pRootSignature = config->rootSignature;
     psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.Get());
     psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
-    psoDesc.RasterizerState = rasterizerDesc;
+    psoDesc.RasterizerState = config->rasterizerDesc;
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
     psoDesc.DepthStencilState.DepthFunc = config->ignoreDepth ? D3D12_COMPARISON_FUNC_ALWAYS : D3D12_COMPARISON_FUNC_LESS_EQUAL;
@@ -743,19 +730,22 @@ void EngineCore::LoadAssets()
     CreatePipeline(m_gBufferConfig, 0, 0);
 
     m_shadowConfig = NewObject(engineArena, PipelineConfig, L"shadow", 0);
-    m_shadowConfig->shadow = true;
+    m_shadowConfig->rasterizerDesc.SlopeScaledDepthBias = 1.0;
+    m_shadowConfig->rasterizerDesc.CullMode = D3D12_CULL_MODE_FRONT;
     CreatePipeline(m_shadowConfig, 0, 0);
 
     m_wireframeConfig = NewObject(engineArena, PipelineConfig, L"aabb", 0);
-    m_wireframeConfig->wireframe = true;
     m_wireframeConfig->sampleCount = m_msaaEnabled ? m_msaaSampleCount : 1;
+    m_wireframeConfig->rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
+    m_wireframeConfig->rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
     CreatePipeline(m_wireframeConfig, 0, 0);
 
     m_debugLineConfig = NewObject(engineArena, PipelineConfig, L"debugline", 0);
-    m_debugLineConfig->wireframe = true;
     m_debugLineConfig->ignoreDepth = true;
     m_debugLineConfig->topologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
     m_debugLineConfig->sampleCount = m_msaaEnabled ? m_msaaSampleCount : 1;
+    m_debugLineConfig->rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
+    m_debugLineConfig->rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
     CreatePipeline(m_debugLineConfig, 0, 0);
 
     {
@@ -1053,7 +1043,7 @@ void EngineCore::UploadTexture(const TextureData& textureData, std::vector<D3D12
     m_device->CreateShaderResourceView(targetTexture.buffer, &srvDesc, targetTexture.handle.cpuHandle);
 }
 
-size_t EngineCore::CreateMaterial(const std::wstring& shaderName, const std::vector<Texture*>& textures, const std::vector<RootConstantInfo>& rootConstants)
+size_t EngineCore::CreateMaterial(const std::wstring& shaderName, const std::vector<Texture*>& textures, const std::vector<RootConstantInfo>& rootConstants, const D3D12_RASTERIZER_DESC& rasterizerDesc)
 {
     INIT_TIMER(timer);
 
@@ -1075,6 +1065,7 @@ size_t EngineCore::CreateMaterial(const std::wstring& shaderName, const std::vec
     RESET_TIMER(timer);
 
     data.pipeline = NewObject(engineArena, PipelineConfig, shaderName, textures.size());
+    data.pipeline->rasterizerDesc = rasterizerDesc;
     if (m_msaaEnabled) data.pipeline->sampleCount = m_msaaSampleCount;
     CreatePipeline(data.pipeline, 0, rootConstants.size());
 
@@ -1717,7 +1708,6 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
     ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap };
     renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
-    // Record commands.
     renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     for (MaterialData& data : m_materials)
@@ -1743,8 +1733,8 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
         {
             bool isRenderTexture = false;
             for (RenderTexture* rt : m_renderTextures)
-				if (&rt->texture == data.textures[textureIdx])
-					isRenderTexture = true;
+                if (&rt->texture == data.textures[textureIdx])
+                    isRenderTexture = true;
 
             if (!camera->skipRenderTextures || !isRenderTexture)
             {
