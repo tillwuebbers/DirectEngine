@@ -1020,7 +1020,7 @@ void EngineCore::UploadTexture(const TextureData& textureData, std::vector<D3D12
     CD3DX12_HEAP_PROPERTIES heapPropertiesUpload(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC bufferUloadDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
 
-    assert(m_textureUploadIndex < MAX_TEXTURE_UPLOADS);
+    assert(m_textureUploadIndex < MAX_TEXTURES);
     ID3D12Resource** tempHeap = &m_textureUploadHeaps[m_textureUploadIndex];
     m_textureUploadIndex++;
 

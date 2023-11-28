@@ -339,12 +339,28 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 		for (Primitive& primitive : mesh.primitives)
 		{
 			Accessor& indexAccessor = model.accessors[primitive.indices];
-			assert(indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT);
 			assert(indexAccessor.type == TINYGLTF_TYPE_SCALAR);
-			const INDEX_BUFFER_TYPE* indexData = ReadBuffer<uint16_t>(model, indexAccessor);
+
 			indices = NewArray(arena, INDEX_BUFFER_TYPE, indexAccessor.count);
 			indexCount = indexAccessor.count;
-			memcpy_s(indices, sizeof(INDEX_BUFFER_TYPE) * indexCount, indexData, sizeof(INDEX_BUFFER_TYPE) * indexAccessor.count);
+			
+			if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
+			{
+				const uint16_t* indexData = ReadBuffer<uint16_t>(model, indexAccessor);
+				for (int i = 0; i < indexCount; i++)
+				{
+					indices[i] = indexData[i];
+				}
+			}
+			else if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT)
+			{
+				const uint32_t* indexData = ReadBuffer<uint32_t>(model, indexAccessor);
+				memcpy_s(indices, sizeof(INDEX_BUFFER_TYPE)* indexCount, indexData, sizeof(INDEX_BUFFER_TYPE)* indexAccessor.count);
+			}
+			else
+			{
+				assert(false);
+			}
 
 			Accessor& positionAccessor = CheckAccessor(model, primitive, GLTF_POSITION, TINYGLTF_TYPE_VEC3);
 			const float* positionData = ReadBuffer<float>(model, positionAccessor);

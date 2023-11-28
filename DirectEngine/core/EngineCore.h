@@ -214,13 +214,13 @@ public:
 struct GeometryBuffer
 {
     size_t vertexCount = 0;
-    size_t maxVertexCount = 65536;
+    size_t maxVertexCount = 65536 * 16;
     size_t vertexStride = 0;
     ID3D12Resource* vertexUploadBuffer = nullptr;
     ID3D12Resource* vertexBuffer = nullptr;
     size_t indexCount = 0;
-    size_t maxIndexCount = 65536;
-    size_t indexStride = sizeof(uint16_t);
+    size_t maxIndexCount = 65536 * 16;
+    size_t indexStride = sizeof(INDEX_BUFFER_FORMAT);
     ID3D12Resource* indexUploadBuffer = nullptr;
     ID3D12Resource* indexBuffer = nullptr;
 };
@@ -473,11 +473,11 @@ public:
     ConstantBuffer<LightConstantBuffer> m_lightConstantBuffer = {};
     ShadowMap* m_shadowmap = nullptr;
     GBuffer* m_gBuffer = nullptr;
-    ID3D12Resource* m_textureUploadHeaps[MAX_TEXTURE_UPLOADS] = {};
+    ID3D12Resource* m_textureUploadHeaps[MAX_TEXTURES] = {};
     size_t m_textureUploadIndex = 0;
     GeometryBuffer m_geometryBuffer = {};
     FixedList<MaterialData> m_materials = { engineArena, MAX_MATERIALS };
-    FixedList<Texture> m_textures = { engineArena, MAX_TEXTURE_UPLOADS };
+    FixedList<Texture> m_textures = { engineArena, MAX_TEXTURES };
     FixedList<CameraData> m_cameras = { engineArena, MAX_CAMERAS };
     FixedList<MeshData> m_meshes = { engineArena, MAX_MESHES };
 

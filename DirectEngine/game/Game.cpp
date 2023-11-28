@@ -35,15 +35,6 @@ void Game::StartGame(EngineCore& engine)
 		SaveConfig(configArena, CONFIG_PATH);
 	}
 
-	// Shaders
-	std::wstring defaultShader   = L"entity";
-	std::wstring groundShader    = L"ground";
-	std::wstring laserShader     = L"laser";
-	std::wstring crosshairShader = L"crosshair";
-	std::wstring textureQuad     = L"texturequad";
-	std::wstring portalShader    = L"portal";
-	std::wstring shellTexShader  = L"shelltexture";
-
 	// Textures
 	Texture* groundDiffuse  = engine.CreateTexture(L"textures/ground_D.dds");
 	Texture* groundNormal   = engine.CreateTexture(L"textures/ground_N.dds");
@@ -53,16 +44,16 @@ void Game::StartGame(EngineCore& engine)
 	RESET_TIMER(timer);
 
 	// Materials
-	materialIndices.try_emplace(Material::Ground,       engine.CreateMaterial(groundShader, { groundDiffuse, groundNormal, groundSpecular }));
-	materialIndices.try_emplace(Material::Laser,        engine.CreateMaterial(laserShader));
-	materialIndices.try_emplace(Material::Portal1,      engine.CreateMaterial(portalShader, { &engine.m_renderTextures[0]->texture }));
-	materialIndices.try_emplace(Material::Portal2,      engine.CreateMaterial(portalShader, { &engine.m_renderTextures[1]->texture }));
-	materialIndices.try_emplace(Material::Crosshair,    engine.CreateMaterial(crosshairShader));
-	materialIndices.try_emplace(Material::RTOutput,     engine.CreateMaterial(textureQuad, { engine.m_raytracingOutput }));
+	materialIndices.try_emplace(Material::Ground,       engine.CreateMaterial(SHADER_NAMES.at(Shader::Ground), { groundDiffuse, groundNormal, groundSpecular }));
+	materialIndices.try_emplace(Material::Laser,        engine.CreateMaterial(SHADER_NAMES.at(Shader::Laser)));
+	materialIndices.try_emplace(Material::Portal1,      engine.CreateMaterial(SHADER_NAMES.at(Shader::Portal), {&engine.m_renderTextures[0]->texture}));
+	materialIndices.try_emplace(Material::Portal2,      engine.CreateMaterial(SHADER_NAMES.at(Shader::Portal), {&engine.m_renderTextures[1]->texture}));
+	materialIndices.try_emplace(Material::Crosshair,    engine.CreateMaterial(SHADER_NAMES.at(Shader::Crosshair)));
+	materialIndices.try_emplace(Material::RTOutput,     engine.CreateMaterial(SHADER_NAMES.at(Shader::TextureQuad), {engine.m_raytracingOutput}));
 	
 	D3D12_RASTERIZER_DESC shellRasterizerDesc = CD3DX12_RASTERIZER_DESC{ D3D12_DEFAULT };
 	shellRasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
-	size_t shellMatIndex = engine.CreateMaterial(shellTexShader, {}, {{ RootConstantType::FLOAT, "layerOffset"}, {RootConstantType::UINT, "layerCount"}}, shellRasterizerDesc);
+	size_t shellMatIndex = engine.CreateMaterial(SHADER_NAMES.at(Shader::ShellTex), {}, {{RootConstantType::FLOAT, "layerOffset"}, {RootConstantType::UINT, "layerCount"}}, shellRasterizerDesc);
 	materialIndices.try_emplace(Material::ShellTexture, shellMatIndex);
 	MaterialData& shellMat = engine.m_materials[shellMatIndex];
 	shellMat.SetRootConstant(0, 0.005f);
@@ -114,6 +105,9 @@ void Game::LoadLevel(EngineCore& engine)
 
 	// Gizmo
 	gizmo.Init(levelArena, this, engine, materialIndices[Material::Laser]);
+
+	// Log
+	CreateEntityFromGltf(engine, "models/log.glb", Shader::Entity);
 
 	// Level Meshes & Collision
 	level1MeshData.clear();
@@ -197,7 +191,7 @@ void Game::LoadLevel(EngineCore& engine)
 	cameraEntity->SetLocalPosition({ 0.f, 0.f, 0.15f });
 	playerLookEntity->AddChild(cameraEntity, false);
 
-	playerModelEntity = CreateEntityFromGltf(engine, "models/kaiju.glb", L"entity");
+	playerModelEntity = CreateEntityFromGltf(engine, "models/kaiju.glb", Shader::EntitySkinned);
 
 	assert(playerModelEntity->isSkinnedRoot);
 	playerModelEntity->name = "KaijuRoot";
@@ -706,7 +700,7 @@ Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float w
 	return entity;
 }
 
-Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, const std::wstring& shaderName)
+Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, Assets::Shader shader)
 {
 	Entity* mainEntity = CreateEmptyEntity(engine);
 
@@ -734,7 +728,7 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, const s
 		LOG_TIMER(timer, "Texture for model");
 		RESET_TIMER(timer);
 
-		size_t materialIndex = engine.CreateMaterial(shaderName, textures);
+		size_t materialIndex = engine.CreateMaterial(SHADER_NAMES.at(shader), textures);
 		MeshData* meshData = engine.CreateMesh(meshFile);
 		LOG_TIMER(timer, "Create material and mesh for model");
 		RESET_TIMER(timer);

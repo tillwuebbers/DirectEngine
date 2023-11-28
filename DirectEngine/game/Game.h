@@ -5,6 +5,9 @@
 #include "Config.h"
 #include "Physics.h"
 #include "Gizmo.h"
+#include "Assets.h"
+using namespace Assets;
+
 #include "../core/IGame.h"
 #include "../core/EngineCore.h"
 
@@ -28,17 +31,6 @@ struct ShadowSpaceBounds
 {
 	XMFLOAT3 min;
 	XMFLOAT3 max;
-};
-
-enum class Material
-{
-	Ground,
-	Laser,
-	Portal1,
-	Portal2,
-	Crosshair,
-	RTOutput,
-	ShellTexture,
 };
 
 struct GameContactPoint
@@ -193,7 +185,7 @@ public:
 	Entity* CreateMeshEntity(EngineCore& engine, size_t drawCallIndex, MeshData* meshData) override;
 	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical = false) override;
 	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, PhysicsInit& physicsInit, bool vertical = false) override;
-	Entity* CreateEntityFromGltf(EngineCore& engine, const char* path, const std::wstring& shaderName) override;
+	Entity* CreateEntityFromGltf(EngineCore& engine, const char* path, Assets::Shader shader) override;
 	void UpdateCursorState();
 
 	void PlaySound(EngineCore& engine, AudioSource* audioSource, AudioFile file);
