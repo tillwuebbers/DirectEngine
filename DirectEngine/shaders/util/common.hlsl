@@ -1,3 +1,5 @@
+#define PI 3.14159265359
+
 SamplerState rawSampler : register(s0);
 SamplerState smoothSampler : register(s1);
 
@@ -122,6 +124,71 @@ float SampleShadowMap(float2 shadowMapPos, float2 offset, float4 lightSpacePosit
 		shadow = currentDepth > closestDepth ? 1.0 : 0.0;
 	}
 	return shadow;
+}
+
+float XPlus(float x)
+{
+	return x > 0.0 ? 1.0 : 0.0;
+}
+
+float G1(float nDotV, float k)
+{
+    return nDotV / (nDotV * (1.0 - k) + k);
+}
+
+float3 PBR(PSInputDefault input, float3 albedoInput, float3 normalTS, float roughnessInput, float metallicInput)
+{
+	// Lighting based on PBR models described by Real-Time Rendering 4th Edition & learnopengl.org
+    float roughness = roughnessInput * roughnessInput;
+    float roughnessSq = roughness * roughness;
+	
+	// Specularity behavior is different for dielectric and metallic surfaces
+    float3 F0 = float3(0.04, 0.04, 0.04);
+    F0 = lerp(F0, albedoInput, metallicInput);
+	
+	// BRDF for absorbed light
+    float3 albedo = lerp(albedoInput, float3(0.0, 0.0, 0.0), metallicInput);
+    float3 brdfDiffuse = albedo / PI;
+	
+	// Sum up all light contributions
+    float nDotV = max(dot(normalTS, input.cameraDirectionTS), 0.0);
+	float3 lightOut = float3(0.0, 0.0, 0.0);
+	
+	// TODO: loop over all light sources
+    for (int i = 0; i < 1; i++)
+    {
+        float3 lightColor = fogColor;
+		float3 radiance = lightColor; // directional light
+        float3 halfWay = normalize(input.lightDirectionTS + input.cameraDirectionTS);
+		float nDotL = max(dot(normalTS, input.lightDirectionTS), 0.0);
+		float nDotH = max(dot(normalTS, halfWay), 0.0);
+		
+		// Fresnel-Schlick reflection approximation (F)
+        float3 fresnelReflection = F0 + (1.0 - F0) * pow(1.0 - nDotL, 5.0);
+		
+		// Microfaced masking and shadowing function (G2)
+        float g2 = G1(nDotV, roughness) * G1(nDotL, roughness);
+		
+		// GGX Microfacet normal distribution function (D)
+        float denominator = 1.0 + nDotH * nDotH * (roughnessSq - 1.0);
+        float ggx = roughnessSq / (PI * denominator * denominator);
+		
+		// BRDF for reflected light
+        float brdfDenominator = (4.0 * nDotL * nDotV + 0.0001);
+        float3 brdfSpecular = (fresnelReflection * ggx * g2) / brdfDenominator;
+		
+        float3 kD = float3(1.0, 1.0, 1.0) - fresnelReflection;
+		kD *= 1.0 - metallicInput;
+        
+		float inShadow = shadowmapTexture.Load(int3(input.position.xy, 0)).r;
+		
+        lightOut += (kD * brdfDiffuse + brdfSpecular) * radiance * nDotL * inShadow;
+    }
+	
+	float3 ambient = float3(0.03, 0.03, 0.03) * albedo;
+	lightOut += ambient;
+	
+    return lightOut;
 }
 
 LightData PSCalcLightData(PSInputDefault input, float ambientIntensity, float diffuseIntensity, float specularIntensity, float specularity)

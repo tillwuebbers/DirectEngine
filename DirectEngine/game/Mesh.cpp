@@ -444,7 +444,6 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 			{
 				assert(model.materials.size() > primitive.material);
 				materialName = model.materials[primitive.material].name;
-				materialName.append(DIFFUSE_SUFFIX);
 
 				if (model.materials[primitive.material].extras.Has("texturecount"))
 				{

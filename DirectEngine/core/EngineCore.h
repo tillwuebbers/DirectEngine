@@ -96,7 +96,7 @@ static_assert((sizeof(LightConstantBuffer) % 256) == 0, "Constant Buffer size mu
 
 struct EntityConstantBuffer
 {
-    MAT_CMAJ worldTransform = {};
+    MAT_CMAJ worldTransform = XMMatrixIdentity();
     XMVECTOR color = { 1., 1., 1. };
     XMVECTOR aabbLocalPosition = { 0., 0., 0. };
     XMVECTOR aabbLocalSize = { 1., 1., 1. };

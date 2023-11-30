@@ -301,6 +301,10 @@ void Game::DrawDebugUI(EngineCore& engine)
 	{
 		if (ImGui::Begin("Graphics", &showPostProcessWindow))
 		{
+			if (ImGui::DragFloat3("Light Direction", light.rotation.m128_f32, 0.01f, -1.0f, 1.0f, "%.1f"))
+			{
+				light.rotation = XMVector3Normalize(light.rotation);
+			}
 			ImGui::SliderFloat("Contrast", &contrast, 0., 3., "%.2f");
 			ImGui::SliderFloat("Brightness", &brightness, -1., 1., "%.2f");
 			ImGui::SliderFloat("Saturation", &saturation, 0., 3., "%.2f");

@@ -36,15 +36,15 @@ void Game::StartGame(EngineCore& engine)
 	}
 
 	// Textures
-	Texture* groundDiffuse  = engine.CreateTexture(L"textures/ground_D.dds");
-	Texture* groundNormal   = engine.CreateTexture(L"textures/ground_N.dds");
-	Texture* groundSpecular = engine.CreateTexture(L"textures/ground_S.dds");
+	Texture* groundDiffuse   = engine.CreateTexture(L"textures/ground_D.dds");
+	Texture* groundNormal    = engine.CreateTexture(L"textures/ground_N.dds");
+	Texture* groundRoughness = engine.CreateTexture(L"textures/ground_R.dds");
 
 	LOG_TIMER(timer, "Textures");
 	RESET_TIMER(timer);
 
 	// Materials
-	materialIndices.try_emplace(Material::Ground,       engine.CreateMaterial(SHADER_NAMES.at(Shader::Ground), { groundDiffuse, groundNormal, groundSpecular }));
+	materialIndices.try_emplace(Material::Ground,       engine.CreateMaterial(SHADER_NAMES.at(Shader::Entity), { groundDiffuse, groundNormal, groundRoughness }));
 	materialIndices.try_emplace(Material::Laser,        engine.CreateMaterial(SHADER_NAMES.at(Shader::Laser)));
 	materialIndices.try_emplace(Material::Portal1,      engine.CreateMaterial(SHADER_NAMES.at(Shader::Portal), {&engine.m_renderTextures[0]->texture}));
 	materialIndices.try_emplace(Material::Portal2,      engine.CreateMaterial(SHADER_NAMES.at(Shader::Portal), {&engine.m_renderTextures[1]->texture}));
@@ -67,6 +67,7 @@ void Game::StartGame(EngineCore& engine)
 	playerPitch = XM_PI;
 
 	light.position = { 10.f, 10.f, 10.f };
+	light.rotation = XMVector3Normalize({ 1.f, -1.f, 1.f });
 
 	LOG_TIMER(timer, "Other Entities");
 	RESET_TIMER(timer);
@@ -107,7 +108,9 @@ void Game::LoadLevel(EngineCore& engine)
 	gizmo.Init(levelArena, this, engine, materialIndices[Material::Laser]);
 
 	// Log
-	CreateEntityFromGltf(engine, "models/log.glb", Shader::Entity);
+	Entity* logEntity1 = CreateEntityFromGltf(engine, "models/log1.glb", Shader::Entity);
+	Entity* logEntity2 = CreateEntityFromGltf(engine, "models/log2.glb", Shader::Entity);
+	logEntity2->SetLocalPosition({ 1.f, 0.f, 0.f });
 
 	// Level Meshes & Collision
 	level1MeshData.clear();
@@ -221,7 +224,7 @@ void Game::LoadLevel(EngineCore& engine)
 	PhysicsInit groundPhysics{0.f, PhysicsInitType::RigidBodyStatic};
 	groundPhysics.ownCollisionLayers = CollisionLayers::CL_World;
 	groundPhysics.collidesWithLayers = CollisionLayers::CL_Entity;
-	Entity* groundEntity = CreateQuadEntity(engine, materialIndices[Material::Ground], 100.f, 100.f, groundPhysics);
+	Entity* groundEntity = CreateQuadEntity(engine, materialIndices[Material::Ground], 20.f, 20.f, groundPhysics);
 	groundEntity->name = "Ground";
 	groundEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
 	groundEntity->SetLocalPosition(XMVectorSetY(groundEntity->localMatrix.translation, -.01f));
@@ -242,6 +245,8 @@ void Game::LoadLevel(EngineCore& engine)
 
 void PlayerMovement::Update(EngineInput& input, TimeData& time, Entity* playerEntity, Entity* playerLookEntity, Entity* cameraEntity, btDynamicsWorld* dynamicsWorld, bool frameStep)
 {
+	playerEntity->rigidBody->clearGravity();
+
 	float horizontalInput = 0.f;
 	if (input.KeyDown(VK_KEY_A)) horizontalInput -= 1.f;
 	if (input.KeyDown(VK_KEY_D)) horizontalInput += 1.f;
@@ -317,12 +322,7 @@ void PlayerMovement::Update(EngineInput& input, TimeData& time, Entity* playerEn
 		if (playerOnGround)
 		{
 			if (frameStep) LOG("HIT GROUND");
-			if (!input.KeyDown(VK_SPACE))
-			{
-				playerEntity->SetWorldPosition(XMVectorSetY(playerEntity->GetWorldPosition(), callback.m_hitPointWorld.getY()));
-				if (frameStep) LOG("Reset position to: {}", playerEntity->rigidBody->getWorldTransform().getOrigin().getY());
-			}
-
+			
 			// Apply jump
 			if (input.KeyDown(VK_SPACE) && (lastJumpPressTime + jumpBufferDuration >= time.timeSinceStart || movementSettings->autojump))
 			{
@@ -501,7 +501,7 @@ void Game::UpdateGame(EngineCore& engine)
 		beforePos = playerEntity->rigidBody->getWorldTransform().getOrigin();
 		beforeVel = playerEntity->rigidBody->getLinearVelocity();
 	}
-	dynamicsWorld->stepSimulation(engine.m_updateDeltaTime, 3, MAX_PHYSICS_STEP);
+	dynamicsWorld->stepSimulation(engine.m_updateDeltaTime, 4, MAX_PHYSICS_STEP);
 	if (playerEntity->rigidBody != nullptr && frameStep)
 	{
 		btVector3 afterPos = playerEntity->rigidBody->getWorldTransform().getOrigin();
@@ -549,7 +549,7 @@ void Game::UpdateGame(EngineCore& engine)
 	}
 
 	// Update light/shadowmap
-	light.rotation = XMQuaternionRotationRollPitchYaw(45.f / 360.f * XM_2PI, engine.TimeSinceStart(), 0.f);
+	//light.rotation = XMQuaternionRotationRollPitchYaw(45.f / 360.f * XM_2PI, engine.TimeSinceStart(), 0.f);
 
 	MAT_RMAJ lightView = XMMatrixMultiply(XMMatrixTranslationFromVector(-light.position), XMMatrixRotationQuaternion(XMQuaternionInverse(light.rotation)));
 	engine.m_lightConstantBuffer.data.lightView = XMMatrixTranspose(lightView);
@@ -715,15 +715,27 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, Assets:
 
 	for (MeshFile& meshFile : gltfResult.meshes)
 	{
-		// TODO: read shader root signaure instead, check number/type of texture, load textures accordingly
 		std::vector<Texture*> textures{};
 		for (int i = 0; i < meshFile.textureCount; i++)
 		{
 			std::wstring texturePath = { L"textures/" };
 			texturePath.append(meshFile.textureName.begin(), meshFile.textureName.end());
-			texturePath.append(L".dds");
 
-			textures.push_back(engine.CreateTexture(texturePath.c_str()));
+			std::wstring diffusePath = texturePath;
+			diffusePath.append(DIFFUSE_SUFFIX);
+			diffusePath.append(TEXTURE_FILE_EXTENSION);
+			textures.push_back(engine.CreateTexture(diffusePath.c_str()));
+
+			// TODO: check if exists and use different shader variant if not?
+			std::wstring normalPath = texturePath;
+			normalPath.append(NORMAL_SUFFIX);
+			normalPath.append(TEXTURE_FILE_EXTENSION);
+			textures.push_back(engine.CreateTexture(normalPath.c_str()));
+
+			std::wstring roughnessPath = texturePath;
+			roughnessPath.append(ROUGHNESS_SUFFIX);
+			roughnessPath.append(TEXTURE_FILE_EXTENSION);
+			textures.push_back(engine.CreateTexture(roughnessPath.c_str()));
 		}
 		LOG_TIMER(timer, "Texture for model");
 		RESET_TIMER(timer);

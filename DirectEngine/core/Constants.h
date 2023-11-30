@@ -74,7 +74,10 @@
 #define SHADER_VERSION_PS "ps_5_1"
 #define SHADER_VERSION_RT "lib_6_3"
 
-#define DIFFUSE_SUFFIX "_D"
+#define TEXTURE_FILE_EXTENSION L".dds"
+#define DIFFUSE_SUFFIX   L"_D"
+#define NORMAL_SUFFIX    L"_N"
+#define ROUGHNESS_SUFFIX L"_R"
 
 #define LOG_SIZE 1024
 
