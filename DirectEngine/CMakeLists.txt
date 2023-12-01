@@ -107,30 +107,22 @@ set(SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
 cmake_path(NATIVE_PATH SHADER_DIR SHADER_DIR_NATIVE)
 set(SHADER_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders_bin")
 
-add_custom_command(
-        TARGET ${PROJECT_NAME} PRE_BUILD
+# target for model copying
+add_custom_target(Copy_Assets ALL
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${CMAKE_CURRENT_SOURCE_DIR}/audio
-                ${CMAKE_CURRENT_BINARY_DIR}/audio)
-
-add_custom_command(
-        TARGET ${PROJECT_NAME} PRE_BUILD
+                ${CMAKE_CURRENT_BINARY_DIR}/audio
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${SHADER_DIR}
-                ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
-
-add_custom_command(
-        TARGET ${PROJECT_NAME} PRE_BUILD
+                ${CMAKE_CURRENT_SOURCE_DIR}/shaders
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${CMAKE_CURRENT_SOURCE_DIR}/models
-                ${CMAKE_CURRENT_BINARY_DIR}/models)
-                
-add_custom_command(
-        TARGET ${PROJECT_NAME} PRE_BUILD
+                ${CMAKE_CURRENT_BINARY_DIR}/models
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${CMAKE_CURRENT_SOURCE_DIR}/textures
-                ${CMAKE_CURRENT_BINARY_DIR}/textures)
-      
+                ${CMAKE_CURRENT_BINARY_DIR}/textures
+)
+
 # sub projects
 add_subdirectory(core)
 add_subdirectory(game)
