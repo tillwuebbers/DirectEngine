@@ -136,9 +136,9 @@ float G1(float nDotV, float k)
     return nDotV / (nDotV * (1.0 - k) + k);
 }
 
+// Lighting based on PBR models described by Real-Time Rendering 4th Edition & learnopengl.com
 float3 PBR(PSInputDefault input, float3 albedoInput, float3 normalTS, float roughnessInput, float metallicInput)
 {
-	// Lighting based on PBR models described by Real-Time Rendering 4th Edition & learnopengl.org
     float roughness = roughnessInput * roughnessInput;
     float roughnessSq = roughness * roughness;
 	
@@ -147,8 +147,7 @@ float3 PBR(PSInputDefault input, float3 albedoInput, float3 normalTS, float roug
     F0 = lerp(F0, albedoInput, metallicInput);
 	
 	// BRDF for absorbed light
-    float3 albedo = lerp(albedoInput, float3(0.0, 0.0, 0.0), metallicInput);
-    float3 brdfDiffuse = albedo / PI;
+    float3 brdfDiffuse = albedoInput / PI;
 	
 	// Sum up all light contributions
     float nDotV = max(dot(normalTS, input.cameraDirectionTS), 0.0);
@@ -185,7 +184,7 @@ float3 PBR(PSInputDefault input, float3 albedoInput, float3 normalTS, float roug
         lightOut += (kD * brdfDiffuse + brdfSpecular) * radiance * nDotL * inShadow;
     }
 	
-	float3 ambient = float3(0.03, 0.03, 0.03) * albedo;
+    float3 ambient = float3(0.03, 0.03, 0.03) * albedoInput;
 	lightOut += ambient;
 	
     return lightOut;

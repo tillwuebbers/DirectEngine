@@ -39,12 +39,13 @@ void Game::StartGame(EngineCore& engine)
 	Texture* groundDiffuse   = engine.CreateTexture(L"textures/ground_D.dds");
 	Texture* groundNormal    = engine.CreateTexture(L"textures/ground_N.dds");
 	Texture* groundRoughness = engine.CreateTexture(L"textures/ground_R.dds");
+	Texture* groundMetallic  = engine.CreateTexture(L"textures/ground_M.dds");
 
 	LOG_TIMER(timer, "Textures");
 	RESET_TIMER(timer);
 
 	// Materials
-	materialIndices.try_emplace(Material::Ground,       engine.CreateMaterial(SHADER_NAMES.at(Shader::Entity), { groundDiffuse, groundNormal, groundRoughness }));
+	materialIndices.try_emplace(Material::Ground,       engine.CreateMaterial(SHADER_NAMES.at(Shader::Entity), { groundDiffuse, groundNormal, groundRoughness, groundMetallic }));
 	materialIndices.try_emplace(Material::Laser,        engine.CreateMaterial(SHADER_NAMES.at(Shader::Laser)));
 	materialIndices.try_emplace(Material::Portal1,      engine.CreateMaterial(SHADER_NAMES.at(Shader::Portal), {&engine.m_renderTextures[0]->texture}));
 	materialIndices.try_emplace(Material::Portal2,      engine.CreateMaterial(SHADER_NAMES.at(Shader::Portal), {&engine.m_renderTextures[1]->texture}));
@@ -107,10 +108,13 @@ void Game::LoadLevel(EngineCore& engine)
 	// Gizmo
 	gizmo.Init(levelArena, this, engine, materialIndices[Material::Laser]);
 
-	// Log
+	// Scene Stuff
 	Entity* logEntity1 = CreateEntityFromGltf(engine, "models/log1.glb", Shader::Entity);
 	Entity* logEntity2 = CreateEntityFromGltf(engine, "models/log2.glb", Shader::Entity);
 	logEntity2->SetLocalPosition({ 1.f, 0.f, 0.f });
+	Entity* helmet = CreateEntityFromGltf(engine, "models/DamagedHelmet.glb", Shader::Entity);
+	helmet->SetLocalPosition({ 0.f, 1.f, 0.f });
+	helmet->SetLocalRotation(XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f));
 
 	// Level Meshes & Collision
 	level1MeshData.clear();
@@ -736,6 +740,11 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, Assets:
 			roughnessPath.append(ROUGHNESS_SUFFIX);
 			roughnessPath.append(TEXTURE_FILE_EXTENSION);
 			textures.push_back(engine.CreateTexture(roughnessPath.c_str()));
+
+			std::wstring metallicPath = texturePath;
+			metallicPath.append(METALLIC_SUFFIX);
+			metallicPath.append(TEXTURE_FILE_EXTENSION);
+			textures.push_back(engine.CreateTexture(metallicPath.c_str()));
 		}
 		LOG_TIMER(timer, "Texture for model");
 		RESET_TIMER(timer);

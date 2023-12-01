@@ -486,9 +486,9 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
 
         D3D12_STATIC_SAMPLER_DESC rawSampler = {};
         rawSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
-        rawSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-        rawSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-        rawSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        rawSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        rawSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        rawSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
         rawSampler.MipLODBias = 0;
         rawSampler.MaxAnisotropy = 0;
         rawSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
@@ -501,9 +501,9 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
 
         D3D12_STATIC_SAMPLER_DESC smoothSampler = {};
         smoothSampler.Filter = D3D12_FILTER_ANISOTROPIC;
-        smoothSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-        smoothSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-        smoothSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        smoothSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        smoothSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        smoothSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
         smoothSampler.MipLODBias = 0;
         smoothSampler.MaxAnisotropy = 16;
         smoothSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;

@@ -78,6 +78,7 @@
 #define DIFFUSE_SUFFIX   L"_D"
 #define NORMAL_SUFFIX    L"_N"
 #define ROUGHNESS_SUFFIX L"_R"
+#define METALLIC_SUFFIX  L"_M"
 
 #define LOG_SIZE 1024
 
