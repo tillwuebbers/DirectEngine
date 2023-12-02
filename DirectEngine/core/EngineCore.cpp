@@ -457,6 +457,7 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
         ranges[CAMERA].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, CAMERA, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         ranges[SHADOWMAP].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, SHADOWMAP, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         ranges[IRRADIANCE].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, IRRADIANCE, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+        ranges[REFLECTANCE].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, REFLECTANCE, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
 
         rootParameters[SCENE].InitAsDescriptorTable(1, &ranges[SCENE], D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[LIGHT].InitAsDescriptorTable(1, &ranges[LIGHT], D3D12_SHADER_VISIBILITY_ALL);
@@ -465,6 +466,7 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
         rootParameters[CAMERA].InitAsDescriptorTable(1, &ranges[CAMERA], D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[SHADOWMAP].InitAsDescriptorTable(1, &ranges[SHADOWMAP], D3D12_SHADER_VISIBILITY_PIXEL);
         rootParameters[IRRADIANCE].InitAsDescriptorTable(1, &ranges[IRRADIANCE], D3D12_SHADER_VISIBILITY_PIXEL);
+        rootParameters[REFLECTANCE].InitAsDescriptorTable(1, &ranges[REFLECTANCE], D3D12_SHADER_VISIBILITY_PIXEL);
 
         size_t registerSpaceCounter = 0;
         for (int i = 0; i < config->textureSlotCount; i++)
@@ -810,6 +812,7 @@ void EngineCore::LoadAssets()
 
     // Irradiance
     m_irradianceMap = CreateTexture(L"textures/skyfire_irradiance.dds");
+    m_reflectanceMap = CreateTexture(L"textures/skyfire.dds");
 
     // Cameras
     mainCamera = CreateCamera();
@@ -1749,6 +1752,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
         }
 
         renderList->SetGraphicsRootDescriptorTable(IRRADIANCE, m_irradianceMap->handle.gpuHandle);
+        renderList->SetGraphicsRootDescriptorTable(REFLECTANCE, m_reflectanceMap->handle.gpuHandle);
 
         bool skipRender = false;
         for (int textureIdx = 0; textureIdx < data.pipeline->textureSlotCount; textureIdx++)

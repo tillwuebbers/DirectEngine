@@ -41,6 +41,7 @@ cbuffer CameraConstantBuffer : register(b4)
 
 Texture2D shadowmapTexture : register(t5);
 TextureCube<float4> irradianceMap : register(t6);
+TextureCube<float4> reflectanceMap : register(t7);
 
 struct Vertex
 {
@@ -169,7 +170,7 @@ float3 PBR(PSInputDefault input, float3 albedoInput, float3 normalTS, float roug
 	// TODO: loop over all light sources
     for (int i = 0; i < 1; i++)
     {
-        float3 lightColor = fogColor;
+        float3 lightColor = float3(1.0, 1.0, 1.0) * 10.0;
 		float3 radiance = lightColor; // directional light
         float3 halfWay = normalize(lightDirectionTS + cameraDirectionTS);
 		float nDotL = max(dot(normalTS, lightDirectionTS), 0.0);
@@ -197,14 +198,18 @@ float3 PBR(PSInputDefault input, float3 albedoInput, float3 normalTS, float roug
         lightOut += (kD * brdfDiffuse + brdfSpecular) * radiance * nDotL * inShadow;
     }
 	
-    float3 ambientIrradianceRaw = irradianceMap.Sample(smoothSampler, normalTS).xyz;
-    float3 ambientIrradiance = ambientIrradianceRaw / (ambientIrradianceRaw + 1.); // temporary tonemapping
+    float3 ambientIrradiance = irradianceMap.Sample(smoothSampler, normalTS).xyz;
 	float3 ambientFresnel = FresnelSchlick(F0, nDotV, roughness);
 	float3 ambientKD = float3(1.0, 1.0, 1.0) - ambientFresnel;
 	float3 ambientDiffuse = ambientKD * albedoInput * ambientIrradiance;
-	lightOut += ambientDiffuse;
+    lightOut += ambientDiffuse;
 	
-    return lightOut;
+    float3 viewDirectionWS = -normalize(worldCameraPos - input.worldPosition.xyz);
+    float3 reflectedWS = reflect(viewDirectionWS, input.worldNormal);
+    float3 reflectionSample = reflectanceMap.Sample(smoothSampler, reflectedWS).xyz;
+    lightOut += reflectionSample * ambientFresnel;
+    
+    return lightOut / (lightOut + 1.0);
 }
 
 LightData PSCalcLightData(PSInputDefault input, float ambientIntensity, float diffuseIntensity, float specularIntensity, float specularity)

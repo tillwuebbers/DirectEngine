@@ -57,6 +57,7 @@ enum RootSignatureOffset : UINT
     CAMERA = 4,
     SHADOWMAP = 5,
     IRRADIANCE = 6,
+    REFLECTANCE = 7,
     DEFAULT_ROOT_SIG_COUNT,
 };
 
@@ -474,6 +475,7 @@ public:
     ConstantBuffer<LightConstantBuffer> m_lightConstantBuffer = {};
     ShadowMap* m_shadowmap = nullptr;
     Texture* m_irradianceMap = nullptr;
+    Texture* m_reflectanceMap = nullptr;
     GBuffer* m_gBuffer = nullptr;
     ID3D12Resource* m_textureUploadHeaps[MAX_TEXTURES] = {};
     size_t m_textureUploadIndex = 0;
