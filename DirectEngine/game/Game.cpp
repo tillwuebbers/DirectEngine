@@ -70,7 +70,7 @@ void Game::StartGame(EngineCore& engine)
 	playerPitch = XM_PI;
 
 	light.position = { 10.f, 10.f, 10.f };
-	light.rotation = XMVector3Normalize({ 1.f, -1.f, 1.f });
+	light.rotation = XMVector3Normalize({ -1.f, -1.f, 1.f });
 
 	LOG_TIMER(timer, "Other Entities");
 	RESET_TIMER(timer);
@@ -123,6 +123,7 @@ void Game::LoadLevel(EngineCore& engine)
 	Entity* skybox = CreateMeshEntity(engine, materialIndices[Material::Skybox], skyboxMeshData);
 	skybox->name = "Skybox";
 	skybox->SetLocalScale({ .5f, .5f, .5f });
+	skybox->GetData().raytraceVisible = false;
 	
 	// Level Meshes & Collision
 	level1MeshData.clear();

@@ -40,6 +40,7 @@ cbuffer CameraConstantBuffer : register(b4)
 }
 
 Texture2D shadowmapTexture : register(t5);
+TextureCube<float4> irradianceMap : register(t6);
 
 struct Vertex
 {
@@ -93,7 +94,7 @@ PSInputDefault VSCalcDefault(float4 position, float3 normal, float3 tangent, flo
 	
     float3x3 TBN = float3x3(result.tangent, result.bitangent, result.worldNormal);
     result.lightDirectionTS = mul(TBN, -sunDirection);
-	result.cameraDirectionTS = mul(normalize(worldCameraPos - worldPos.xyz), TBN);
+    result.cameraDirectionTS = mul(TBN, normalize(worldCameraPos - worldPos.xyz));
 	return result;
 }
 
@@ -136,9 +137,21 @@ float G1(float nDotV, float k)
     return nDotV / (nDotV * (1.0 - k) + k);
 }
 
+float3 FresnelSchlick(float3 F0, float cosTheta, float roughness)
+{
+    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+	
+	float invRoughness = 1.0 - roughness;
+	float3 clampedF0 = max(float3(invRoughness, invRoughness, invRoughness), F0);
+    return F0 + (clampedF0 - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
 // Lighting based on PBR models described by Real-Time Rendering 4th Edition & learnopengl.com
 float3 PBR(PSInputDefault input, float3 albedoInput, float3 normalTS, float roughnessInput, float metallicInput)
 {
+	float3 lightDirectionTS = normalize(input.lightDirectionTS);
+	float3 cameraDirectionTS = normalize(input.cameraDirectionTS);
+	
     float roughness = roughnessInput * roughnessInput;
     float roughnessSq = roughness * roughness;
 	
@@ -150,7 +163,7 @@ float3 PBR(PSInputDefault input, float3 albedoInput, float3 normalTS, float roug
     float3 brdfDiffuse = albedoInput / PI;
 	
 	// Sum up all light contributions
-    float nDotV = max(dot(normalTS, input.cameraDirectionTS), 0.0);
+    float nDotV = max(dot(normalTS, cameraDirectionTS), 0.0);
 	float3 lightOut = float3(0.0, 0.0, 0.0);
 	
 	// TODO: loop over all light sources
@@ -158,12 +171,12 @@ float3 PBR(PSInputDefault input, float3 albedoInput, float3 normalTS, float roug
     {
         float3 lightColor = fogColor;
 		float3 radiance = lightColor; // directional light
-        float3 halfWay = normalize(input.lightDirectionTS + input.cameraDirectionTS);
-		float nDotL = max(dot(normalTS, input.lightDirectionTS), 0.0);
+        float3 halfWay = normalize(lightDirectionTS + cameraDirectionTS);
+		float nDotL = max(dot(normalTS, lightDirectionTS), 0.0);
 		float nDotH = max(dot(normalTS, halfWay), 0.0);
 		
 		// Fresnel-Schlick reflection approximation (F)
-        float3 fresnelReflection = F0 + (1.0 - F0) * pow(1.0 - nDotL, 5.0);
+        float3 fresnelReflection = FresnelSchlick(F0, nDotL, 0.0);
 		
 		// Microfaced masking and shadowing function (G2)
         float g2 = G1(nDotV, roughness) * G1(nDotL, roughness);
@@ -184,8 +197,12 @@ float3 PBR(PSInputDefault input, float3 albedoInput, float3 normalTS, float roug
         lightOut += (kD * brdfDiffuse + brdfSpecular) * radiance * nDotL * inShadow;
     }
 	
-    float3 ambient = float3(0.03, 0.03, 0.03) * albedoInput;
-	lightOut += ambient;
+    float3 ambientIrradianceRaw = irradianceMap.Sample(smoothSampler, normalTS).xyz;
+    float3 ambientIrradiance = ambientIrradianceRaw / (ambientIrradianceRaw + 1.); // temporary tonemapping
+	float3 ambientFresnel = FresnelSchlick(F0, nDotV, roughness);
+	float3 ambientKD = float3(1.0, 1.0, 1.0) - ambientFresnel;
+	float3 ambientDiffuse = ambientKD * albedoInput * ambientIrradiance;
+	lightOut += ambientDiffuse;
 	
     return lightOut;
 }
