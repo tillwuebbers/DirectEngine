@@ -17,6 +17,7 @@ namespace Assets
 		Crosshair,
 		RTOutput,
 		ShellTexture,
+		Skybox,
 	};
 
 	enum class Shader
@@ -29,6 +30,7 @@ namespace Assets
 		TextureQuad,
 		Portal,
 		ShellTex,
+		Skybox,
 	};
 
 	static const std::unordered_map<Shader, std::wstring> SHADER_NAMES = {
@@ -40,5 +42,6 @@ namespace Assets
 		{ Shader::TextureQuad, L"texturequad" },
 		{ Shader::Portal, L"portal" },
 		{ Shader::ShellTex, L"shelltexture" },
+		{ Shader::Skybox, L"skybox" },
 	};
 }

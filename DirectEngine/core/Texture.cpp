@@ -6,6 +6,7 @@ TextureData ParseDDSHeader(const wchar_t* path)
 	TextureData result{};
 
 	std::ifstream file(path, std::ios::binary);
+	assert(file.good());
 
 	char magic[DDS_MAGIC_BYTE_COUNT];
 	file.read(magic, DDS_MAGIC_BYTE_COUNT);
@@ -15,7 +16,9 @@ TextureData ParseDDSHeader(const wchar_t* path)
 	file.read(headerData, sizeof(DDS_HEADER));
 
 	DDS_HEADER* header = reinterpret_cast<DDS_HEADER*>(headerData);
-	assert(header->ddspf.flags & DDS_FOURCC);
+	//assert(header->ddspf.flags & DDS_FOURCC);
+
+	bool isCubemap = header->caps2 & DDS_CUBEMAP;
 
 	DXGI_FORMAT textureFormat = DXGI_FORMAT_UNKNOWN;
 	if (header->ddspf.fourCC == MAKEFOURCC('D', 'X', 'T', '1'))
@@ -28,17 +31,32 @@ TextureData ParseDDSHeader(const wchar_t* path)
 		file.read(dx10HeaderData, sizeof(DDS_HEADER_DXT10));
 		DDS_HEADER_DXT10* header10 = reinterpret_cast<DDS_HEADER_DXT10*>(dx10HeaderData);
 		textureFormat = header10->dxgiFormat;
+		isCubemap = (header10->miscFlag & DDS_RESOURCE_MISC_TEXTURECUBE) != 0;
 	}
 
-	assert(textureFormat == DXGI_FORMAT_BC1_UNORM_SRGB || textureFormat == DXGI_FORMAT_BC5_UNORM);
+	assert(textureFormat == DXGI_FORMAT_BC1_UNORM_SRGB
+		|| textureFormat == DXGI_FORMAT_BC5_UNORM
+		|| textureFormat == DXGI_FORMAT_R16G16B16A16_FLOAT);
 
 	result.width = header->width;
 	result.height = header->height;
-	result.blockSize = textureFormat == DXGI_FORMAT_BC1_UNORM_SRGB ? 8 : 16;
 	result.mipmapCount = header->mipMapCount;
 	result.format = textureFormat;
-	result.rowPitch = std::max(1ULL, (result.width + 3ULL) / 4ULL) * result.blockSize;
-	result.slicePitch = result.rowPitch * result.height;
+	result.viewDimension = isCubemap ? D3D12_SRV_DIMENSION_TEXTURECUBE : D3D12_SRV_DIMENSION_TEXTURE2D;
+	result.arraySize = isCubemap ? 6 : 1;
+
+	if (textureFormat == DXGI_FORMAT_R16G16B16A16_FLOAT)
+	{
+		result.blockSize = 16;
+		result.rowPitch = result.width * result.blockSize;
+		result.slicePitch = result.rowPitch * result.height;
+	}
+	else
+	{
+		result.blockSize = textureFormat == DXGI_FORMAT_BC1_UNORM_SRGB ? 8 : 16;
+		result.rowPitch = std::max(1ULL, (result.width + 3ULL) / 4ULL) * result.blockSize;
+		result.slicePitch = result.rowPitch * result.height;
+	}
 
 	file.seekg(128);
 	auto dataStart = file.tellg();
@@ -48,7 +66,7 @@ TextureData ParseDDSHeader(const wchar_t* path)
 	return result;
 }
 
-TextureData ParseDDS(const wchar_t* path, MemoryArena& arena)
+/*TextureData ParseDDS(const wchar_t* path, MemoryArena& arena)
 {
 	TextureData result{};
 
@@ -80,4 +98,4 @@ TextureData ParseDDS(const wchar_t* path, MemoryArena& arena)
 	file.read(reinterpret_cast<char*>(result.data), result.dataLength);
 
 	return result;
-}
+}*/

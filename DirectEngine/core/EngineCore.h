@@ -56,7 +56,8 @@ enum RootSignatureOffset : UINT
     BONES = 3,
     CAMERA = 4,
     SHADOWMAP = 5,
-    CUSTOM_START = 6,
+    IRRADIANCE = 6,
+    DEFAULT_ROOT_SIG_COUNT,
 };
 
 struct FrameDebugData
@@ -472,6 +473,7 @@ public:
     ConstantBuffer<SceneConstantBuffer> m_sceneConstantBuffer = {};
     ConstantBuffer<LightConstantBuffer> m_lightConstantBuffer = {};
     ShadowMap* m_shadowmap = nullptr;
+    Texture* m_irradianceMap = nullptr;
     GBuffer* m_gBuffer = nullptr;
     ID3D12Resource* m_textureUploadHeaps[MAX_TEXTURES] = {};
     size_t m_textureUploadIndex = 0;

@@ -40,17 +40,19 @@ void Game::StartGame(EngineCore& engine)
 	Texture* groundNormal    = engine.CreateTexture(L"textures/ground_N.dds");
 	Texture* groundRoughness = engine.CreateTexture(L"textures/ground_R.dds");
 	Texture* groundMetallic  = engine.CreateTexture(L"textures/ground_M.dds");
+	Texture* skybox          = engine.CreateTexture(L"textures/skyfire.dds");
 
 	LOG_TIMER(timer, "Textures");
 	RESET_TIMER(timer);
 
 	// Materials
-	materialIndices.try_emplace(Material::Ground,       engine.CreateMaterial(SHADER_NAMES.at(Shader::Entity), { groundDiffuse, groundNormal, groundRoughness, groundMetallic }));
+	materialIndices.try_emplace(Material::Ground,       engine.CreateMaterial(SHADER_NAMES.at(Shader::Entity), {groundDiffuse, groundNormal, groundRoughness, groundMetallic}));
 	materialIndices.try_emplace(Material::Laser,        engine.CreateMaterial(SHADER_NAMES.at(Shader::Laser)));
 	materialIndices.try_emplace(Material::Portal1,      engine.CreateMaterial(SHADER_NAMES.at(Shader::Portal), {&engine.m_renderTextures[0]->texture}));
 	materialIndices.try_emplace(Material::Portal2,      engine.CreateMaterial(SHADER_NAMES.at(Shader::Portal), {&engine.m_renderTextures[1]->texture}));
 	materialIndices.try_emplace(Material::Crosshair,    engine.CreateMaterial(SHADER_NAMES.at(Shader::Crosshair)));
 	materialIndices.try_emplace(Material::RTOutput,     engine.CreateMaterial(SHADER_NAMES.at(Shader::TextureQuad), {engine.m_raytracingOutput}));
+	materialIndices.try_emplace(Material::Skybox,       engine.CreateMaterial(SHADER_NAMES.at(Shader::Skybox), {skybox}));
 	
 	D3D12_RASTERIZER_DESC shellRasterizerDesc = CD3DX12_RASTERIZER_DESC{ D3D12_DEFAULT };
 	shellRasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
@@ -116,10 +118,14 @@ void Game::LoadLevel(EngineCore& engine)
 	helmet->SetLocalPosition({ 0.f, 1.f, 0.f });
 	helmet->SetLocalRotation(XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f));
 
+	// Skybox
+	MeshData* skyboxMeshData = engine.CreateMesh(LoadGltfFromFile("models/skybox-cube.glb", levelArena).meshes[0]);
+	Entity* skybox = CreateMeshEntity(engine, materialIndices[Material::Skybox], skyboxMeshData);
+	skybox->name = "Skybox";
+	skybox->SetLocalScale({ .5f, .5f, .5f });
+	
 	// Level Meshes & Collision
 	level1MeshData.clear();
-
-	cubeMeshData = engine.CreateMesh(LoadGltfFromFile("models/cube.glb", levelArena).meshes[0]);
 
 	GltfResult level1Gltf = LoadGltfFromFile("models/level1.glb", levelArena);
 	btTriangleMesh* levelCollisionMesh = NewObject(levelArena, btTriangleMesh, true, false);
@@ -234,6 +240,7 @@ void Game::LoadLevel(EngineCore& engine)
 	groundEntity->SetLocalPosition(XMVectorSetY(groundEntity->localMatrix.translation, -.01f));
 
 	// Cubes
+	cubeMeshData = engine.CreateMesh(LoadGltfFromFile("models/cube.glb", levelArena).meshes[0]);
 	for (int i = 0; i < 16; i++)
 	{
 		Entity* yea = CreateMeshEntity(engine, materialIndices[Material::ShellTexture], cubeMeshData);

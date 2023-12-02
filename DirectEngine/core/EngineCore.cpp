@@ -447,8 +447,8 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
         }
 
         size_t rootConstantSlotCount = rootConstantCount > 0 ? 1 : 0;
-        std::vector<CD3DX12_DESCRIPTOR_RANGE1> ranges{ CUSTOM_START + config->textureSlotCount + constantBufferCount };
-        std::vector<CD3DX12_ROOT_PARAMETER1> rootParameters{ CUSTOM_START + config->textureSlotCount + constantBufferCount + rootConstantSlotCount };
+        std::vector<CD3DX12_DESCRIPTOR_RANGE1> ranges{ DEFAULT_ROOT_SIG_COUNT + config->textureSlotCount + constantBufferCount };
+        std::vector<CD3DX12_ROOT_PARAMETER1> rootParameters{ DEFAULT_ROOT_SIG_COUNT + config->textureSlotCount + constantBufferCount + rootConstantSlotCount };
 
         ranges[SCENE].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, SCENE, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         ranges[LIGHT].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, LIGHT, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
@@ -456,6 +456,7 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
         ranges[BONES].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, BONES, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         ranges[CAMERA].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, CAMERA, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
         ranges[SHADOWMAP].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, SHADOWMAP, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+        ranges[IRRADIANCE].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, IRRADIANCE, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
 
         rootParameters[SCENE].InitAsDescriptorTable(1, &ranges[SCENE], D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[LIGHT].InitAsDescriptorTable(1, &ranges[LIGHT], D3D12_SHADER_VISIBILITY_ALL);
@@ -463,11 +464,12 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
         rootParameters[BONES].InitAsDescriptorTable(1, &ranges[BONES], D3D12_SHADER_VISIBILITY_VERTEX);
         rootParameters[CAMERA].InitAsDescriptorTable(1, &ranges[CAMERA], D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[SHADOWMAP].InitAsDescriptorTable(1, &ranges[SHADOWMAP], D3D12_SHADER_VISIBILITY_PIXEL);
+        rootParameters[IRRADIANCE].InitAsDescriptorTable(1, &ranges[IRRADIANCE], D3D12_SHADER_VISIBILITY_PIXEL);
 
         size_t registerSpaceCounter = 0;
         for (int i = 0; i < config->textureSlotCount; i++)
         {
-            int offset = CUSTOM_START + i;
+            int offset = DEFAULT_ROOT_SIG_COUNT + i;
             ranges[offset].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, registerSpaceCounter, 1, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
             rootParameters[offset].InitAsDescriptorTable(1, &ranges[offset], D3D12_SHADER_VISIBILITY_PIXEL);
             registerSpaceCounter++;
@@ -475,7 +477,7 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
 
         for (int i = 0; i < constantBufferCount; i++)
         {
-            int offset = CUSTOM_START + config->textureSlotCount + i;
+            int offset = DEFAULT_ROOT_SIG_COUNT + config->textureSlotCount + i;
             ranges[offset].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, registerSpaceCounter, 1, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
             rootParameters[offset].InitAsDescriptorTable(1, &ranges[offset], D3D12_SHADER_VISIBILITY_ALL);
             registerSpaceCounter++;
@@ -483,7 +485,7 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
 
         if (rootConstantCount > 0)
         {
-            int offset = CUSTOM_START + config->textureSlotCount + constantBufferCount;
+            int offset = DEFAULT_ROOT_SIG_COUNT + config->textureSlotCount + constantBufferCount;
             rootParameters[offset].InitAsConstants(rootConstantCount, registerSpaceCounter, 1);
             registerSpaceCounter++;
         }
@@ -806,6 +808,9 @@ void EngineCore::LoadAssets()
     m_shadowmap->shaderResourceViewHandle = GetNewDescriptorHandle();
     m_shadowmap->Build(m_device, comPointers);
 
+    // Irradiance
+    m_irradianceMap = CreateTexture(L"textures/skyfire_irradiance.dds");
+
     // Cameras
     mainCamera = CreateCamera();
 
@@ -1023,7 +1028,7 @@ void EngineCore::UploadTexture(const TextureData& textureData, std::vector<D3D12
     textureDesc.Width = textureData.width;
     textureDesc.Height = textureData.height;
     textureDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-    textureDesc.DepthOrArraySize = 1;
+    textureDesc.DepthOrArraySize = textureData.arraySize;
     textureDesc.SampleDesc.Count = 1;
     textureDesc.SampleDesc.Quality = 0;
     textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -1052,7 +1057,7 @@ void EngineCore::UploadTexture(const TextureData& textureData, std::vector<D3D12
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srvDesc.Format = textureDesc.Format;
-    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.ViewDimension = textureData.viewDimension;
     srvDesc.Texture2D.MipLevels = textureData.mipmapCount;
     m_device->CreateShaderResourceView(targetTexture.buffer, &srvDesc, targetTexture.handle.cpuHandle);
 }
@@ -1743,6 +1748,8 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
             renderList->SetGraphicsRootDescriptorTable(SHADOWMAP, m_shadowmap->shaderResourceViewHandle.gpuHandle);
         }
 
+        renderList->SetGraphicsRootDescriptorTable(IRRADIANCE, m_irradianceMap->handle.gpuHandle);
+
         bool skipRender = false;
         for (int textureIdx = 0; textureIdx < data.pipeline->textureSlotCount; textureIdx++)
         {
@@ -1754,7 +1761,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
             if (!camera->skipRenderTextures || !isRenderTexture)
             {
                 assert(data.pipeline->textureSlotCount == data.textures.size);
-                renderList->SetGraphicsRootDescriptorTable(CUSTOM_START + textureIdx, data.textures[textureIdx]->handle.gpuHandle);
+                renderList->SetGraphicsRootDescriptorTable(DEFAULT_ROOT_SIG_COUNT + textureIdx, data.textures[textureIdx]->handle.gpuHandle);
             }
             else
             {
@@ -1775,7 +1782,7 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
             renderList->SetGraphicsRootDescriptorTable(BONES, boneBuffer.handles[m_frameIndex].gpuHandle);
             if (data.rootConstants.size > 0)
             {
-                renderList->SetGraphicsRoot32BitConstants(CUSTOM_START + data.pipeline->textureSlotCount, data.rootConstants.size, &data.rootConstantData, 0);
+                renderList->SetGraphicsRoot32BitConstants(DEFAULT_ROOT_SIG_COUNT + data.pipeline->textureSlotCount, data.rootConstants.size, &data.rootConstantData, 0);
             }
             renderList->DrawIndexedInstanced(entity->meshData->indexBufferView.SizeInBytes / sizeof(INDEX_BUFFER_TYPE), 1 + data.shellCount, 0, 0, 0);
         }
