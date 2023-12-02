@@ -5,7 +5,7 @@ struct RootConstants
     float layerOffset;
     uint layerCount;
 };
-ConstantBuffer<RootConstants> rootConstants : register(b6);
+ConstantBuffer<RootConstants> rootConstants : register(b0, space1);
 
 struct PSInput
 {

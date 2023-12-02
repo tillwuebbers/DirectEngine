@@ -1,6 +1,6 @@
 #include "util/common.hlsl"
 
-Texture2D diffuseTexture : register(t6);
+Texture2D diffuseTexture : register(t0, space1);
 
 PSInputDefault VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL, float3 tangent : TANGENT, float3 bitangent : BITANGENT, float2 uv : UV)
 {

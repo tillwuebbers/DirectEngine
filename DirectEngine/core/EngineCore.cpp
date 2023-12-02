@@ -464,24 +464,28 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
         rootParameters[CAMERA].InitAsDescriptorTable(1, &ranges[CAMERA], D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[SHADOWMAP].InitAsDescriptorTable(1, &ranges[SHADOWMAP], D3D12_SHADER_VISIBILITY_PIXEL);
 
+        size_t registerSpaceCounter = 0;
         for (int i = 0; i < config->textureSlotCount; i++)
         {
             int offset = CUSTOM_START + i;
-            ranges[offset].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, offset, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+            ranges[offset].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, registerSpaceCounter, 1, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
             rootParameters[offset].InitAsDescriptorTable(1, &ranges[offset], D3D12_SHADER_VISIBILITY_PIXEL);
+            registerSpaceCounter++;
         }
 
         for (int i = 0; i < constantBufferCount; i++)
         {
             int offset = CUSTOM_START + config->textureSlotCount + i;
-            ranges[offset].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, offset, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+            ranges[offset].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, registerSpaceCounter, 1, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
             rootParameters[offset].InitAsDescriptorTable(1, &ranges[offset], D3D12_SHADER_VISIBILITY_ALL);
+            registerSpaceCounter++;
         }
 
         if (rootConstantCount > 0)
         {
             int offset = CUSTOM_START + config->textureSlotCount + constantBufferCount;
-            rootParameters[offset].InitAsConstants(rootConstantCount, offset);
+            rootParameters[offset].InitAsConstants(rootConstantCount, registerSpaceCounter, 1);
+            registerSpaceCounter++;
         }
 
         D3D12_STATIC_SAMPLER_DESC rawSampler = {};
