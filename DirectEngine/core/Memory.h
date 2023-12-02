@@ -6,7 +6,16 @@
 #include <iterator>
 #include <cstddef>
 #include <assert.h>
+#include <algorithm>
 
+#define MIN_ALIGN 16
+
+#undef min
+#undef max
+
+/// <summary>
+/// Takes the value and returns the next higher multiple of alignment.
+/// </summary>
 size_t Align(size_t value, size_t alignment);
 
 /// <summary>
@@ -25,8 +34,15 @@ public:
     size_t committed = 0;
 
     MemoryArena(size_t capacity = 1024 * 1024 * 1024);
-    void* Allocate(size_t size);
-    void* AllocateAligned(size_t size, size_t alignment);
+
+    template <typename T>
+    T* Allocate(size_t objectCount = 1)
+    {
+        void* ptr = AllocateRaw(sizeof(T) * objectCount, alignof(T));
+        return reinterpret_cast<T*>(ptr);
+    }
+
+    void* AllocateRaw(size_t byteCount, size_t alignment = MIN_ALIGN);
     void Reset(bool freePages = false);
 
     // Copying this thing is probably a very bad idea (and moving it shouldn't be necessary).
@@ -68,10 +84,8 @@ public:
     size_t Count() { return used / sizeof(T); }
 };
 
-#define NewObject(arena, type, ...) new((arena).Allocate(sizeof(type))) type(__VA_ARGS__)
-#define NewObjectAligned(arena, type, alignment, ...) new((arena).AllocateAligned(sizeof(type), (alignment))) type(__VA_ARGS__)
-#define NewArray(arena, type, count, ...) new((arena).Allocate(sizeof(type) * (count))) type[count](__VA_ARGS__)
-#define NewArrayAligned(arena, type, count, alignment, ...) new((arena).AllocateAligned(sizeof(type) * (count), (alignment))) type[count](__VA_ARGS__)
+#define NewObject(arena, type, ...) new((arena).Allocate<type>()) type(__VA_ARGS__)
+#define NewArray(arena, type, count, ...) new((arena).Allocate<type>(count)) type[count](__VA_ARGS__)
 
 namespace ArrayFunc
 {

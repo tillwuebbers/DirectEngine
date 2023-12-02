@@ -994,7 +994,17 @@ Texture* EngineCore::CreateTexture(const std::wstring& filePath)
 
     std::unique_ptr<uint8_t[]> data{};
     std::vector<D3D12_SUBRESOURCE_DATA> subresources{};
-    CHECK_HRCMD(LoadDDSTextureFromFile(m_device, filePath.c_str(), &texture.buffer, data, subresources));
+    HRESULT hr = LoadDDSTextureFromFile(m_device, filePath.c_str(), &texture.buffer, data, subresources);
+    if (hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND))
+    {
+        // TODO: log error and load default texture instead
+        OutputDebugString(std::format(L"Texture file not found: {}\n", filePath).c_str());
+        CHECK_HRCMD(hr);
+    }
+    else
+    {
+        CHECK_HRCMD(hr);
+	}
     comPointers.AddPointer((void**)&texture.buffer);
     UploadTexture(header, subresources, texture);
 
@@ -1199,7 +1209,8 @@ void EngineCore::BuildTopLevelAccelerationStructure(ID3D12GraphicsCommandList4* 
     ID3D12Device5* dxrDevice = nullptr;
     ThrowIfFailed(m_device->QueryInterface(IID_PPV_ARGS(&dxrDevice)));
 
-    D3D12_RAYTRACING_INSTANCE_DESC* instanceDescData = NewArrayAligned(frameArena, D3D12_RAYTRACING_INSTANCE_DESC, entityDataArena.Count(), D3D12_RAYTRACING_INSTANCE_DESCS_BYTE_ALIGNMENT);
+    assert(D3D12_RAYTRACING_INSTANCE_DESCS_BYTE_ALIGNMENT == 16);
+    D3D12_RAYTRACING_INSTANCE_DESC* instanceDescData = NewArray(frameArena, D3D12_RAYTRACING_INSTANCE_DESC, entityDataArena.Count());
     size_t instanceCount = 0;
     for (EntityData& entity : entityDataArena)
     {

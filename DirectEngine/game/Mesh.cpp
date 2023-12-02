@@ -177,7 +177,7 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 		assert(inverseBindAccessor.type == TINYGLTF_TYPE_MAT4);
 		const float* inverseBindMatrices = ReadBuffer<float>(model, inverseBindAccessor);
 
-		hierachy = NewObjectAligned(arena, TransformHierachy, 16);
+		hierachy = NewObject(arena, TransformHierachy);
 		hierachy->nodeCount = model.skins[0].joints.size();
 		for (int i = 0; i < model.skins[0].joints.size(); i++)
 		{
@@ -295,7 +295,7 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 				}
 
 				animData->times = NewArray(arena, float, timeAccessor.count);
-				animData->data = NewArrayAligned(arena, XMVECTOR, timeAccessor.count, 16);
+				animData->data = NewArray(arena, XMVECTOR, timeAccessor.count);
 
 				// TODO: resample animation?
 				for (int i = 0; i < timeAccessor.count; i++)

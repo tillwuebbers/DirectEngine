@@ -26,7 +26,10 @@ inline std::string HrToString(HRESULT hr)
 
 inline void Throw(std::string errorMessage, const char* originator, const char* sourceLocation)
 {
-    throw std::logic_error(std::format("Origin: {}\nSource: {}\n{}\n", originator, sourceLocation, errorMessage));
+    // output debug error
+    std::string message = std::format("Error: {}\nOrigin: {}\nSource: {}\n", errorMessage, originator, sourceLocation);
+    OutputDebugStringA(message.c_str());
+    throw std::logic_error(message);
 }
 
 inline HRESULT ThrowIfFailed(HRESULT hr, const char* originator = nullptr, const char* sourceLocation = nullptr)

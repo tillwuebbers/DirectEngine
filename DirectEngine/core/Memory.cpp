@@ -1,6 +1,4 @@
 #include "Memory.h"
-#include <assert.h>
-#include <cstdlib>
 
 #define WIN32_LEAN_AND_MEAN
 #include "Windows.h"
@@ -14,15 +12,10 @@ MemoryArena::MemoryArena(size_t capacity) :
 	allocationGranularity = info.dwAllocationGranularity;
 }
 
-size_t Align(size_t value, size_t alignment)
+void* MemoryArena::AllocateRaw(size_t byteCount, size_t alignment)
 {
-	return (value + alignment - 1) & ~(alignment - 1);
-}
-
-void* MemoryArena::Allocate(size_t size)
-{
-	assert(size >= 0);
-	const size_t newUsed = used + size;
+	const size_t alignedUsed = Align(used, std::max<size_t>(alignment, MIN_ALIGN));
+	const size_t newUsed = alignedUsed + byteCount;
 	assert(newUsed <= capacity);
 
 	if (newUsed > committed)
@@ -34,16 +27,13 @@ void* MemoryArena::Allocate(size_t size)
 		committed += allocationSize;
 	}
 
-	uint8_t* result = base + used;
 	used = newUsed;
-	return result;
+	return base + alignedUsed;
 }
 
-void* MemoryArena::AllocateAligned(size_t size, size_t alignment)
+size_t Align(size_t value, size_t alignment)
 {
-	size_t difference = Align(used, alignment) - used;
-	Allocate(difference);
-	return Allocate(size);
+	return (value + alignment - 1) & ~(alignment - 1);
 }
 
 void MemoryArena::Reset(bool freePages)

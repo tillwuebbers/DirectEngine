@@ -10,7 +10,7 @@ bool LoadConfig(MemoryArena& arena, const char* path)
 	size_t fileSize = ftell(fileHandle);
 	rewind(fileHandle);
 
-	arena.Allocate(fileSize);
+	arena.AllocateRaw(fileSize);
 	size_t readObjects = fread(arena.base, fileSize, 1, fileHandle);
 	assert(readObjects > 0);
 	fclose(fileHandle);
