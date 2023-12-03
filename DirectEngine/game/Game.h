@@ -144,14 +144,16 @@ public:
 	XMVECTOR clearColor = { .1f, .2f, .4f, 1.f };
 	XMVECTOR fogColor = { .03f, .01f, .01f, 1.f };
 
-	float contrast = 1.;
-	float brightness = 0.;
-	float saturation = 1.;
-	float fog = 0.;
+	float exposure = 1.0f;
+	float contrast = 1.0f;
+	float brightness = 0.0f;
+	float saturation = 1.0f;
+	float fog = 0.0f;
 
 	Gizmo gizmo{};
 
 	// Entities
+	Entity* skybox = nullptr;
 	Entity* portal1 = nullptr;
 	Entity* portal2 = nullptr;
 	Entity* playerEntity = nullptr;

@@ -113,7 +113,7 @@ struct CameraConstantBuffer
 	MAT_CMAJ cameraView = {};
 	MAT_CMAJ cameraProjection = {};
 	XMVECTOR postProcessing = {};
-	XMVECTOR fogColor = {};
+	XMVECTOR fogData = {};
 	XMVECTOR worldCameraPos = {};
 	float padding[(256 - 2 * 64 - 3 * 16) / 4];
 };

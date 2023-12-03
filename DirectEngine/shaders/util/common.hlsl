@@ -36,7 +36,7 @@ cbuffer CameraConstantBuffer : register(b4)
 	float4x4 cameraView;
 	float4x4 cameraProjection;
 	float4 postProcessing;
-	float3 fogColor;
+	float4 fogData;
 	float3 worldCameraPos;
 }
 
@@ -153,7 +153,7 @@ float3 PBR(PSInputDefault input, float3 albedoInput, float3 normalTS, float roug
 	float3 lightDirectionTS = normalize(input.lightDirectionTS);
 	float3 cameraDirectionTS = normalize(input.cameraDirectionTS);
 	
-    float roughness = roughnessInput * roughnessInput;
+    float roughness = roughnessInput * roughnessInput + 0.0001;
     float roughnessSq = roughness * roughness;
 	
 	// Specularity behavior is different for dielectric and metallic surfaces
@@ -170,7 +170,7 @@ float3 PBR(PSInputDefault input, float3 albedoInput, float3 normalTS, float roug
 	// TODO: loop over all light sources
     for (int i = 0; i < 1; i++)
     {
-        float3 lightColor = float3(1.0, 1.0, 1.0) * 3.0;
+        float3 lightColor = float3(1.0, 1.0, 1.0) * 5.0;
 		float3 radiance = lightColor; // directional light
         float3 halfWay = normalize(lightDirectionTS + cameraDirectionTS);
 		float nDotL = max(dot(normalTS, lightDirectionTS), 0.0);
@@ -211,7 +211,7 @@ float3 PBR(PSInputDefault input, float3 albedoInput, float3 normalTS, float roug
 	
     lightOut += ambientKD * ambientDiffuse + ambientSpecular;
     
-    return lightOut / (lightOut + 1.0);
+    return lightOut;
 }
 
 LightData PSCalcLightData(PSInputDefault input, float ambientIntensity, float diffuseIntensity, float specularIntensity, float specularity)
@@ -249,16 +249,30 @@ float RandomPerPixel(float2 uv, float a = 12.9898, float b = 78.233, float c = 4
 	return frac(sin(dot(uv, float2(a, b))) * c);
 }
 
+// ACES Filmic Tone Mapping Curve by Krzysztof Narkowicz
+float3 ACESFilm(float3 x)
+{
+    float a = 2.51f;
+    float b = 0.03f;
+    float c = 2.43f;
+    float d = 0.59f;
+    float e = 0.14f;
+    return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
+}
+
 float3 PostProcess(float3 baseColor, float3 worldPosition)
 {
 	float3 color = baseColor;
 
-	float fog = postProcessing.w;
+    float fogDensity = fogData.w;
 	float cameraDistance = length(worldCameraPos - worldPosition);
-	float fogPart = cameraDistance * fog * .01;
+    float fogPart = cameraDistance * fogDensity * .01;
 	float fogFactor = pow(2., -fogPart * fogPart);
-	color = lerp(color, fogColor, clamp(1. - fogFactor, 0., 1.));
-
+    color = lerp(color, fogData.xyz, clamp(1. - fogFactor, 0., 1.));
+	
+    float exposure = postProcessing.w;
+    color = color * exposure;
+	
 	float constrast = postProcessing.x;
 	float brightness = postProcessing.y;
 	color = clamp(constrast * (color - 0.5) + 0.5 + brightness, 0., 1.);
@@ -267,5 +281,5 @@ float3 PostProcess(float3 baseColor, float3 worldPosition)
 	float3 grayscale = dot(color, float3(0.299, 0.587, 0.114));
 	color = clamp(lerp(color, grayscale, 1. - saturation), 0., 1.);
 
-	return color;
+    return ACESFilm(color);
 }

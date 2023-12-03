@@ -305,10 +305,11 @@ void Game::DrawDebugUI(EngineCore& engine)
 			{
 				light.rotation = XMVector3Normalize(light.rotation);
 			}
-			ImGui::SliderFloat("Contrast", &contrast, 0., 3., "%.2f");
-			ImGui::SliderFloat("Brightness", &brightness, -1., 1., "%.2f");
-			ImGui::SliderFloat("Saturation", &saturation, 0., 3., "%.2f");
-			ImGui::SliderFloat("Fog", &fog, 0., 3., "%.2f");
+			ImGui::SliderFloat("Exposure", &exposure, 0.1f, 2.f, "%.2f");
+			ImGui::SliderFloat("Contrast", &contrast, 0.0f, 3.0f, "%.2f");
+			ImGui::SliderFloat("Brightness", &brightness, -1.0f, 1.0f, "%.2f");
+			ImGui::SliderFloat("Saturation", &saturation, 0.0f, 3.0f, "%.2f");
+			ImGui::SliderFloat("Fog", &fog, 0.0f, 8.0f, "%.1f");
 			ImGui::ColorEdit3("Clear Color", &baseClearColor.m128_f32[0]);
 			ImGui::ColorEdit3("Fog Color", &fogColor.m128_f32[0]);
 			ImGui::Separator();

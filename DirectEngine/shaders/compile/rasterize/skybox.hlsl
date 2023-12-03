@@ -22,6 +22,5 @@ float4 PSMain(PSInput input) : SV_TARGET
 {
     float3 dir = normalize(input.worldPosition.xyz - worldCameraPos);
     float3 sampleColor = skybox.Sample(smoothSampler, dir).xyz;
-    float3 sampleColorTonemapped = sampleColor / (sampleColor + 1.0);
-    return float4(PostProcess(sampleColorTonemapped, input.worldPosition.rgb), 1.0);
+    return float4(PostProcess(sampleColor, input.worldPosition.rgb), 1.0);
 }

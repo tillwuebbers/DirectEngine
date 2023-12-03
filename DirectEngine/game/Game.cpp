@@ -121,13 +121,6 @@ void Game::LoadLevel(EngineCore& engine)
 	helmet->SetLocalPosition({ 0.f, 1.f, 0.f });
 	helmet->SetLocalRotation(XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f));
 
-	// Skybox
-	MeshData* skyboxMeshData = engine.CreateMesh(LoadGltfFromFile("models/skybox-cube.glb", levelArena).meshes[0]);
-	Entity* skybox = CreateMeshEntity(engine, materialIndices[Material::Skybox], skyboxMeshData);
-	skybox->name = "Skybox";
-	skybox->SetLocalScale({ .5f, .5f, .5f });
-	skybox->GetData().raytraceVisible = false;
-	
 	// Level Meshes & Collision
 	level1MeshData.clear();
 
@@ -216,6 +209,14 @@ void Game::LoadLevel(EngineCore& engine)
 
 	playerEntity->AddChild(playerModelEntity, false);
 
+	// Skybox
+	MeshData* skyboxMeshData = engine.CreateMesh(LoadGltfFromFile("models/skybox-cube.glb", levelArena).meshes[0]);
+	skybox = CreateMeshEntity(engine, materialIndices[Material::Skybox], skyboxMeshData);
+	skybox->name = "Skybox";
+	skybox->SetLocalScale({ .75f, .75f, .75f });
+	skybox->GetData().raytraceVisible = false;
+	cameraEntity->AddChild(skybox, false);
+
 	// Level
 	/*PhysicsInit levelPhysics{0.f, PhysicsInitType::RigidBodyStatic};
 	levelPhysics.ownCollisionLayers = CollisionLayers::CL_World;
@@ -237,7 +238,7 @@ void Game::LoadLevel(EngineCore& engine)
 	PhysicsInit groundPhysics{0.f, PhysicsInitType::RigidBodyStatic};
 	groundPhysics.ownCollisionLayers = CollisionLayers::CL_World;
 	groundPhysics.collidesWithLayers = CollisionLayers::CL_Entity;
-	Entity* groundEntity = CreateQuadEntity(engine, materialIndices[Material::Ground], 20.f, 20.f, groundPhysics);
+	Entity* groundEntity = CreateQuadEntity(engine, materialIndices[Material::Ground], 200.f, 200.f, groundPhysics);
 	groundEntity->name = "Ground";
 	groundEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
 	groundEntity->SetLocalPosition(XMVectorSetY(groundEntity->localMatrix.translation, -.01f));
@@ -558,8 +559,9 @@ void Game::UpdateGame(EngineCore& engine)
 	for (CameraData& camera : engine.m_cameras)
 	{
 		CameraConstantBuffer& cambuf = camera.constantBuffer.data;
-		cambuf.postProcessing = { contrast, brightness, saturation, fog };
-		cambuf.fogColor = clearColor;
+		cambuf.postProcessing = { contrast, brightness, saturation, exposure };
+		cambuf.fogData = fogColor;
+		cambuf.fogData = XMVectorSetW(cambuf.fogData, fog);
 	}
 
 	// Update light/shadowmap
@@ -630,15 +632,6 @@ void Game::UpdateGame(EngineCore& engine)
 			engine.m_debugLineData.lineVertices.newElement() = { edgeEnd3, cubeColor };
 		}
 	}
-
-	// Post Processing
-	XMVECTOR camPos2d = engine.mainCamera->worldMatrix.translation;
-	camPos2d.m128_f32[1] = 0.f;
-	float distanceFromSpawn = XMVector3Length(camPos2d).m128_f32[0];
-	float maxDistance = 40.f;
-	fog = distanceFromSpawn * 3.f / maxDistance;
-	float colorLerp = std::min(1.f, distanceFromSpawn / maxDistance);
-	clearColor = XMVectorLerp(baseClearColor, fogColor, colorLerp);
 
 	engine.EndProfile("Game Update");
 	// Draw UI
