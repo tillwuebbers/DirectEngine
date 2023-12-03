@@ -1,4 +1,5 @@
 #define PI 3.14159265359
+#define MAX_RADIANCE_MIP_LEVEL 4.0
 
 SamplerState rawSampler : register(s0);
 SamplerState smoothSampler : register(s1);
@@ -42,6 +43,7 @@ cbuffer CameraConstantBuffer : register(b4)
 Texture2D shadowmapTexture : register(t5);
 TextureCube<float4> irradianceMap : register(t6);
 TextureCube<float4> reflectanceMap : register(t7);
+Texture2D ambientLUT : register(t8);
 
 struct Vertex
 {
@@ -140,8 +142,6 @@ float G1(float nDotV, float k)
 
 float3 FresnelSchlick(float3 F0, float cosTheta, float roughness)
 {
-    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
-	
 	float invRoughness = 1.0 - roughness;
 	float3 clampedF0 = max(float3(invRoughness, invRoughness, invRoughness), F0);
     return F0 + (clampedF0 - F0) * pow(1.0 - cosTheta, 5.0);
@@ -170,14 +170,14 @@ float3 PBR(PSInputDefault input, float3 albedoInput, float3 normalTS, float roug
 	// TODO: loop over all light sources
     for (int i = 0; i < 1; i++)
     {
-        float3 lightColor = float3(1.0, 1.0, 1.0) * 10.0;
+        float3 lightColor = float3(1.0, 1.0, 1.0) * 3.0;
 		float3 radiance = lightColor; // directional light
         float3 halfWay = normalize(lightDirectionTS + cameraDirectionTS);
 		float nDotL = max(dot(normalTS, lightDirectionTS), 0.0);
 		float nDotH = max(dot(normalTS, halfWay), 0.0);
 		
 		// Fresnel-Schlick reflection approximation (F)
-        float3 fresnelReflection = FresnelSchlick(F0, nDotL, 0.0);
+        float3 fresnelReflection = FresnelSchlick(F0, nDotL, roughness);
 		
 		// Microfaced masking and shadowing function (G2)
         float g2 = G1(nDotV, roughness) * G1(nDotL, roughness);
@@ -202,12 +202,14 @@ float3 PBR(PSInputDefault input, float3 albedoInput, float3 normalTS, float roug
 	float3 ambientFresnel = FresnelSchlick(F0, nDotV, roughness);
 	float3 ambientKD = float3(1.0, 1.0, 1.0) - ambientFresnel;
 	float3 ambientDiffuse = ambientKD * albedoInput * ambientIrradiance;
-    lightOut += ambientDiffuse;
 	
     float3 viewDirectionWS = -normalize(worldCameraPos - input.worldPosition.xyz);
     float3 reflectedWS = reflect(viewDirectionWS, input.worldNormal);
-    float3 reflectionSample = reflectanceMap.Sample(smoothSampler, reflectedWS).xyz;
-    lightOut += reflectionSample * ambientFresnel;
+    float3 reflectionSample = reflectanceMap.SampleLevel(smoothSampler, reflectedWS, roughness * MAX_RADIANCE_MIP_LEVEL).xyz;
+    float2 ambientBRDF = ambientLUT.Sample(smoothSampler, float2(nDotV, roughness)).xy;
+    float3 ambientSpecular = reflectionSample * (ambientFresnel * ambientBRDF.x + ambientBRDF.y);
+	
+    lightOut += ambientKD * ambientDiffuse + ambientSpecular;
     
     return lightOut / (lightOut + 1.0);
 }

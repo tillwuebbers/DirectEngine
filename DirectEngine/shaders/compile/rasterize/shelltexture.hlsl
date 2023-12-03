@@ -7,25 +7,10 @@ struct RootConstants
 };
 ConstantBuffer<RootConstants> rootConstants : register(b0, space1);
 
-struct PSInput
+void VSMain(float4 position : POSITION, float3 normal : NORMAL, float3 tangent : TANGENT, float3 bitangent : BITANGENT, float2 uv : UV, out PSInputDefault result, inout uint instanceID : SV_InstanceID)
 {
-    float4 position : SV_POSITION;
-    float3 worldNormal : NORMAL;
-    float2 uv : TEXCOORD_0;
-    uint instanceID : SV_InstanceID;
-};
-
-PSInput VSMain(float4 position : POSITION, float3 normal : NORMAL, float2 uv : UV, uint instanceID : SV_InstanceID)
-{
-    PSInput result;
     float3 newPos = position.xyz + normal * instanceID * rootConstants.layerOffset;
-    float4 worldPos = mul(float4(newPos, 1.0), worldTransform);
-    result.position = mul(worldPos, VSGetVP());
-
-    result.worldNormal = normalize(mul(float4(normal, 0), worldTransform).xyz);
-    result.uv = uv;
-    result.instanceID = instanceID;
-    return result;
+    result = VSCalcDefault(float4(newPos, 1.0), normal, tangent, bitangent, uv);
 }
 
 float hash(uint n) {
@@ -35,7 +20,7 @@ float hash(uint n) {
     return float(n & uint(0x7fffffffU)) / float(0x7fffffff);
 }
 
-float4 PSMain(PSInput input) : SV_TARGET
+float4 PSMain(PSInputDefault input, uint instanceID : SV_InstanceID) : SV_TARGET
 {
     float2 newUV = input.uv * 100.0;
     float2 localUV = frac(newUV) * 2.0 - 1.0;
@@ -45,18 +30,15 @@ float4 PSMain(PSInput input) : SV_TARGET
     float rand = lerp(0.2, 1.0, hash(seed));
 
     float centerDistance = length(localUV);
-    float normalizedShellHeight = float(input.instanceID) / float(rootConstants.layerCount);
+    float normalizedShellHeight = float(instanceID) / float(rootConstants.layerCount);
     float sdf = centerDistance - (rand - normalizedShellHeight);
 
-    if (input.instanceID > 0 && sdf > 0.5)
+    if (instanceID > 0 && sdf > 0.5)
     {
         discard;
     }
-
-    float3 color = float3(1.0, 1.0, 1.0);
+    
     float ambientOcclusion = pow(normalizedShellHeight, 0.5);
-    float lightStrength = max(dot(input.worldNormal, -sunDirection), 0.);
-    lightStrength = lightStrength * 0.5 + 0.5;
-    lightStrength = lightStrength * lightStrength;
-    return float4(color * ambientOcclusion * lightStrength, 1.0);
+    float3 color = PBR(input, float3(1.0, 1.0, 1.0), float3(0.0, 0.0, 1.0), 0.5, 0.0) * ambientOcclusion;
+    return float4(PostProcess(color, input.worldPosition.rgb), 1.0);
 }

@@ -58,6 +58,7 @@ enum RootSignatureOffset : UINT
     SHADOWMAP = 5,
     IRRADIANCE = 6,
     REFLECTANCE = 7,
+    AMBIENT_LUT = 8,
     DEFAULT_ROOT_SIG_COUNT,
 };
 
@@ -476,6 +477,7 @@ public:
     ShadowMap* m_shadowmap = nullptr;
     Texture* m_irradianceMap = nullptr;
     Texture* m_reflectanceMap = nullptr;
+    Texture* m_ambientLUT = nullptr;
     GBuffer* m_gBuffer = nullptr;
     ID3D12Resource* m_textureUploadHeaps[MAX_TEXTURES] = {};
     size_t m_textureUploadIndex = 0;

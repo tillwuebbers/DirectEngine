@@ -46,7 +46,7 @@ void Game::StartGame(EngineCore& engine)
 	RESET_TIMER(timer);
 
 	// Materials
-	materialIndices.try_emplace(Material::Ground,       engine.CreateMaterial(SHADER_NAMES.at(Shader::Entity), {groundDiffuse, groundNormal, groundRoughness, groundMetallic}));
+	materialIndices.try_emplace(Material::Ground,       engine.CreateMaterial(SHADER_NAMES.at(Shader::Ground), {}));
 	materialIndices.try_emplace(Material::Laser,        engine.CreateMaterial(SHADER_NAMES.at(Shader::Laser)));
 	materialIndices.try_emplace(Material::Portal1,      engine.CreateMaterial(SHADER_NAMES.at(Shader::Portal), {&engine.m_renderTextures[0]->texture}));
 	materialIndices.try_emplace(Material::Portal2,      engine.CreateMaterial(SHADER_NAMES.at(Shader::Portal), {&engine.m_renderTextures[1]->texture}));
@@ -112,8 +112,11 @@ void Game::LoadLevel(EngineCore& engine)
 
 	// Scene Stuff
 	Entity* logEntity1 = CreateEntityFromGltf(engine, "models/log1.glb", Shader::Entity);
+	logEntity1->SetLocalPosition({ 2.f, 0.f, 0.f });
+	logEntity1->SetLocalScale({ 2.0f, 2.0f, 2.0f });
 	Entity* logEntity2 = CreateEntityFromGltf(engine, "models/log2.glb", Shader::Entity);
-	logEntity2->SetLocalPosition({ 1.f, 0.f, 0.f });
+	logEntity2->SetLocalPosition({ 4.f, 0.f, 0.f });
+	logEntity2->SetLocalScale({ 2.0f, 2.0f, 2.0f });
 	Entity* helmet = CreateEntityFromGltf(engine, "models/DamagedHelmet.glb", Shader::Entity);
 	helmet->SetLocalPosition({ 0.f, 1.f, 0.f });
 	helmet->SetLocalRotation(XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f));
@@ -169,9 +172,8 @@ void Game::LoadLevel(EngineCore& engine)
 
 		return portal;
 	};
-	portal1 = createPortal(Material::Portal1, { 4.f, 1.5f, 2.f }, "Portal 1");
-	portal2 = createPortal(Material::Portal2, { -4.f, 1.5f, 2.f }, "Portal 2");
-	portal2->SetLocalRotation(XMQuaternionRotationRollPitchYaw(0.f, XM_PI, 0.f));
+	portal1 = createPortal(Material::Portal1, { 1.f, 1.5f, -5.f }, "Portal 1");
+	portal2 = createPortal(Material::Portal2, { 1.f, 1.5f, -5.001f }, "Portal 2");
 
 	// Crosshair
 	Entity* crosshair = CreateQuadEntity(engine, materialIndices[Material::Crosshair], .03f, .03f, true);
