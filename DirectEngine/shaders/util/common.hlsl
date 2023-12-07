@@ -198,6 +198,7 @@ float3 PBR(PSInputDefault input, float3 albedoInput, float3 normalTS, float roug
         lightOut += (kD * brdfDiffuse + brdfSpecular) * radiance * nDotL * inShadow;
     }
 	
+	// Environment Light (skybox)
     float3 ambientIrradiance = irradianceMap.Sample(smoothSampler, normalTS).xyz;
 	float3 ambientFresnel = FresnelSchlick(F0, nDotV, roughness);
 	float3 ambientKD = float3(1.0, 1.0, 1.0) - ambientFresnel;
@@ -210,7 +211,7 @@ float3 PBR(PSInputDefault input, float3 albedoInput, float3 normalTS, float roug
     float3 ambientSpecular = reflectionSample * (ambientFresnel * ambientBRDF.x + ambientBRDF.y);
 	
     lightOut += ambientKD * ambientDiffuse + ambientSpecular;
-    
+	
     return lightOut;
 }
 
@@ -260,13 +261,24 @@ float3 ACESFilm(float3 x)
     return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
 }
 
+// Blue noise from https://www.shadertoy.com/view/tllcR2
+#define hash(p)  frac(sin(dot(p, float2(11.9898, 78.233))) * 43758.5453)
+float3 blueNoise(float2 uv)
+{
+    float v = 0.0;
+    for (uint k = 0; k < 9; k++)
+        v += hash(uv + float2(k%3-1,k/3-1));
+    float noise = 0.9 * (1.125 * hash(uv) - v / 8.0) + 0.5;
+    return float3(noise, noise, noise);
+}
+
 float3 PostProcess(float3 baseColor, float3 worldPosition)
 {
 	float3 color = baseColor;
 
     float fogDensity = fogData.w;
 	float cameraDistance = length(worldCameraPos - worldPosition);
-    float fogPart = cameraDistance * fogDensity * .01;
+    float fogPart = cameraDistance * fogDensity * 0.01;
 	float fogFactor = pow(2., -fogPart * fogPart);
     color = lerp(color, fogData.xyz, clamp(1. - fogFactor, 0., 1.));
 	
@@ -281,5 +293,8 @@ float3 PostProcess(float3 baseColor, float3 worldPosition)
 	float3 grayscale = dot(color, float3(0.299, 0.587, 0.114));
 	color = clamp(lerp(color, grayscale, 1. - saturation), 0., 1.);
 
-    return ACESFilm(color);
+    float3 tonemappedColor = ACESFilm(color);
+	float3 ditherNoise = blueNoise(worldPosition.xy) / 255.;
+	float3 ditheredColor = pow(pow(tonemappedColor, 1.0 / 2.2) + ditherNoise, 2.2);
+    return ditheredColor;
 }
