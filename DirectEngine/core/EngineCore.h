@@ -81,22 +81,21 @@ struct ConstantBuffer
     }
 };
 
+__declspec(align(256))
 struct SceneConstantBuffer
 {
     XMVECTOR time;
-    float padding[(256 - 16) / 4];
 };
-static_assert((sizeof(SceneConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
+__declspec(align(256))
 struct LightConstantBuffer
 {
     MAT_CMAJ lightView = {};
     MAT_CMAJ lightProjection = {};
     XMVECTOR sunDirection = {};
-    float padding[26];
 };
-static_assert((sizeof(LightConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
+__declspec(align(256))
 struct EntityConstantBuffer
 {
     MAT_CMAJ worldTransform = XMMatrixIdentity();
@@ -104,10 +103,9 @@ struct EntityConstantBuffer
     XMVECTOR aabbLocalPosition = { 0., 0., 0. };
     XMVECTOR aabbLocalSize = { 1., 1., 1. };
     bool isSelected;
-    float padding[(256 - 64 - 3 * 16 - 16) / 4];
 };
-static_assert((sizeof(EntityConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
+__declspec(align(256))
 struct CameraConstantBuffer
 {
 	MAT_CMAJ cameraView = {};
@@ -115,16 +113,20 @@ struct CameraConstantBuffer
 	XMVECTOR postProcessing = {};
 	XMVECTOR fogData = {};
 	XMVECTOR worldCameraPos = {};
-	float padding[(256 - 2 * 64 - 3 * 16) / 4];
 };
-static_assert((sizeof(CameraConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
+__declspec(align(256))
 struct BoneMatricesBuffer
 {
     MAT_CMAJ inverseJointBinds[MAX_BONES];
     MAT_CMAJ jointTransforms[MAX_BONES];
 };
-static_assert((sizeof(BoneMatricesBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
+
+__declspec(align(256))
+struct ImageData
+{
+    XMUINT2 imageSize;
+};
 
 struct ExtendedMatrix
 {
@@ -397,6 +399,17 @@ struct RayGenConstantBuffer
     RTViewport stencil;
 };
 
+struct ComputeShader
+{
+    ID3D12RootSignature* rootSignature = nullptr;
+    ID3D12PipelineState* pipelineState = nullptr;
+    CountingArray<Texture*, 4> inputTextures = {};
+    Texture* outputTexture = nullptr;
+    ConstantBuffer<ImageData> constantImageData = {};
+    ID3D12Resource** readbackHeap = nullptr;
+    bool executed = false;
+};
+
 class EngineCore
 {
 public:
@@ -504,6 +517,9 @@ public:
     ComPtr<ID3D12Resource> m_rayGenShaderTable = nullptr;
     RayGenConstantBuffer m_rayGenConstantBuffer = {};
 
+    // Compute Shaders
+    ComputeShader m_computeShader = {};
+
     // Synchronization objects
     UINT m_frameIndex = 0;
     HANDLE m_fenceEvent = nullptr;
@@ -569,16 +585,19 @@ public:
     void CreateRenderTexture(UINT width, UINT height, bool msaaEnabled, RenderTexture& renderTexture, CameraData* camera = nullptr, DXGI_FORMAT textureFormat = DISPLAY_FORMAT);
     void CreateGBuffer(UINT width, UINT height, GBuffer& gBuffer, DXGI_FORMAT textureFormat);
     void CreateEmptyTexture(int width, int height, std::wstring name, Texture& texture, const IID& riidTexture, void** ppvTexture, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
+    void CreateEmptyUAV(int width, int height, std::wstring name, Texture& texture, const IID& riidBuffer, void** ppvBuffer, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
     Texture* CreateTexture(const std::wstring& filePath);
     void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
     size_t CreateMaterial(const std::wstring& shaderName, const std::vector<Texture*>& textures = {}, const std::vector<RootConstantInfo>& rootConstants = {}, const D3D12_RASTERIZER_DESC& rasterizerDesc = CD3DX12_RASTERIZER_DESC{ D3D12_DEFAULT });
     MeshData* CreateMesh(VertexData::MeshFile& meshFile);
     size_t CreateEntity(const size_t materialIndex, MeshData* meshData);
+    void CreateComputeShader(ComputeShader& computeShader);
     void BuildBottomLevelAccelerationStructures(ID3D12GraphicsCommandList4* commandList);
     void BuildTopLevelAccelerationStructure(ID3D12GraphicsCommandList4* commandList);
     void ResetVertexBuffer();
     void UploadVertices();
     void RunComputeShaderPrePass(ID3D12GraphicsCommandList4* renderList);
+    void RunComputeShaderPostPass();
     void RenderGBuffer(ID3D12GraphicsCommandList4* renderList);
     void RaytraceShadows(ID3D12GraphicsCommandList4* renderList);
     void RenderShadows(ID3D12GraphicsCommandList* renderList);

@@ -75,10 +75,9 @@
 #define SHADER_VERSION_RT "lib_6_3"
 
 #define TEXTURE_FILE_EXTENSION L".dds"
-#define DIFFUSE_SUFFIX   L"_D"
-#define NORMAL_SUFFIX    L"_N"
-#define ROUGHNESS_SUFFIX L"_R"
-#define METALLIC_SUFFIX  L"_M"
+#define DIFFUSE_SUFFIX             L"_D"
+#define NORMAL_SUFFIX              L"_N"
+#define METALLIC_ROUGHNESS_SUFFIX  L"_MR"
 
 #define LOG_SIZE 1024
 

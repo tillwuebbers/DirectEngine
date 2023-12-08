@@ -36,11 +36,10 @@ void Game::StartGame(EngineCore& engine)
 	}
 
 	// Textures
-	Texture* groundDiffuse   = engine.CreateTexture(L"textures/ground_D.dds");
-	Texture* groundNormal    = engine.CreateTexture(L"textures/ground_N.dds");
-	Texture* groundRoughness = engine.CreateTexture(L"textures/ground_R.dds");
-	Texture* groundMetallic  = engine.CreateTexture(L"textures/ground_M.dds");
-	Texture* skybox          = engine.CreateTexture(L"textures/skyfire.dds");
+	Texture* groundDiffuse        = engine.CreateTexture(L"textures/ground_D.dds");
+	Texture* groundNormal         = engine.CreateTexture(L"textures/ground_N.dds");
+	Texture* groundMetalRoughness = engine.CreateTexture(L"textures/ground_MR.dds");
+	Texture* skybox               = engine.CreateTexture(L"textures/skyfire.dds");
 
 	LOG_TIMER(timer, "Textures");
 	RESET_TIMER(timer);
@@ -60,8 +59,8 @@ void Game::StartGame(EngineCore& engine)
 	materialIndices.try_emplace(Material::ShellTexture, shellMatIndex);
 	MaterialData& shellMat = engine.m_materials[shellMatIndex];
 	shellMat.SetRootConstant(0, 0.005f);
-	shellMat.SetRootConstant(1, 32);
-	shellMat.shellCount = 32;
+	shellMat.SetRootConstant(1, 16);
+	shellMat.shellCount = 16;
 
 	LOG_TIMER(timer, "Materials");
 	RESET_TIMER(timer);
@@ -169,9 +168,9 @@ void Game::LoadLevel(EngineCore& engine)
 	portal2 = createPortal(Material::Portal2, { 1.f, 1.5f, -5.001f }, "Portal 2");
 
 	// Crosshair
-	Entity* crosshair = CreateQuadEntity(engine, materialIndices[Material::Crosshair], .03f, .03f, true);
+	/*Entity* crosshair = CreateQuadEntity(engine, materialIndices[Material::Crosshair], .03f, .03f, true);
 	crosshair->GetData().mainOnly = true;
-	crosshair->GetBuffer().color = { 1.f, .3f, .1f, 1.f };
+	crosshair->GetBuffer().color = { 1.f, .3f, .1f, 1.f };*/
 
 	// Player
 	playerEntity = CreateEmptyEntity(engine);
@@ -244,7 +243,7 @@ void Game::LoadLevel(EngineCore& engine)
 	groundEntity->SetLocalPosition(XMVectorSetY(groundEntity->localMatrix.translation, -.01f));
 
 	// Cubes
-	cubeMeshData = engine.CreateMesh(LoadGltfFromFile("models/cube.glb", levelArena).meshes[0]);
+	/*cubeMeshData = engine.CreateMesh(LoadGltfFromFile("models/cube.glb", levelArena).meshes[0]);
 	for (int i = 0; i < 16; i++)
 	{
 		Entity* yea = CreateMeshEntity(engine, materialIndices[Material::ShellTexture], cubeMeshData);
@@ -255,7 +254,7 @@ void Game::LoadLevel(EngineCore& engine)
 		yeaPhysics.ownCollisionLayers = CollisionLayers::CL_Entity;
 		yeaPhysics.collidesWithLayers = CollisionLayers::CL_Player | CollisionLayers::CL_World;
 		yea->AddRigidBody(levelArena, dynamicsWorld, boxShape, yeaPhysics);
-	}
+	}*/
 }
 
 void PlayerMovement::Update(EngineInput& input, TimeData& time, Entity* playerEntity, Entity* playerLookEntity, Entity* cameraEntity, btDynamicsWorld* dynamicsWorld, bool frameStep)
@@ -739,15 +738,10 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, Assets:
 			normalPath.append(TEXTURE_FILE_EXTENSION);
 			textures.push_back(engine.CreateTexture(normalPath.c_str()));
 
-			std::wstring roughnessPath = texturePath;
-			roughnessPath.append(ROUGHNESS_SUFFIX);
-			roughnessPath.append(TEXTURE_FILE_EXTENSION);
-			textures.push_back(engine.CreateTexture(roughnessPath.c_str()));
-
-			std::wstring metallicPath = texturePath;
-			metallicPath.append(METALLIC_SUFFIX);
-			metallicPath.append(TEXTURE_FILE_EXTENSION);
-			textures.push_back(engine.CreateTexture(metallicPath.c_str()));
+			std::wstring metalRoughnessPath = texturePath;
+			metalRoughnessPath.append(METALLIC_ROUGHNESS_SUFFIX);
+			metalRoughnessPath.append(TEXTURE_FILE_EXTENSION);
+			textures.push_back(engine.CreateTexture(metalRoughnessPath.c_str()));
 		}
 		LOG_TIMER(timer, "Texture for model");
 		RESET_TIMER(timer);
