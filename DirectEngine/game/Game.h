@@ -1,7 +1,6 @@
 #pragma once
 #include "Entity.h"
 #include "IEntityCreator.h"
-#include "Mesh.h"
 #include "Config.h"
 #include "Physics.h"
 #include "Gizmo.h"
@@ -10,6 +9,7 @@ using namespace Assets;
 
 #include "../core/IGame.h"
 #include "../core/EngineCore.h"
+#include "../core/Mesh.h"
 
 #include "imgui.h"
 #include "ImGuiProfilerRenderer.h"

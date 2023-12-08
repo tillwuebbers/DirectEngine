@@ -33,3 +33,4 @@ struct TextureData
 };
 
 TextureData ParseDDSHeader(const wchar_t* path);
+void SavePNG(const char* path, TextureData& data);

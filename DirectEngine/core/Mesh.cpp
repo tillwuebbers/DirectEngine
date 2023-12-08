@@ -455,6 +455,15 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 		}
 	}
 
+	if (model.textures.size() > 0)
+	{
+		OutputDebugStringA("Textures:\n");
+		for (tinygltf::Texture& texture : model.textures)
+		{
+			OutputDebugStringA(std::format("  {}\n", texture.name).c_str());
+		}
+	}
+
 	LOG_TIMER(timer, "Meshes");
 	RESET_TIMER(timer);
 	

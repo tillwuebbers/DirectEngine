@@ -3,7 +3,7 @@
 #include "../core/Memory.h"
 #include "../core/EngineCore.h"
 #include "../core/Audio.h"
-#include "Mesh.h"
+#include "../core/Mesh.h"
 #include "Physics.h"
 
 #include <DirectXMath.h>

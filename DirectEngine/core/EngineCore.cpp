@@ -829,6 +829,9 @@ void EngineCore::LoadAssets()
         renderTexture->camera->name = ("Render Texture " + std::to_string(i)).c_str();
     }
 
+    // Compute Shaders
+    //CreateComputeShader(m_computeShader);
+
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
     {
         ThrowIfFailed(m_device->CreateFence(m_fenceValues[m_frameIndex], D3D12_FENCE_FLAG_NONE, NewComObject(comPointers, &m_fence)));
@@ -998,6 +1001,27 @@ void EngineCore::CreateEmptyTexture(int width, int height, std::wstring name, Te
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Texture2D.MipLevels = 1;
     m_device->CreateShaderResourceView(texture.buffer, &srvDesc, texture.handle.cpuHandle);
+}
+
+void EngineCore::CreateEmptyUAV(int width, int height, std::wstring name, Texture& texture, const IID& riidBuffer, void** ppvBuffer, D3D12_RESOURCE_FLAGS flags)
+{
+    texture.name = name;
+
+    D3D12_RESOURCE_DESC textureDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT, width, height);
+    textureDesc.Flags = flags | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+    textureDesc.MipLevels = 1;
+
+    CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_DEFAULT);
+    m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_COMMON, nullptr, riidBuffer, ppvBuffer);
+    texture.buffer->SetName(name.c_str());
+
+    // UAV
+    texture.handle = GetNewDescriptorHandle();
+    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+    uavDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+    uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+
+    m_device->CreateUnorderedAccessView(texture.buffer, nullptr, nullptr, texture.handle.cpuHandle);
 }
 
 Texture* EngineCore::CreateTexture(const std::wstring& filePath)
@@ -1392,6 +1416,8 @@ void EngineCore::OnRender()
     MoveToNextFrame();
     EndProfile("Frame Fence");
 
+    //RunComputeShaderPostPass();
+
     frameArena.Reset();
 }
 
@@ -1444,7 +1470,7 @@ void EngineCore::PopulateCommandList()
     EndProfile("Render Setup");
 
     // Compute Shaders
-    RunComputeShaderPrePass(m_renderCommandList);
+    //RunComputeShaderPrePass(m_renderCommandList);
 
     // Update ray tracing acceleration structure
     if (m_raytracingEnabled)
@@ -1595,10 +1621,160 @@ void EngineCore::LoadRaytracingShaderTables(ID3D12StateObject* dxrStateObject, c
     }
 }
 
+#define TEX_NAME "Material_MR"
+#define TEX_NAME_L L"Material_MR"
+
+void EngineCore::CreateComputeShader(ComputeShader& computeShader)
+{
+    Texture* metal = computeShader.inputTextures.newElement() = CreateTexture(std::format(L"textures/{}_M.dds", TEX_NAME_L));
+    Texture* roughness = computeShader.inputTextures.newElement() = CreateTexture(std::format(L"textures/{}_R.dds", TEX_NAME_L));
+
+    int width = std::max(metal->buffer->GetDesc().Width, roughness->buffer->GetDesc().Width);
+    int height = std::max(metal->buffer->GetDesc().Height, roughness->buffer->GetDesc().Height);
+    m_computeShader.outputTexture = &m_textures.newElement();
+    CreateEmptyUAV(width, height, L"MetalRoughness", *m_computeShader.outputTexture, NewComObject(comPointers, &m_computeShader.outputTexture->buffer));
+
+    CreateConstantBuffers(m_computeShader.constantImageData, L"ImageData", &comPointers);
+
+    CD3DX12_ROOT_PARAMETER1 rootParameters[4] = {};
+    CD3DX12_DESCRIPTOR_RANGE1 descriptorRanges[4] = {};
+    descriptorRanges[0] = CD3DX12_DESCRIPTOR_RANGE1(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+    rootParameters[0].InitAsDescriptorTable(1, &descriptorRanges[0]);
+
+    descriptorRanges[1] = CD3DX12_DESCRIPTOR_RANGE1(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1);
+    rootParameters[1].InitAsDescriptorTable(1, &descriptorRanges[1]);
+
+    descriptorRanges[2] = CD3DX12_DESCRIPTOR_RANGE1(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 2);
+    rootParameters[2].InitAsDescriptorTable(1, &descriptorRanges[2]);
+
+    descriptorRanges[3] = CD3DX12_DESCRIPTOR_RANGE1(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
+    rootParameters[3].InitAsDescriptorTable(1, &descriptorRanges[3]);
+
+    D3D12_STATIC_SAMPLER_DESC smoothSampler = {};
+    smoothSampler.Filter = D3D12_FILTER_ANISOTROPIC;
+    smoothSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    smoothSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    smoothSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    smoothSampler.MipLODBias = 0;
+    smoothSampler.MaxAnisotropy = 16;
+    smoothSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+    smoothSampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+    smoothSampler.MinLOD = 0.0f;
+    smoothSampler.MaxLOD = D3D12_FLOAT32_MAX;
+    smoothSampler.ShaderRegister = 0;
+    smoothSampler.RegisterSpace = 0;
+    smoothSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    std::vector<D3D12_STATIC_SAMPLER_DESC> samplers = { smoothSampler };
+
+    CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
+    rootSignatureDesc.Init_1_1(_countof(rootParameters), &rootParameters[0], samplers.size(), samplers.data());
+
+    ComPtr<ID3DBlob> signature;
+    ComPtr<ID3DBlob> error;
+    if (FAILED(D3DX12SerializeVersionedRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1_1, &signature, &error)))
+    {
+        OutputDebugStringA(reinterpret_cast<const char*>(error->GetBufferPointer()));
+    }
+    ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), NewComObject(comPointers, &computeShader.rootSignature)));
+    computeShader.rootSignature->SetName(L"textransform root sig");
+
+    ComPtr<ID3DBlob> myComputeShader;
+    ::D3DReadFileToBlob(L"shaders_bin/textransform.cs.cso", &myComputeShader);
+
+    // Create the Compute pipeline state object
+    struct PipelineStateStream
+    {
+        CD3DX12_PIPELINE_STATE_STREAM_ROOT_SIGNATURE pRootSignature;
+        CD3DX12_PIPELINE_STATE_STREAM_CS CS;
+    } pipelineStateStream;
+
+    // Setting the root signature and the compute shader to the PSO
+    pipelineStateStream.pRootSignature = computeShader.rootSignature;
+    pipelineStateStream.CS = CD3DX12_SHADER_BYTECODE(myComputeShader.Get());
+
+    D3D12_PIPELINE_STATE_STREAM_DESC pipelineStateStreamDesc = {sizeof(PipelineStateStream), &pipelineStateStream};
+    ThrowIfFailed(m_device->CreatePipelineState(&pipelineStateStreamDesc, NewComObject(comPointers, &computeShader.pipelineState)));
+}
+
 void EngineCore::RunComputeShaderPrePass(ID3D12GraphicsCommandList4* renderList)
 {
-    //renderList->SetComputeRootUnorderedAccessView(0, m_geometryBuffer.vertexBuffer->GetGPUVirtualAddress());
-    //renderList->SetComputeRootDescriptorTable(0, m_geometryBuffer.vertexBuffer->GetGPUVirtualAddress());
+    if (m_computeShader.executed) return;
+
+    renderList->SetComputeRootSignature(m_computeShader.rootSignature);
+    renderList->SetDescriptorHeaps(1, &m_cbvHeap);
+    renderList->SetPipelineState(m_computeShader.pipelineState);
+
+    size_t width = m_computeShader.outputTexture->buffer->GetDesc().Width;
+    size_t height = m_computeShader.outputTexture->buffer->GetDesc().Height;
+
+    m_computeShader.constantImageData.data.imageSize = { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
+    m_computeShader.constantImageData.UploadData(m_frameIndex);
+
+    int idx = 0;
+    for (Texture* inputTexture : m_computeShader.inputTextures)
+    {
+        Transition(renderList, inputTexture->buffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        renderList->SetComputeRootDescriptorTable(idx, inputTexture->handle.gpuHandle);
+        idx++;
+    }
+
+    Transition(renderList, m_computeShader.outputTexture->buffer, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    renderList->SetComputeRootDescriptorTable(idx, m_computeShader.outputTexture->handle.gpuHandle);
+    renderList->SetComputeRootDescriptorTable(idx + 1, m_computeShader.constantImageData.handles[m_frameIndex].gpuHandle);
+
+    renderList->Dispatch(width, height, 1);
+    for (Texture* inputTexture : m_computeShader.inputTextures)
+    {
+        Transition(renderList, inputTexture->buffer, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        idx++;
+    }
+    Transition(renderList, m_computeShader.outputTexture->buffer, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+
+    // create download buffer
+    CD3DX12_HEAP_PROPERTIES heapPropertiesReadback(D3D12_HEAP_TYPE_READBACK);
+
+    size_t bufferSize = width * height * 32;
+    CD3DX12_RESOURCE_DESC readbackBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
+
+    assert(m_textureUploadIndex < MAX_TEXTURES);
+    m_computeShader.readbackHeap = &m_textureUploadHeaps[m_textureUploadIndex];
+    m_textureUploadIndex++;
+
+    ThrowIfFailed(m_device->CreateCommittedResource(&heapPropertiesReadback, D3D12_HEAP_FLAG_NONE, &readbackBufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, NewComObject(comPointers, m_computeShader.readbackHeap)));
+    (*m_computeShader.readbackHeap)->SetName(L"Temp Texture Upload Heap");
+
+    // footprint
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
+    footprint.Offset = 0;
+    footprint.Footprint.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+    footprint.Footprint.Width = width;
+    footprint.Footprint.Height = height;
+    footprint.Footprint.Depth = 1;
+    footprint.Footprint.RowPitch = width * 16;
+
+    CD3DX12_TEXTURE_COPY_LOCATION targetLocation = CD3DX12_TEXTURE_COPY_LOCATION(*m_computeShader.readbackHeap, footprint);
+    CD3DX12_TEXTURE_COPY_LOCATION sourceLocation = CD3DX12_TEXTURE_COPY_LOCATION(m_computeShader.outputTexture->buffer, 0);
+    renderList->CopyTextureRegion(&targetLocation, 0, 0, 0, &sourceLocation, nullptr);
+}
+
+void EngineCore::RunComputeShaderPostPass()
+{
+    if (m_computeShader.executed) return;
+    m_computeShader.executed = true;
+
+    size_t width = m_computeShader.outputTexture->buffer->GetDesc().Width;
+    size_t height = m_computeShader.outputTexture->buffer->GetDesc().Height;
+
+    D3D12_RANGE readRange = { 0, 0 };
+    void* mappedData;
+    ThrowIfFailed((*m_computeShader.readbackHeap)->Map(0, &readRange, &mappedData));
+    TextureData saveData = {};
+    saveData.width = width;
+    saveData.height = height;
+    saveData.data = reinterpret_cast<uint8_t*>(mappedData);
+    SavePNG(std::format("{}_MR.hdr", TEX_NAME).c_str(), saveData);
+    (*m_computeShader.readbackHeap)->Unmap(0, nullptr);
 }
 
 void EngineCore::RenderGBuffer(ID3D12GraphicsCommandList4* renderList)

@@ -1,6 +1,7 @@
 #include "Game.h"
 #include "remixicon.h"
 #include "../core/UI.h"
+#include "../core/Memory.h"
 
 #include <numeric>
 
@@ -399,7 +400,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 				ImGui::PushID(&entity);
 
 				const char* icon = entity.IsActive() ? ICON_CHECK_FILL : "";
-				std::string entityTitle = std::format("{} [{}] {}###{}", entity.name, offset, icon, reinterpret_cast<void*>(&entity));
+				std::string entityTitle = std::format("{} [{}] {}###{}", entity.name.str, offset, icon, reinterpret_cast<void*>(&entity));
 				if ((showInactiveEntities || entity.IsActive()) && ImGui::CollapsingHeader(entityTitle.c_str()))
 				{
 					ImGui::Text("NAME");
@@ -422,7 +423,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 						ImGui::SameLine();
 						if (entity.children[i].Get() == nullptr) continue;
 						Entity* child = entity.children[i].Get();
-						ImGui::Text(std::format("{} [{}]", child->name, (child - (Entity*)entityArena.base)).c_str());
+						ImGui::Text(std::format("{} [{}]", child->name.str, (child - (Entity*)entityArena.base)).c_str());
 					}
 
 					if (ImGui::Button("Add"))
