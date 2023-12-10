@@ -15,7 +15,7 @@ using namespace VertexData;
 using namespace tinygltf;
 using namespace std::chrono;
 
-MeshFile CreateQuad(float width, float height, MemoryArena& arena)
+MeshData CreateQuad(float width, float height, MemoryArena& arena)
 {
 	uint64_t hash = 0;
 	Vertex* vertices = NewArray(arena, Vertex, 4);
@@ -32,10 +32,10 @@ MeshFile CreateQuad(float width, float height, MemoryArena& arena)
 	indices[4] = 2;
 	indices[5] = 3;
 
-	return MeshFile{ vertices, 4, indices, 6, "", 0 };
+	return MeshData{ vertices, 4, indices, 6 };
 }
 
-MeshFile CreateQuadY(float width, float height, MemoryArena& arena)
+MeshData CreateQuadY(float width, float height, MemoryArena& arena)
 {
 	uint64_t hash = 0;
 	Vertex* vertices = NewArray(arena, Vertex, 4);
@@ -52,7 +52,7 @@ MeshFile CreateQuadY(float width, float height, MemoryArena& arena)
 	indices[4] = 2;
 	indices[5] = 3;
 
-	return MeshFile{ vertices, 4, indices, 6, "", 0 };
+	return MeshData{ vertices, 4, indices, 6 };
 }
 
 template <typename T>
@@ -134,9 +134,12 @@ Accessor& CheckAccessor(tinygltf::Model& model, Primitive& primitive, const char
 	return accessor;
 }
 
-GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
+GltfResult* LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 {
 	INIT_TIMER(timer);
+
+	GltfResult* result = NewObject(arena, GltfResult, arena);
+	result->success = true;
 
 	Model model;
 	TinyGLTF loader;
@@ -153,6 +156,7 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 	if (!err.empty())
 	{
 		ERR(err);
+		result->success = false;
 	}
 
 	if (!ret)
@@ -160,15 +164,8 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 		ERR("Failed to parse glTF");
 	}
 
-	size_t vertexCount = 0;
-	Vertex* vertices;
-	size_t indexCount = 0;
-	INDEX_BUFFER_TYPE* indices;
-
 	LOG_TIMER(timer, "Load Model Binary");
 	RESET_TIMER(timer);
-
-	TransformHierachy* hierachy = nullptr;
 
 	if (model.skins.size() > 0)
 	{
@@ -177,11 +174,11 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 		assert(inverseBindAccessor.type == TINYGLTF_TYPE_MAT4);
 		const float* inverseBindMatrices = ReadBuffer<float>(model, inverseBindAccessor);
 
-		hierachy = NewObject(arena, TransformHierachy);
-		hierachy->nodeCount = model.skins[0].joints.size();
+		result->transformHierachy = NewObject(arena, TransformHierachy);
+		result->transformHierachy->nodeCount = model.skins[0].joints.size();
 		for (int i = 0; i < model.skins[0].joints.size(); i++)
 		{
-			hierachy->jointToNodeIndex[i] = model.skins[0].joints[i];
+			result->transformHierachy->jointToNodeIndex[i] = model.skins[0].joints[i];
 		}
 		for (int i = 0; i < model.nodes.size(); i++)
 		{
@@ -189,24 +186,24 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 			{
 				if (model.skins[0].joints[j] == i)
 				{
-					hierachy->nodeToJointIndex[i] = j;
+					result->transformHierachy->nodeToJointIndex[i] = j;
 					break;
 				}
 			}
 		}
-		hierachy->root = CreateMatrices(model, 0, nullptr, hierachy->nodes, inverseBindMatrices);
+		result->transformHierachy->root = CreateMatrices(model, 0, nullptr, result->transformHierachy->nodes, inverseBindMatrices);
 
 		LOG_TIMER(timer, "Load Hierachy");
 		RESET_TIMER(timer);
 
 		for (Animation& animation : model.animations)
 		{
-			assert(hierachy->animationCount < MAX_ANIMATIONS);
-			TransformAnimation& transformAnimation = hierachy->animations[hierachy->animationCount] = {};
+			assert(result->transformHierachy->animationCount < MAX_ANIMATIONS);
+			TransformAnimation& transformAnimation = result->transformHierachy->animations[result->transformHierachy->animationCount] = {};
 			transformAnimation.name = animation.name;
 
-			hierachy->animationNameToIndex.insert({ animation.name, hierachy->animationCount });
-			hierachy->animationCount++;
+			result->transformHierachy->animationNameToIndex.insert({ animation.name, result->transformHierachy->animationCount });
+			result->transformHierachy->animationCount++;
 
 			std::vector<std::string> maskedChannels{};
 			if (animation.extras.Has("mask"))
@@ -227,7 +224,7 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 				bool& channelActive = transformAnimation.activeChannels[channel.target_node];
 				if (maskedChannels.size() > 0)
 				{
-					std::string& channelNodeName = hierachy->nodes[channel.target_node].name;
+					std::string& channelNodeName = result->transformHierachy->nodes[channel.target_node].name;
 					if (std::find(maskedChannels.begin(), maskedChannels.end(), channelNodeName) == maskedChannels.end())
 					{
 						channelActive = false;
@@ -259,7 +256,7 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 				const XMFLOAT3* scales = nullptr;
 
 				AnimationData* animData = nullptr;
-				AnimationJointData& animJointData = transformAnimation.jointChannels[hierachy->nodeToJointIndex[channel.target_node]];
+				AnimationJointData& animJointData = transformAnimation.jointChannels[result->transformHierachy->nodeToJointIndex[channel.target_node]];
 
 				if (channel.target_path == "translation")
 				{
@@ -332,30 +329,30 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 	
 	RESET_TIMER(timer);
 
-	std::vector<MeshFile> meshFiles{};
-
 	for (Mesh& mesh : model.meshes)
 	{
 		for (Primitive& primitive : mesh.primitives)
 		{
+			MeshFile& meshFile = result->meshes.newElement();
+
 			Accessor& indexAccessor = model.accessors[primitive.indices];
 			assert(indexAccessor.type == TINYGLTF_TYPE_SCALAR);
 
-			indices = NewArray(arena, INDEX_BUFFER_TYPE, indexAccessor.count);
-			indexCount = indexAccessor.count;
+			meshFile.mesh.indices = NewArray(arena, INDEX_BUFFER_TYPE, indexAccessor.count);
+			meshFile.mesh.indexCount = indexAccessor.count;
 			
 			if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
 			{
 				const uint16_t* indexData = ReadBuffer<uint16_t>(model, indexAccessor);
-				for (int i = 0; i < indexCount; i++)
+				for (int i = 0; i < meshFile.mesh.indexCount; i++)
 				{
-					indices[i] = indexData[i];
+					meshFile.mesh.indices[i] = indexData[i];
 				}
 			}
 			else if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT)
 			{
 				const uint32_t* indexData = ReadBuffer<uint32_t>(model, indexAccessor);
-				memcpy_s(indices, sizeof(INDEX_BUFFER_TYPE)* indexCount, indexData, sizeof(INDEX_BUFFER_TYPE)* indexAccessor.count);
+				memcpy_s(meshFile.mesh.indices, sizeof(INDEX_BUFFER_TYPE) * meshFile.mesh.indexCount, indexData, sizeof(INDEX_BUFFER_TYPE)* indexAccessor.count);
 			}
 			else
 			{
@@ -371,16 +368,16 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 			Accessor& uvAccessor = CheckAccessor(model, primitive, GLTF_TEXCOORD0, TINYGLTF_TYPE_VEC2);
 			const float* uvData = ReadBuffer<float>(model, uvAccessor);
 
-			vertices = NewArray(arena, Vertex, positionAccessor.count);
-			vertexCount = positionAccessor.count;
+			meshFile.mesh.vertices = NewArray(arena, Vertex, positionAccessor.count);
+			meshFile.mesh.vertexCount = positionAccessor.count;
 
-			for (int i = 0; i < vertexCount; i++)
+			for (int i = 0; i < meshFile.mesh.vertexCount; i++)
 			{
 				assert(i < positionAccessor.count);
 				assert(i < normalAccessor.count);
 				assert(i < tangentAccessor.count);
 				assert(i < uvAccessor.count);
-				Vertex& vert = vertices[i];
+				Vertex& vert = meshFile.mesh.vertices[i];
 
 				vert.position.x = positionData[i * 3 + 0];
 				vert.position.y = positionData[i * 3 + 1];
@@ -401,7 +398,7 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 				vert.uv.y = uvData[i * 2 + 1];
 			}
 
-			if (hierachy != nullptr)
+			if (result->transformHierachy != nullptr)
 			{
 				Accessor& jointAccessor = model.accessors[primitive.attributes[GLTF_JOINTS]];
 				assert(jointAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE);
@@ -413,11 +410,11 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 				assert(weightAccessor.type == TINYGLTF_TYPE_VEC4);
 				const float* weightData = ReadBuffer<float>(model, weightAccessor);
 
-				for (int i = 0; i < vertexCount; i++)
+				for (int i = 0; i < meshFile.mesh.vertexCount; i++)
 				{
 					assert(i < jointAccessor.count);
 					assert(i < weightAccessor.count);
-					Vertex& vert = vertices[i];
+					Vertex& vert = meshFile.mesh.vertices[i];
 
 					vert.boneIndices.x = jointData[i * 4 + 0];
 					vert.boneIndices.y = jointData[i * 4 + 1];
@@ -437,37 +434,83 @@ GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 				}
 			}
 
-			std::string materialName{};
-			size_t textureCount = 1; // TODO
-
-			if (model.materials.size() > 0)
+			if (primitive.material >= 0)
 			{
 				assert(model.materials.size() > primitive.material);
-				materialName = model.materials[primitive.material].name;
-
-				if (model.materials[primitive.material].extras.Has("texturecount"))
-				{
-					textureCount = model.materials[primitive.material].extras.Get("texturecount").GetNumberAsInt();
-				}
+				const std::string& matName = model.materials[primitive.material].name;
+				meshFile.materialName = std::string(matName.begin(), matName.end()).c_str();
+				meshFile.materialHash = std::hash<std::string>{}(meshFile.materialName.str);
 			}
-
-			meshFiles.emplace_back(MeshFile{ vertices, vertexCount, indices, indexCount, materialName, textureCount });
-		}
-	}
-
-	if (model.textures.size() > 0)
-	{
-		OutputDebugStringA("Textures:\n");
-		for (tinygltf::Texture& texture : model.textures)
-		{
-			OutputDebugStringA(std::format("  {}\n", texture.name).c_str());
+			else
+			{
+				meshFile.materialName = "default";
+				meshFile.materialHash = std::hash<std::string>{}(meshFile.materialName.str);
+			}
 		}
 	}
 
 	LOG_TIMER(timer, "Meshes");
 	RESET_TIMER(timer);
 	
-	return { meshFiles, hierachy };
+	return result;
+}
+
+void LoadMaterials(const std::string& assetListFilePath, ArenaArray<MaterialFile>& materials, ArenaArray<TextureFile>& textures)
+{
+	// load file and iterate lines
+	std::ifstream file(assetListFilePath);
+	assert(file.good());
+	
+	std::string line;
+	MaterialFile* material = nullptr;
+
+	while (std::getline(file, line))
+	{
+		if (line.size() == 0) continue;
+		if (line[0] == '#') continue;
+
+		std::istringstream iss(line);
+		std::vector<std::string> tokens{ std::istream_iterator<std::string>{iss}, std::istream_iterator<std::string>{} };
+
+		if (tokens.size() == 0) continue;
+
+		if (tokens[0] == "material")
+		{
+			if (tokens.size() != 3)
+			{
+				OutputDebugStringA(std::format("Wrong format! Expected material <name> <shader>: {}\n", line).c_str());
+				break;
+			}
+
+			material = &materials.newElement();
+			material->materialName = tokens[1].c_str();
+			material->materialHash = std::hash<std::string>{}(material->materialName.str);
+			material->shaderName = tokens[2].c_str();
+			material->shaderHash = std::hash<std::string>{}(material->shaderName.str);
+		}
+		else if (tokens[0] == "texture")
+		{
+			if (material == nullptr)
+			{
+				OutputDebugStringA(std::format("Unassociated texture entry: {}\n", line).c_str());
+				break;
+			}
+			if (tokens.size() != 2)
+			{
+				OutputDebugStringA(std::format("Wrong format! Expected texture <path>: {}\n", line).c_str());
+				break;
+			}
+
+			TextureFile* texture = material->textureFiles.newElement() = &textures.newElement();
+			texture->texturePath = tokens[1].c_str();
+			texture->textureHash = std::hash<std::string>{}(texture->texturePath.str);
+		}
+		else
+		{
+			OutputDebugStringA(std::format("Invalid material line: {}\n", line).c_str());
+			break;
+		}
+	}
 }
 
 void TransformHierachy::UpdateNode(TransformNode* node)

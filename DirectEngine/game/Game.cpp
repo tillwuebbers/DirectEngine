@@ -21,7 +21,6 @@ void Game::RegisterLog(EngineLog::RingLog* log)
 
 void Game::StartGame(EngineCore& engine)
 {
-	// Timer
 	INIT_TIMER(timer);
 
 	// UI
@@ -35,32 +34,34 @@ void Game::StartGame(EngineCore& engine)
 		SaveConfig(configArena, CONFIG_PATH);
 	}
 
-	// Textures
-	Texture* groundDiffuse        = engine.CreateTexture(L"textures/ground_D.dds");
-	Texture* groundNormal         = engine.CreateTexture(L"textures/ground_N.dds");
-	Texture* groundMetalRoughness = engine.CreateTexture(L"textures/ground_MR.dds");
-	Texture* skybox               = engine.CreateTexture(L"textures/skyfire.dds");
-
-	LOG_TIMER(timer, "Textures");
+	LOG_TIMER(timer, "Config");
 	RESET_TIMER(timer);
 
 	// Materials
-	materialIndices.try_emplace(Material::Ground,       engine.CreateMaterial(SHADER_NAMES.at(Shader::Ground), {}));
-	materialIndices.try_emplace(Material::Laser,        engine.CreateMaterial(SHADER_NAMES.at(Shader::Laser)));
-	materialIndices.try_emplace(Material::Portal1,      engine.CreateMaterial(SHADER_NAMES.at(Shader::Portal), {&engine.m_renderTextures[0]->texture}));
-	materialIndices.try_emplace(Material::Portal2,      engine.CreateMaterial(SHADER_NAMES.at(Shader::Portal), {&engine.m_renderTextures[1]->texture}));
-	materialIndices.try_emplace(Material::Crosshair,    engine.CreateMaterial(SHADER_NAMES.at(Shader::Crosshair)));
-	materialIndices.try_emplace(Material::RTOutput,     engine.CreateMaterial(SHADER_NAMES.at(Shader::TextureQuad), {engine.m_raytracingOutput}));
-	materialIndices.try_emplace(Material::Skybox,       engine.CreateMaterial(SHADER_NAMES.at(Shader::Skybox), {skybox}));
-	
+	LoadMaterials("materials.txt", materials, textures);
+
+	for (TextureFile& textureFile : textures)
+	{
+		textureFile.textureGPU = engine.CreateTexture(textureFile.texturePath.str);
+	}
+
+	for (MaterialFile& materialFile : materials)
+	{
+		std::vector<TextureGPU*> materialTextures = {};
+		std::transform(materialFile.textureFiles.begin(), materialFile.textureFiles.end(), std::back_inserter(materialTextures), [](TextureFile* textureFile) { return textureFile->textureGPU; });
+		materialFile.data = engine.CreateMaterial(materialFile.shaderName.str, materialTextures, {});
+	}
+
+	defaultMaterial = engine.CreateMaterial("ground");
+	portal1Material = engine.CreateMaterial("portal", {&engine.m_renderTextures[0]->texture});
+	portal2Material = engine.CreateMaterial("portal", { &engine.m_renderTextures[1]->texture });
+
 	D3D12_RASTERIZER_DESC shellRasterizerDesc = CD3DX12_RASTERIZER_DESC{ D3D12_DEFAULT };
 	shellRasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
-	size_t shellMatIndex = engine.CreateMaterial(SHADER_NAMES.at(Shader::ShellTex), {}, {{RootConstantType::FLOAT, "layerOffset"}, {RootConstantType::UINT, "layerCount"}}, shellRasterizerDesc);
-	materialIndices.try_emplace(Material::ShellTexture, shellMatIndex);
-	MaterialData& shellMat = engine.m_materials[shellMatIndex];
-	shellMat.SetRootConstant(0, 0.005f);
-	shellMat.SetRootConstant(1, 16);
-	shellMat.shellCount = 16;
+	MaterialData* shellMaterial = engine.CreateMaterial("shelltexture", {}, {{RootConstantType::FLOAT, "layerOffset"}, {RootConstantType::UINT, "layerCount"}}, shellRasterizerDesc);
+	shellMaterial->SetRootConstant(0, 0.005f);
+	shellMaterial->SetRootConstant(1, 16);
+	shellMaterial->shellCount = 16;
 
 	LOG_TIMER(timer, "Materials");
 	RESET_TIMER(timer);
@@ -70,9 +71,6 @@ void Game::StartGame(EngineCore& engine)
 
 	light.position = { 10.f, 10.f, 10.f };
 	light.rotation = XMVector3Normalize({ -1.f, -1.f, 1.f });
-
-	LOG_TIMER(timer, "Other Entities");
-	RESET_TIMER(timer);
 
 	// Audio
 	soundFiles[(size_t)AudioFile::PlayerDamage] = LoadAudioFile(L"audio/chord.wav", globalArena);
@@ -107,43 +105,44 @@ void Game::LoadLevel(EngineCore& engine)
 	dynamicsWorld->setDebugDrawer(&physicsDebug);
 
 	// Gizmo
-	gizmo.Init(levelArena, this, engine, materialIndices[Material::Laser]);
+	gizmo.Init(levelArena, this, engine, defaultMaterial);
 
 	// Scene Stuff
-	Entity* logEntity1 = CreateEntityFromGltf(engine, "models/log1.glb", Shader::Entity);
+	Entity* logEntity1 = CreateEntityFromGltf(engine, "models/log1.glb");
 	logEntity1->SetLocalPosition({ 2.f, 0.f, 0.f });
 	logEntity1->SetLocalScale({ 2.0f, 2.0f, 2.0f });
-	Entity* logEntity2 = CreateEntityFromGltf(engine, "models/log2.glb", Shader::Entity);
+	Entity* logEntity2 = CreateEntityFromGltf(engine, "models/log2.glb");
 	logEntity2->SetLocalPosition({ 4.f, 0.f, 0.f });
 	logEntity2->SetLocalScale({ 2.0f, 2.0f, 2.0f });
-	Entity* helmet = CreateEntityFromGltf(engine, "models/DamagedHelmet.glb", Shader::Entity);
+	Entity* helmet = CreateEntityFromGltf(engine, "models/DamagedHelmet.glb");
 	helmet->SetLocalPosition({ 0.f, 1.f, 0.f });
 	helmet->SetLocalRotation(XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f));
 
 	// Level Meshes & Collision
-	level1MeshData.clear();
+	level1MeshDataGPU.clear();
 
-	GltfResult level1Gltf = LoadGltfFromFile("models/level1.glb", levelArena);
+	GltfResult* level1Gltf = LoadGltfFromFile("models/level1.glb", levelArena);
 	btTriangleMesh* levelCollisionMesh = NewObject(levelArena, btTriangleMesh, true, false);
-	for (MeshFile& meshFile : level1Gltf.meshes)
+	for (MeshFile& meshFile : level1Gltf->meshes)
 	{
-		for (int i = 0; i < meshFile.vertexCount / 3; i++)
+		MeshData& meshData = meshFile.mesh;
+		for (int i = 0; i < meshData.vertexCount / 3; i++)
 		{
 			levelCollisionMesh->addTriangle(
-				ToBulletVec3(meshFile.vertices[i * 3 + 0].position),
-				ToBulletVec3(meshFile.vertices[i * 3 + 1].position),
-				ToBulletVec3(meshFile.vertices[i * 3 + 2].position)
+				ToBulletVec3(meshData.vertices[i * 3 + 0].position),
+				ToBulletVec3(meshData.vertices[i * 3 + 1].position),
+				ToBulletVec3(meshData.vertices[i * 3 + 2].position)
 			);
 		}
 
-		level1MeshData.newElement() = engine.CreateMesh(meshFile);
+		level1MeshDataGPU.newElement() = engine.CreateMesh(meshData);
 	}
 	btTriangleIndexVertexArray* levelMeshInterface = NewObject(levelArena, btTriangleIndexVertexArray);
 	levelMeshInterface->addIndexedMesh(levelCollisionMesh->getIndexedMeshArray()[0]);
 	levelShape = NewObject(levelArena, btBvhTriangleMeshShape, levelMeshInterface, true);
 
 	// Portals
-	auto createPortal = [&](Material material, XMVECTOR pos, const char* name) {
+	auto createPortal = [&](MaterialData* material, XMVECTOR pos, const char* name) {
 		Entity* portal = CreateEmptyEntity(engine);
 		portal->SetLocalPosition(pos);
 		portal->name = name;
@@ -155,7 +154,7 @@ void Game::LoadLevel(EngineCore& engine)
 		portal->AddRigidBody(levelArena, dynamicsWorld, portalShape, portalInit);
 		if (portal->rigidBody != nullptr) portal->rigidBody->setCollisionFlags(portal->rigidBody->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
 
-		Entity* portalRenderQuad = CreateQuadEntity(engine, materialIndices[material], 2.f, 4.f);
+		Entity* portalRenderQuad = CreateQuadEntity(engine, material, 2.f, 4.f);
 		portalRenderQuad->SetLocalRotation(XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f));
 		portalRenderQuad->name = "PortalQuad";
 		portal->AddChild(portalRenderQuad, false);
@@ -164,8 +163,8 @@ void Game::LoadLevel(EngineCore& engine)
 
 		return portal;
 	};
-	portal1 = createPortal(Material::Portal1, { 1.f, 1.5f, -5.f }, "Portal 1");
-	portal2 = createPortal(Material::Portal2, { 1.f, 1.5f, -5.001f }, "Portal 2");
+	portal1 = createPortal(portal1Material, { 1.f, 1.5f, -5.f }, "Portal 1");
+	portal2 = createPortal(portal2Material, { 1.f, 1.5f, -5.001f }, "Portal 2");
 
 	// Crosshair
 	/*Entity* crosshair = CreateQuadEntity(engine, materialIndices[Material::Crosshair], .03f, .03f, true);
@@ -199,7 +198,7 @@ void Game::LoadLevel(EngineCore& engine)
 	cameraEntity->SetLocalPosition({ 0.f, 0.f, 0.15f });
 	playerLookEntity->AddChild(cameraEntity, false);
 
-	playerModelEntity = CreateEntityFromGltf(engine, "models/kaiju.glb", Shader::EntitySkinned);
+	playerModelEntity = CreateEntityFromGltf(engine, "models/kaiju.glb");
 
 	assert(playerModelEntity->isSkinnedRoot);
 	playerModelEntity->name = "KaijuRoot";
@@ -209,8 +208,7 @@ void Game::LoadLevel(EngineCore& engine)
 	playerEntity->AddChild(playerModelEntity, false);
 
 	// Skybox
-	MeshData* skyboxMeshData = engine.CreateMesh(LoadGltfFromFile("models/skybox-cube.glb", levelArena).meshes[0]);
-	skybox = CreateMeshEntity(engine, materialIndices[Material::Skybox], skyboxMeshData);
+	skybox = CreateEntityFromGltf(engine, "models/skybox-cube.glb");
 	skybox->name = "Skybox";
 	skybox->SetLocalScale({ .75f, .75f, .75f });
 	skybox->GetData().raytraceVisible = false;
@@ -222,7 +220,7 @@ void Game::LoadLevel(EngineCore& engine)
 	levelPhysics.collidesWithLayers = CollisionLayers::CL_Player | CollisionLayers::CL_Entity;
 	
 	bool addedCollision = false; // TODO: ugly
-	for (MeshData* meshData : level1MeshData)
+	for (MeshDataGPU* meshData : level1MeshDataGPU)
 	{
 		Entity* levelPart = CreateMeshEntity(engine, materialIndices[Material::Ground], meshData);
 		levelPart->name = "Level1";
@@ -237,16 +235,16 @@ void Game::LoadLevel(EngineCore& engine)
 	PhysicsInit groundPhysics{0.f, PhysicsInitType::RigidBodyStatic};
 	groundPhysics.ownCollisionLayers = CollisionLayers::CL_World;
 	groundPhysics.collidesWithLayers = CollisionLayers::CL_Entity;
-	Entity* groundEntity = CreateQuadEntity(engine, materialIndices[Material::Ground], 200.f, 200.f, groundPhysics);
+	Entity* groundEntity = CreateQuadEntity(engine, defaultMaterial, 200.f, 200.f, groundPhysics);
 	groundEntity->name = "Ground";
 	groundEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
 	groundEntity->SetLocalPosition(XMVectorSetY(groundEntity->localMatrix.translation, -.01f));
 
 	// Cubes
-	/*cubeMeshData = engine.CreateMesh(LoadGltfFromFile("models/cube.glb", levelArena).meshes[0]);
+	/*cubeMeshDataGPU = engine.CreateMesh(LoadGltfFromFile("models/cube.glb", levelArena).meshes[0]);
 	for (int i = 0; i < 16; i++)
 	{
-		Entity* yea = CreateMeshEntity(engine, materialIndices[Material::ShellTexture], cubeMeshData);
+		Entity* yea = CreateMeshEntity(engine, materialIndices[Material::ShellTexture], cubeMeshDataGPU);
 		yea->name = "Yea";
 		yea->SetLocalPosition({ 3.f, 0.5f + i * 16.f, 0.f });
 		btBoxShape* boxShape = NewObject(levelArena, btBoxShape, btVector3{ .5f, .5f, .5f });
@@ -654,6 +652,19 @@ void Game::BeforeMainRender(EngineCore& engine)
 	}
 }
 
+MaterialFile* Game::GetMaterialFile(uint64_t materialHash)
+{
+	for (MaterialFile& material : materials)
+	{
+		if (material.materialHash == materialHash)
+		{
+			return &material;
+		}
+	}
+
+	return nullptr;
+}
+
 float* Game::GetClearColor()
 {
 	return clearColor.m128_f32;
@@ -672,29 +683,32 @@ Entity* Game::CreateEmptyEntity(EngineCore& engine)
 	return entity;
 }
 
-Entity* Game::CreateMeshEntity(EngineCore& engine, size_t materialIndex, MeshData* meshData)
+Entity* Game::CreateMeshEntity(EngineCore& engine, MaterialData* material, MeshDataGPU* meshData)
 {
+	assert(material != nullptr);
 	Entity* entity = NewObject(entityArena, Entity);
 	entity->engine = &engine;
 	entity->isRendered = true;
-	entity->materialIndex = materialIndex;
-	entity->dataIndex = engine.CreateEntity(materialIndex, meshData);
+	entity->material = material;
+	entity->dataIndex = engine.CreateEntity(material, meshData);
 	return entity;
 }
 
-Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical)
+Entity* Game::CreateQuadEntity(EngineCore& engine, MaterialData* material, float width, float height, bool vertical)
 {
-	MeshFile file = vertical ? CreateQuadY(width, height, levelArena) : CreateQuad(width, height, levelArena);
-	MeshData* meshData = engine.CreateMesh(file);
-	Entity* entity = CreateMeshEntity(engine, materialIndex, meshData);
-	entity->SetLocalPosition({-width / 2.f, 0.f, -height / 2.f});
+	assert(material != nullptr);
+	MeshData file = vertical ? CreateQuadY(width, height, levelArena) : CreateQuad(width, height, levelArena);
+	MeshDataGPU* meshData = engine.CreateMesh(file);
+	Entity* entity = CreateMeshEntity(engine, material, meshData);
+	entity->SetLocalPosition({ -width / 2.f, 0.f, -height / 2.f });
 
 	return entity;
 }
 
-Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, PhysicsInit& physicsInit, bool vertical)
+Entity* Game::CreateQuadEntity(EngineCore& engine, MaterialData* material, float width, float height, PhysicsInit& physicsInit, bool vertical)
 {
-	Entity* entity = CreateQuadEntity(engine, materialIndex, width, height, vertical);
+	assert(material != nullptr);
+	Entity* entity = CreateQuadEntity(engine, material, width, height, vertical);
 
 	if (physicsInit.type != PhysicsInitType::None)
 	{
@@ -706,61 +720,67 @@ Entity* Game::CreateQuadEntity(EngineCore& engine, size_t materialIndex, float w
 	return entity;
 }
 
-Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path, Assets::Shader shader)
+Entity* Game::LoadEntity(EngineCore& engine, MeshFile& meshFile)
 {
-	Entity* mainEntity = CreateEmptyEntity(engine);
-
-	GltfResult gltfResult = LoadGltfFromFile(path, levelArena);
-	if (gltfResult.transformHierachy != nullptr)
+	MaterialFile* materialFile = GetMaterialFile(meshFile.materialHash);
+	MaterialData* material;
+	if (materialFile != nullptr)
 	{
+		std::vector<TextureGPU*> textures = {};
+		std::transform(materialFile->textureFiles.begin(), materialFile->textureFiles.end(), std::back_inserter(textures), [](TextureFile* textureFile) { return textureFile->textureGPU; });
+		material = engine.CreateMaterial(materialFile->shaderName.str, textures);
+	}
+	else
+	{
+		WARN("Material not found for mesh {}", meshFile.materialName.str);
+		material = defaultMaterial;
+	}
+
+	MeshDataGPU* meshData = engine.CreateMesh(meshFile.mesh);
+	Entity* entity = CreateMeshEntity(engine, material, meshData);
+	entity->name = meshFile.materialName.str;
+	return entity;
+}
+
+Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path)
+{
+	GltfResult* gltfResult = LoadGltfFromFile(path, levelArena);
+	if (!gltfResult->success)
+	{
+		WARN("Failed to load glTF {}", path);
+		Entity* mainEntity = CreateEmptyEntity(engine);
+		mainEntity->name = "empty";
+		return mainEntity;
+	}
+	if (gltfResult->meshes.size == 0)
+	{
+		WARN("No meshes in glTF {}", path);
+		Entity* mainEntity = CreateEmptyEntity(engine);
+		mainEntity->name = "empty";
+		return mainEntity;
+	}
+
+	if (gltfResult->transformHierachy != nullptr)
+	{
+		Entity* mainEntity = CreateEmptyEntity(engine);
 		mainEntity->isSkinnedRoot = true;
-		mainEntity->transformHierachy = gltfResult.transformHierachy;
-	}
+		mainEntity->transformHierachy = gltfResult->transformHierachy;
 
-	INIT_TIMER(timer);
-
-	for (MeshFile& meshFile : gltfResult.meshes)
-	{
-		std::vector<Texture*> textures{};
-		for (int i = 0; i < meshFile.textureCount; i++)
+		for (MeshFile& meshFile : gltfResult->meshes)
 		{
-			std::wstring texturePath = { L"textures/" };
-			texturePath.append(meshFile.textureName.begin(), meshFile.textureName.end());
-
-			std::wstring diffusePath = texturePath;
-			diffusePath.append(DIFFUSE_SUFFIX);
-			diffusePath.append(TEXTURE_FILE_EXTENSION);
-			textures.push_back(engine.CreateTexture(diffusePath.c_str()));
-
-			// TODO: check if exists and use different shader variant if not?
-			std::wstring normalPath = texturePath;
-			normalPath.append(NORMAL_SUFFIX);
-			normalPath.append(TEXTURE_FILE_EXTENSION);
-			textures.push_back(engine.CreateTexture(normalPath.c_str()));
-
-			std::wstring metalRoughnessPath = texturePath;
-			metalRoughnessPath.append(METALLIC_ROUGHNESS_SUFFIX);
-			metalRoughnessPath.append(TEXTURE_FILE_EXTENSION);
-			textures.push_back(engine.CreateTexture(metalRoughnessPath.c_str()));
+			Entity* child = LoadEntity(engine, meshFile);
+			if (gltfResult->transformHierachy != nullptr) child->isSkinnedMesh = true;
+			mainEntity->AddChild(child, false);
 		}
-		LOG_TIMER(timer, "Texture for model");
-		RESET_TIMER(timer);
 
-		size_t materialIndex = engine.CreateMaterial(SHADER_NAMES.at(shader), textures);
-		MeshData* meshData = engine.CreateMesh(meshFile);
-		LOG_TIMER(timer, "Create material and mesh for model");
-		RESET_TIMER(timer);
-
-		Entity* child = CreateMeshEntity(engine, materialIndex, meshData);
-		child->name = meshFile.textureName.c_str();
-		if (gltfResult.transformHierachy != nullptr) child->isSkinnedMesh = true;
-		mainEntity->AddChild(child, false);
-
-		LOG_TIMER(timer, "Create entity for model");
-		RESET_TIMER(timer);
+		return mainEntity;
 	}
-
-	return mainEntity;
+	else
+	{
+		MeshFile& meshFile = gltfResult->meshes[0];
+		return LoadEntity(engine, meshFile);
+	}
+	
 }
 
 void Game::UpdateCursorState()

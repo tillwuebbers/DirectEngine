@@ -1,0 +1,32 @@
+material ground entity
+texture textures/ground_D.dds
+texture textures/ground_N.dds
+texture textures/ground_MR.dds
+
+material skybox skybox
+texture textures/skyfire.dds
+
+material body entity
+texture textures/body_D.dds
+texture textures/body_N.dds
+texture textures/body_MR.dds
+
+material eyeshornsteeth entity
+texture textures/eyeshornsteeth_D.dds
+texture textures/eyeshornsteeth_N.dds
+texture textures/eyeshornsteeth_MR.dds
+
+material log01 entity
+texture textures/log01_D.dds
+texture textures/log01_N.dds
+texture textures/log01_MR.dds
+
+material log02 entity
+texture textures/log02_D.dds
+texture textures/log02_N.dds
+texture textures/log02_MR.dds
+
+material Material_MR entity
+texture textures/Material_MR_D.dds
+texture textures/Material_MR_N.dds
+texture textures/Material_MR_MR.dds

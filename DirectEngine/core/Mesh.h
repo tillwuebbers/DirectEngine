@@ -7,6 +7,7 @@
 #define GLTF_JOINTS "JOINTS_0"
 #define GLTF_WEIGHTS "WEIGHTS_0"
 
+#include "../core/EngineCore.h"
 #include "../core/Memory.h"
 #include "../core/Common.h"
 #include "../core/Vertex.h"
@@ -78,12 +79,40 @@ struct TransformHierachy
 	void SetAnimationActive(std::string name, bool state);
 };
 
-struct GltfResult
+struct TextureFile
 {
-	std::vector<MeshFile> meshes{};
-	TransformHierachy* transformHierachy = nullptr;
+	FixedStr texturePath = "";
+	uint64_t textureHash = 0;
+	TextureGPU* textureGPU = nullptr;
 };
 
-MeshFile CreateQuad(float width, float height, MemoryArena& arena);
-MeshFile CreateQuadY(float width, float height, MemoryArena& arena);
-GltfResult LoadGltfFromFile(const std::string& filePath, MemoryArena& arena);
+struct MaterialFile
+{
+	FixedStr materialName = "";
+	uint64_t materialHash = 0;
+	FixedStr shaderName = "";
+	uint64_t shaderHash = 0;
+	StackArray<TextureFile*, MAX_TEXTURES_PER_MATERIAL> textureFiles;
+	MaterialData* data = 0;
+};
+
+struct MeshFile
+{
+	MeshData mesh = {};
+	FixedStr materialName = "";
+	uint64_t materialHash = 0;
+};
+
+struct GltfResult
+{
+	ArenaArray<MeshFile> meshes;
+	TransformHierachy* transformHierachy = nullptr;
+	bool success = false;
+
+	GltfResult(MemoryArena& arena) : meshes{ arena, MAX_MESHES } {}
+};
+
+MeshData CreateQuad(float width, float height, MemoryArena& arena);
+MeshData CreateQuadY(float width, float height, MemoryArena& arena);
+GltfResult* LoadGltfFromFile(const std::string& filePath, MemoryArena& arena);
+void LoadMaterials(const std::string& assetListFilePath, ArenaArray<MaterialFile>& materials, ArenaArray<TextureFile>& textures);

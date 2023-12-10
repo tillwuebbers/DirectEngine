@@ -68,7 +68,7 @@ void ImGuiUI::DrawImgui(ID3D12GraphicsCommandList* commandList, D3D12_CPU_DESCRI
 	g_frameTextureCount = 0;
 }
 
-void ImGuiUI::UIImage(ID3D12Device* device, Texture* texture, ImVec2 size)
+void ImGuiUI::UIImage(ID3D12Device* device, TextureGPU* texture, ImVec2 size)
 {
 	if (!initialized) return;
 

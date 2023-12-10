@@ -1,11 +1,13 @@
 #include "Gizmo.h"
 #include "Game.h"
 
-void Gizmo::Init(MemoryArena& arena, IEntityCreator* game, EngineCore& engine, size_t materialIndex)
+void Gizmo::Init(MemoryArena& arena, IEntityCreator* game, EngineCore& engine, MaterialData* material)
 {
-	translateArrowMesh = engine.CreateMesh(LoadGltfFromFile("models/translate-arrow.glb", arena).meshes[0]);
-	rotateArrowMesh = engine.CreateMesh(LoadGltfFromFile("models/rotate-arrow.glb", arena).meshes[0]);
-	scaleArrowMesh = engine.CreateMesh(LoadGltfFromFile("models/scale-arrow.glb", arena).meshes[0]);
+	assert(material != nullptr);
+
+	translateArrowMesh = engine.CreateMesh(LoadGltfFromFile("models/translate-arrow.glb", arena)->meshes[0].mesh);
+	rotateArrowMesh = engine.CreateMesh(LoadGltfFromFile("models/rotate-arrow.glb", arena)->meshes[0].mesh);
+	scaleArrowMesh = engine.CreateMesh(LoadGltfFromFile("models/scale-arrow.glb", arena)->meshes[0].mesh);
 
 	XMVECTOR xyzColors[3] = {
 		{ 1.f, 0.f, 0.f, 1.f },
@@ -38,7 +40,7 @@ void Gizmo::Init(MemoryArena& arena, IEntityCreator* game, EngineCore& engine, s
 	for (int i = 0; i < 3; i++)
 	{
 		Entity* translateArrow = translateArrows[i];
-		translateArrow = game->CreateMeshEntity(engine, materialIndex, translateArrowMesh);
+		translateArrow = game->CreateMeshEntity(engine, material, translateArrowMesh);
 		translateArrow->GetBuffer().color = xyzColors[i];
 		//translateArrow->InitCollisionBody(game->physicsWorld);
 		//translateArrow->InitBoxCollider(game->physicsCommon, { 0.1f, 1.f, 0.1f }, { 0.f, .5f, 0.f }, CollisionLayers::GizmoClick);
@@ -49,7 +51,7 @@ void Gizmo::Init(MemoryArena& arena, IEntityCreator* game, EngineCore& engine, s
 		root->AddChild(translateArrow, false);
 
 		Entity* rotateArrow = rotateArrows[i];
-		rotateArrow = game->CreateMeshEntity(engine, materialIndex, rotateArrowMesh);
+		rotateArrow = game->CreateMeshEntity(engine, material, rotateArrowMesh);
 		rotateArrow->GetBuffer().color = xyzColors[i];
 		//rotateArrow->InitCollisionBody(game->physicsWorld);
 		//rotateArrow->InitBoxCollider(game->physicsCommon, { 2.f, .05f, 2.f }, { 0.f, 0.f, 0.f }, CollisionLayers::GizmoClick);
@@ -60,7 +62,7 @@ void Gizmo::Init(MemoryArena& arena, IEntityCreator* game, EngineCore& engine, s
 		root->AddChild(rotateArrow, false);
 
 		Entity* scaleArrow = scaleArrows[i];
-		scaleArrow = game->CreateMeshEntity(engine, materialIndex, scaleArrowMesh);
+		scaleArrow = game->CreateMeshEntity(engine, material, scaleArrowMesh);
 		scaleArrow->GetBuffer().color = xyzColors[i];
 		//scaleArrow->InitCollisionBody(game->physicsWorld);
 		//scaleArrow->InitBoxCollider(game->physicsCommon, { .15f, .5f, .15f }, { .0f, .25f, .0f }, CollisionLayers::GizmoClick);

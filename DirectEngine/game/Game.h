@@ -132,13 +132,17 @@ public:
 	PhysicsDebugDrawer physicsDebug{};
 
 	// Meshes
-	MeshData* cubeMeshData = nullptr;
-	FixedList<MeshData*> level1MeshData = { levelArena, 4 };
+	MeshDataGPU* cubeMeshDataGPU = nullptr;
+	ArenaArray<MeshDataGPU*> level1MeshDataGPU = { levelArena, 4 };
 	btBvhTriangleMeshShape* levelShape = nullptr;
 
-	// Materials and Lighting
-	std::unordered_map<Material, size_t> materialIndices{};
-	
+	// Materials & Textures
+	ArenaArray<TextureFile> textures = { globalArena, MAX_TEXTURES };
+	ArenaArray<MaterialFile> materials = { globalArena, MAX_MATERIALS };
+	MaterialData* defaultMaterial = 0;
+	MaterialData* portal1Material = 0;
+	MaterialData* portal2Material = 0;
+
 	DirectionalLight light{};
 	XMVECTOR baseClearColor = { .1f, .2f, .4f, 1.f };
 	XMVECTOR clearColor = { .1f, .2f, .4f, 1.f };
@@ -165,7 +169,7 @@ public:
 	AudioSource playerAudioSource{};
 	X3DAUDIO_EMITTER playerAudioEmitter{};
 	X3DAUDIO_LISTENER playerAudioListener{};
-	CountingArray<AudioBuffer*, MAX_AUDIO_FILES> soundFiles{};
+	StackArray<AudioBuffer*, MAX_AUDIO_FILES> soundFiles{};
 
 	// Movement
 	PlayerMovement playerMovement{};
@@ -184,16 +188,18 @@ public:
 	void DrawDebugUI(EngineCore& engine);
 
 	Entity* CreateEmptyEntity(EngineCore& engine) override;
-	Entity* CreateMeshEntity(EngineCore& engine, size_t drawCallIndex, MeshData* meshData) override;
-	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, bool vertical = false) override;
-	Entity* CreateQuadEntity(EngineCore& engine, size_t materialIndex, float width, float height, PhysicsInit& physicsInit, bool vertical = false) override;
-	Entity* CreateEntityFromGltf(EngineCore& engine, const char* path, Assets::Shader shader) override;
+	Entity* CreateMeshEntity(EngineCore& engine, MaterialData* material, MeshDataGPU* meshData) override;
+	Entity* CreateQuadEntity(EngineCore& engine, MaterialData* material, float width, float height, bool vertical = false) override;
+	Entity* CreateQuadEntity(EngineCore& engine, MaterialData* material, float width, float height, PhysicsInit& physicsInit, bool vertical = false) override;
+	Entity* LoadEntity(EngineCore& engine, MeshFile& meshFile);
+	Entity* CreateEntityFromGltf(EngineCore& engine, const char* path) override;
 	void UpdateCursorState();
 
 	void PlaySound(EngineCore& engine, AudioSource* audioSource, AudioFile file);
 	XMVECTOR ScreenToWorldPosition(EngineCore& engine, CameraData& cameraData, XMVECTOR screenPos);
 	//void RaycastScreenPosition(EngineCore& engine, CameraData& cameraData, XMVECTOR screenPos, EngineRaycastCallback* callback, CollisionLayers layers = CollisionLayers::All);
 
+	MaterialFile* GetMaterialFile(uint64_t materialHash);
 	float* GetClearColor() override;
 	EngineInput& GetInput() override;
 

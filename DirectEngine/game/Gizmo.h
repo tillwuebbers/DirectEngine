@@ -10,9 +10,9 @@ struct Gizmo
 	Entity* rotateArrows[3];
 	Entity* scaleArrows[3];
 
-	MeshData* translateArrowMesh;
-	MeshData* rotateArrowMesh;
-	MeshData* scaleArrowMesh;
+	MeshDataGPU* translateArrowMesh;
+	MeshDataGPU* rotateArrowMesh;
+	MeshDataGPU* scaleArrowMesh;
 
 	bool gizmoLocal = true;
 	bool editMode = false;
@@ -22,6 +22,6 @@ struct Gizmo
 	XMVECTOR gizmoDragCursorStart{};
 	XMVECTOR gizmoDragEntityStart{};
 
-	void Init(MemoryArena& arena, IEntityCreator* game, EngineCore& engine, size_t materialIndex);
+	void Init(MemoryArena& arena, IEntityCreator* game, EngineCore& engine, MaterialData* material);
 	void Update(EngineInput& input);
 };

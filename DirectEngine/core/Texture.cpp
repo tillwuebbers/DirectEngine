@@ -2,7 +2,7 @@
 #include <assert.h>
 #include "../import/stb_image_write.h"
 
-TextureData ParseDDSHeader(const wchar_t* path)
+TextureData ParseDDSHeader(const std::string& path)
 {
 	TextureData result{};
 

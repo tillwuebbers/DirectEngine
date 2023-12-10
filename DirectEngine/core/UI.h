@@ -25,7 +25,7 @@ public:
 	void SetupImgui(HWND hwnd, ID3D12Device* device, int framesInFlight);
 	void NewImguiFrame();
 	void DrawImgui(ID3D12GraphicsCommandList* commandList, D3D12_CPU_DESCRIPTOR_HANDLE* renderTargetDescriptorView);
-	void UIImage(ID3D12Device* device, Texture* texture, ImVec2 size);
+	void UIImage(ID3D12Device* device, TextureGPU* texture, ImVec2 size);
 	void DestroyImgui();
 
 	bool initialized = false;

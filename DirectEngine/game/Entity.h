@@ -37,11 +37,11 @@ public:
 	EngineCore* engine;
 
 	EntityHandle parent = nullptr;
-	CountingArray<EntityHandle, MAX_ENTITY_CHILDREN> children{};
+	StackArray<EntityHandle, MAX_ENTITY_CHILDREN> children{};
 
 	bool isRendered = false;
 	bool isSkinnedMesh = false;
-	size_t materialIndex;
+	MaterialData* material;
 	size_t dataIndex;
 
 	bool isSkinnedRoot = false;

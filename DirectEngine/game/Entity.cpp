@@ -111,7 +111,7 @@ void Entity::AddRigidBody(MemoryArena& arena, btDynamicsWorld* world, btCollisio
 EntityData& Entity::GetData()
 {
 	assert(isRendered);
-	return *engine->m_materials[materialIndex].entities[dataIndex];
+	return *material->entities[dataIndex];
 }
 
 EntityConstantBuffer& Entity::GetBuffer()

@@ -8,8 +8,6 @@
 #include <Shlwapi.h> // requires -lShlwapi in cmake: target_link_libraries(${PROJECT_NAME} Shlwapi)
 
 #include <iostream>
-#include <codecvt>
-#include <locale>
 #include <format>
 
 #include <d3d12.h>
@@ -395,7 +393,7 @@ void EngineCore::LoadSizeDependentResources()
     {
         m_raytracingOutput = &m_textures.newElement();
     }
-    CreateEmptyTexture(m_width, m_height, L"Raytracing Output", *m_raytracingOutput, NewComObject(comPointersSizeDependent, &m_raytracingOutput->buffer), D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+    CreateEmptyTexture(m_width, m_height, "Raytracing Output", *m_raytracingOutput, NewComObject(comPointersSizeDependent, &m_raytracingOutput->buffer), D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 }
 
 CD3DX12_CPU_DESCRIPTOR_HANDLE EngineCore::CreateDepthStencilView(UINT width, UINT height, ComStack& comStack, ID3D12Resource** bufferTarget, int fixedOffset, UINT sampleCount)
@@ -543,7 +541,7 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
             OutputDebugStringA(reinterpret_cast<const char*>(error->GetBufferPointer()));
         }
         ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), NewComObject(comPointers, &config->rootSignature)));
-        config->rootSignature->SetName(config->shaderName.c_str());
+        config->rootSignature->SetName(std::wstring{ config->shaderName.begin(), config->shaderName.end() }.c_str());
     }
 
     CreatePipelineState(config);
@@ -580,6 +578,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
     ComPtr<ID3DBlob> vertexShader{};
     ComPtr<ID3DBlob> pixelShader{};
     ComPtr<ID3DBlob> rtShader{};
+    const std::wstring shaderName = std::wstring{ config->shaderName.begin(), config->shaderName.end() };
 
 #if ISDEBUG
     if (hotloadShaders)
@@ -593,8 +592,8 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
 
         // Enable better shader debugging with the graphics debugging tools.
         UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-        const std::wstring shaderPath = std::wstring(L"compile/rasterize/").append(config->shaderName).append(L".hlsl");
-        const std::wstring shaderPathRT = std::wstring(L"compile/raytrace/").append(config->shaderName).append(L".hlsl");
+        const std::wstring shaderPath = std::wstring(L"compile/rasterize/").append(shaderName).append(L".hlsl");
+        const std::wstring shaderPathRT = std::wstring(L"compile/raytrace/").append(shaderName).append(L".hlsl");
         Sleep(100);
 
         WaitUntilFileFree(shaderPath.c_str());
@@ -644,7 +643,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
 #endif
     {
         std::wstring path = std::wstring(L"shaders_bin/");
-        path.append(config->shaderName);
+        path.append(shaderName);
 
         std::wstring vsPath = path;
         vsPath.append(L".vert.cso");
@@ -694,7 +693,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
     psoDesc.DSVFormat = DEPTH_BUFFER_FORMAT;
 
     config->creationError = m_device->CreateGraphicsPipelineState(&psoDesc, NewComObjectReplace(comPointers, &config->pipelineState));
-    config->pipelineState->SetName(config->shaderName.c_str());
+    config->pipelineState->SetName(shaderName.c_str());
 
     // Raytracing
     if (m_raytracingSupport && rtShader.Get() != nullptr)
@@ -734,23 +733,23 @@ void EngineCore::CreateGPUBuffer(size_t bufferSizeBytes, ID3D12Resource** resour
 
 void EngineCore::LoadAssets()
 {
-    m_gBufferConfig = NewObject(engineArena, PipelineConfig, L"gbuffer", 0);
+    m_gBufferConfig = NewObject(engineArena, PipelineConfig, "gbuffer", 0);
     m_gBufferConfig->format = DXGI_FORMAT_R16G16B16A16_FLOAT;
     m_gBufferConfig->renderTargetCount = GBuffer::BUFFER_COUNT;
     CreatePipeline(m_gBufferConfig, 0, 0);
 
-    m_shadowConfig = NewObject(engineArena, PipelineConfig, L"shadow", 0);
+    m_shadowConfig = NewObject(engineArena, PipelineConfig, "shadow", 0);
     m_shadowConfig->rasterizerDesc.SlopeScaledDepthBias = 1.0;
     m_shadowConfig->rasterizerDesc.CullMode = D3D12_CULL_MODE_FRONT;
     CreatePipeline(m_shadowConfig, 0, 0);
 
-    m_wireframeConfig = NewObject(engineArena, PipelineConfig, L"aabb", 0);
+    m_wireframeConfig = NewObject(engineArena, PipelineConfig, "aabb", 0);
     m_wireframeConfig->sampleCount = m_msaaEnabled ? m_msaaSampleCount : 1;
     m_wireframeConfig->rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
     m_wireframeConfig->rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
     CreatePipeline(m_wireframeConfig, 0, 0);
 
-    m_debugLineConfig = NewObject(engineArena, PipelineConfig, L"debugline", 0);
+    m_debugLineConfig = NewObject(engineArena, PipelineConfig, "debugline", 0);
     m_debugLineConfig->ignoreDepth = true;
     m_debugLineConfig->topologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
     m_debugLineConfig->sampleCount = m_msaaEnabled ? m_msaaSampleCount : 1;
@@ -813,9 +812,9 @@ void EngineCore::LoadAssets()
     m_shadowmap->Build(m_device, comPointers);
 
     // Irradiance
-    m_irradianceMap = CreateTexture(L"textures/skyfire_irradiance.dds");
-    m_reflectanceMap = CreateTexture(L"textures/skyfire_radiance.dds");
-    m_ambientLUT = CreateTexture(L"textures/ambientLUT.dds");
+    m_irradianceMap = CreateTexture("textures/skyfire_irradiance.dds");
+    m_reflectanceMap = CreateTexture("textures/skyfire_radiance.dds");
+    m_ambientLUT = CreateTexture("textures/ambientLUT.dds");
 
     // Cameras
     mainCamera = CreateCamera();
@@ -979,7 +978,7 @@ void EngineCore::CreateGBuffer(UINT width, UINT height, GBuffer& gBuffer, DXGI_F
     gBuffer.dsvHandle = CreateDepthStencilView(width, height, comPointersSizeDependent, &gBuffer.dsvBuffer);
 }
 
-void EngineCore::CreateEmptyTexture(int width, int height, std::wstring name, Texture& texture, const IID& riidTexture, void** ppvTexture, D3D12_RESOURCE_FLAGS flags)
+void EngineCore::CreateEmptyTexture(int width, int height, const std::string& name, TextureGPU& texture, const IID& riidTexture, void** ppvTexture, D3D12_RESOURCE_FLAGS flags)
 {
     texture.name = name;
 
@@ -991,7 +990,7 @@ void EngineCore::CreateEmptyTexture(int width, int height, std::wstring name, Te
 
     CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_DEFAULT);
     m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_COMMON, nullptr, riidTexture, ppvTexture);
-    texture.buffer->SetName(name.c_str());
+    texture.buffer->SetName(std::wstring{ name.begin(), name.end() }.c_str());
 
     // SRV
     texture.handle = GetNewDescriptorHandle();
@@ -1003,7 +1002,7 @@ void EngineCore::CreateEmptyTexture(int width, int height, std::wstring name, Te
     m_device->CreateShaderResourceView(texture.buffer, &srvDesc, texture.handle.cpuHandle);
 }
 
-void EngineCore::CreateEmptyUAV(int width, int height, std::wstring name, Texture& texture, const IID& riidBuffer, void** ppvBuffer, D3D12_RESOURCE_FLAGS flags)
+void EngineCore::CreateEmptyUAV(int width, int height, const std::string& name, TextureGPU& texture, const IID& riidBuffer, void** ppvBuffer, D3D12_RESOURCE_FLAGS flags)
 {
     texture.name = name;
 
@@ -1013,7 +1012,7 @@ void EngineCore::CreateEmptyUAV(int width, int height, std::wstring name, Textur
 
     CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_DEFAULT);
     m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_COMMON, nullptr, riidBuffer, ppvBuffer);
-    texture.buffer->SetName(name.c_str());
+    texture.buffer->SetName(std::wstring{ name.begin(), name.end() }.c_str());
 
     // UAV
     texture.handle = GetNewDescriptorHandle();
@@ -1024,20 +1023,20 @@ void EngineCore::CreateEmptyUAV(int width, int height, std::wstring name, Textur
     m_device->CreateUnorderedAccessView(texture.buffer, nullptr, nullptr, texture.handle.cpuHandle);
 }
 
-Texture* EngineCore::CreateTexture(const std::wstring& filePath)
+TextureGPU* EngineCore::CreateTexture(const std::string& filePath)
 {
-    Texture& texture = m_textures.newElement();
+    TextureGPU& texture = m_textures.newElement();
     texture.name = filePath;
 
-    TextureData header = ParseDDSHeader(filePath.c_str());
+    TextureData header = ParseDDSHeader(filePath);
 
     std::unique_ptr<uint8_t[]> data{};
     std::vector<D3D12_SUBRESOURCE_DATA> subresources{};
-    HRESULT hr = LoadDDSTextureFromFile(m_device, filePath.c_str(), &texture.buffer, data, subresources);
+    HRESULT hr = LoadDDSTextureFromFile(m_device, std::wstring{ filePath.begin(), filePath.end() }.c_str(), &texture.buffer, data, subresources);
     if (hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND))
     {
         // TODO: log error and load default texture instead
-        OutputDebugString(std::format(L"Texture file not found: {}\n", filePath).c_str());
+        OutputDebugStringA(std::format("Texture file not found: {}\n", filePath).c_str());
         CHECK_HRCMD(hr);
     }
     else
@@ -1050,7 +1049,7 @@ Texture* EngineCore::CreateTexture(const std::wstring& filePath)
     return &texture;
 }
 
-void EngineCore::UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture)
+void EngineCore::UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, TextureGPU& targetTexture)
 {
     D3D12_RESOURCE_DESC textureDesc = {};
     textureDesc.MipLevels = textureData.mipmapCount;
@@ -1092,14 +1091,14 @@ void EngineCore::UploadTexture(const TextureData& textureData, std::vector<D3D12
     m_device->CreateShaderResourceView(targetTexture.buffer, &srvDesc, targetTexture.handle.cpuHandle);
 }
 
-size_t EngineCore::CreateMaterial(const std::wstring& shaderName, const std::vector<Texture*>& textures, const std::vector<RootConstantInfo>& rootConstants, const D3D12_RASTERIZER_DESC& rasterizerDesc)
+MaterialData* EngineCore::CreateMaterial(const std::string& shaderName, const std::vector<TextureGPU*>& textures, const std::vector<RootConstantInfo>& rootConstants, const D3D12_RASTERIZER_DESC& rasterizerDesc)
 {
     INIT_TIMER(timer);
 
-    size_t dataIndex = m_materials.size;
     MaterialData& data = m_materials.newElement();
+    data.name = shaderName;
 
-    for (Texture* tex : textures)
+    for (TextureGPU* tex : textures)
     {
         data.textures.newElement() = tex;
     }
@@ -1108,23 +1107,18 @@ size_t EngineCore::CreateMaterial(const std::wstring& shaderName, const std::vec
         data.rootConstants.newElement() = rootConstantInfo;
     }
 
-    data.name = std::string(shaderName.begin(), shaderName.end());
-
-    OUTPUT_TIMERW(timer, L"Init");
-    RESET_TIMER(timer);
-
     data.pipeline = NewObject(engineArena, PipelineConfig, shaderName, textures.size());
     data.pipeline->rasterizerDesc = rasterizerDesc;
     if (m_msaaEnabled) data.pipeline->sampleCount = m_msaaSampleCount;
     CreatePipeline(data.pipeline, 0, rootConstants.size());
 
-    OUTPUT_TIMERW(timer, L"Pipeline");
+    OUTPUT_TIMERW(timer, L"Material Creation");
     RESET_TIMER(timer);
 
-    return dataIndex;
+    return &data;
 }
 
-MeshData* EngineCore::CreateMesh(VertexData::MeshFile& meshFile)
+MeshDataGPU* EngineCore::CreateMesh(VertexData::MeshData& meshFile)
 {
     assert(meshFile.vertices != nullptr);
     assert(meshFile.indices != nullptr);
@@ -1139,7 +1133,7 @@ MeshData* EngineCore::CreateMesh(VertexData::MeshFile& meshFile)
     assert(m_geometryBuffer.indexCount + meshFile.indexCount <= m_geometryBuffer.maxIndexCount);
 
     // Crate object
-    MeshData& mesh = m_meshes.newElement();
+    MeshDataGPU& mesh = m_meshes.newElement();
     mesh.vertexBufferView.BufferLocation = m_geometryBuffer.vertexBuffer->GetGPUVirtualAddress() + offsetInVertexBuffer;
     mesh.vertexBufferView.StrideInBytes = m_geometryBuffer.vertexStride;
     mesh.vertexBufferView.SizeInBytes = addedVertexBytes;
@@ -1181,14 +1175,13 @@ MeshData* EngineCore::CreateMesh(VertexData::MeshFile& meshFile)
     return &mesh;
 }
 
-size_t EngineCore::CreateEntity(const size_t materialIndex, MeshData* meshData)
+size_t EngineCore::CreateEntity(MaterialData* material, MeshDataGPU* meshData)
 {
-    MaterialData& material = m_materials.at(materialIndex);
-
+    assert(material != nullptr);
     EntityData* entity = NewObject(entityDataArena, EntityData);
-    material.entities.newElement() = entity;
-    entity->entityIndex = material.entities.size - 1;
-    entity->materialIndex = materialIndex;
+    material->entities.newElement() = entity;
+    entity->entityIndex = material->entities.size - 1;
+    entity->material = material;
     entity->meshData = meshData;
 
     CreateConstantBuffers<EntityConstantBuffer>(entity->constantBuffer, std::format(L"Entity {} Constant Buffer", entity->entityIndex).c_str(), &comPointersLevel);
@@ -1205,7 +1198,7 @@ void EngineCore::BuildBottomLevelAccelerationStructures(ID3D12GraphicsCommandLis
     ID3D12Device5* dxrDevice = nullptr;
     ThrowIfFailed(m_device->QueryInterface(IID_PPV_ARGS(&dxrDevice)));
 
-    for (MeshData& meshData : m_meshes)
+    for (MeshDataGPU& meshData : m_meshes)
     {
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS bottomLevelInputs = {};
         bottomLevelInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
@@ -1622,17 +1615,16 @@ void EngineCore::LoadRaytracingShaderTables(ID3D12StateObject* dxrStateObject, c
 }
 
 #define TEX_NAME "Material_MR"
-#define TEX_NAME_L L"Material_MR"
 
 void EngineCore::CreateComputeShader(ComputeShader& computeShader)
 {
-    Texture* metal = computeShader.inputTextures.newElement() = CreateTexture(std::format(L"textures/{}_M.dds", TEX_NAME_L));
-    Texture* roughness = computeShader.inputTextures.newElement() = CreateTexture(std::format(L"textures/{}_R.dds", TEX_NAME_L));
+    TextureGPU* metal = computeShader.inputTextures.newElement() = CreateTexture(std::format("textures/{}_M.dds", TEX_NAME).c_str());
+    TextureGPU* roughness = computeShader.inputTextures.newElement() = CreateTexture(std::format("textures/{}_R.dds", TEX_NAME).c_str());
 
     int width = std::max(metal->buffer->GetDesc().Width, roughness->buffer->GetDesc().Width);
     int height = std::max(metal->buffer->GetDesc().Height, roughness->buffer->GetDesc().Height);
     m_computeShader.outputTexture = &m_textures.newElement();
-    CreateEmptyUAV(width, height, L"MetalRoughness", *m_computeShader.outputTexture, NewComObject(comPointers, &m_computeShader.outputTexture->buffer));
+    CreateEmptyUAV(width, height, "MetalRoughness", *m_computeShader.outputTexture, NewComObject(comPointers, &m_computeShader.outputTexture->buffer));
 
     CreateConstantBuffers(m_computeShader.constantImageData, L"ImageData", &comPointers);
 
@@ -1712,7 +1704,7 @@ void EngineCore::RunComputeShaderPrePass(ID3D12GraphicsCommandList4* renderList)
     m_computeShader.constantImageData.UploadData(m_frameIndex);
 
     int idx = 0;
-    for (Texture* inputTexture : m_computeShader.inputTextures)
+    for (TextureGPU* inputTexture : m_computeShader.inputTextures)
     {
         Transition(renderList, inputTexture->buffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         renderList->SetComputeRootDescriptorTable(idx, inputTexture->handle.gpuHandle);
@@ -1724,7 +1716,7 @@ void EngineCore::RunComputeShaderPrePass(ID3D12GraphicsCommandList4* renderList)
     renderList->SetComputeRootDescriptorTable(idx + 1, m_computeShader.constantImageData.handles[m_frameIndex].gpuHandle);
 
     renderList->Dispatch(width, height, 1);
-    for (Texture* inputTexture : m_computeShader.inputTextures)
+    for (TextureGPU* inputTexture : m_computeShader.inputTextures)
     {
         Transition(renderList, inputTexture->buffer, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         idx++;
@@ -1795,7 +1787,7 @@ void EngineCore::RenderGBuffer(ID3D12GraphicsCommandList4* renderList)
     renderList->SetGraphicsRootDescriptorTable(CAMERA, mainCamera->constantBuffer.handles[m_frameIndex].gpuHandle);
 
     // Set up render targets
-    for (Texture& gBufferTexture : m_gBuffer->textures)
+    for (TextureGPU& gBufferTexture : m_gBuffer->textures)
     {
         Transition(renderList, gBufferTexture.buffer, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
     }
@@ -1823,7 +1815,7 @@ void EngineCore::RenderGBuffer(ID3D12GraphicsCommandList4* renderList)
         }
     }
 
-    for (Texture& gBufferTexture : m_gBuffer->textures)
+    for (TextureGPU& gBufferTexture : m_gBuffer->textures)
     {
         Transition(renderList, gBufferTexture.buffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     }
@@ -2082,8 +2074,6 @@ void EngineCore::OnShaderReload()
 {
     WaitForGpu();
 
-    std::wstring_convert<std::codecvt_utf8<wchar_t>> utf8_conv;
-
     for (MaterialData& material : m_materials)
     {
         CreatePipelineState(material.pipeline, true);
@@ -2091,9 +2081,10 @@ void EngineCore::OnShaderReload()
         if (FAILED(material.pipeline->creationError))
         {
             _com_error err(material.pipeline->creationError);
+            std::wstring msg = std::wstring{ err.ErrorMessage() };
 
             m_shaderError.append("Failed to create material pipeline state: ");
-            m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
+            m_shaderError.append(std::string{ msg.begin(), msg.end() }.c_str());
             return;
         }
     }
@@ -2102,9 +2093,10 @@ void EngineCore::OnShaderReload()
     if (FAILED(m_shadowConfig->creationError))
     {
         _com_error err(m_shadowConfig->creationError);
+        std::wstring msg = std::wstring{ err.ErrorMessage() };
 
         m_shaderError.append("Failed to create shadow pipeline state: ");
-        m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
+        m_shaderError.append(std::string{ msg.begin(), msg.end() }.c_str());
         return;
     }
 
@@ -2112,9 +2104,10 @@ void EngineCore::OnShaderReload()
     if (FAILED(m_wireframeConfig->creationError))
     {
         _com_error err(m_wireframeConfig->creationError);
+        std::wstring msg = std::wstring{ err.ErrorMessage() };
 
         m_shaderError.append("Failed to create wireframe pipeline state: ");
-        m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
+        m_shaderError.append(std::string{ msg.begin(), msg.end() }.c_str());
         return;
     }
 
@@ -2122,9 +2115,10 @@ void EngineCore::OnShaderReload()
     if (FAILED(m_debugLineConfig->creationError))
     {
         _com_error err(m_debugLineConfig->creationError);
+        std::wstring msg = std::wstring{ err.ErrorMessage() };
 
         m_shaderError.append("Failed to create debug line pipeline state: ");
-        m_shaderError.append(utf8_conv.to_bytes(err.ErrorMessage()));
+        m_shaderError.append(std::string{ msg.begin(), msg.end() }.c_str());
         return;
     }
 }

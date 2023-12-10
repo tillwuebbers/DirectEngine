@@ -635,7 +635,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 					float availableX = ImGui::GetContentRegionAvail().x;
 					ImGui::Text("Entities: %d", mat.entities.size);
 
-					for (Texture* tex : mat.textures)
+					for (TextureGPU* tex : mat.textures)
 					{
 						ImGui::PushID(tex);
 						std::string name = tex->name.empty() ? "texture" : std::string(tex->name.begin(), tex->name.end());

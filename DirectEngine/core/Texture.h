@@ -32,5 +32,5 @@ struct TextureData
 	bool error;
 };
 
-TextureData ParseDDSHeader(const wchar_t* path);
+TextureData ParseDDSHeader(const std::string& path);
 void SavePNG(const char* path, TextureData& data);

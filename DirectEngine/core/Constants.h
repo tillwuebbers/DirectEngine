@@ -1,7 +1,7 @@
 #define MAX_FRAME_QUEUE 3
 #define MAX_DESCRIPTORS 1024
 #define MAX_COM_POINTERS 1024
-#define MAX_TEXTURES 32
+#define MAX_TEXTURES 128
 #define MAX_MATERIALS 32
 #define MAX_CAMERAS 8
 #define MAX_ENTITIES_PER_SCENE 1024
@@ -73,11 +73,6 @@
 #define SHADER_VERSION_VS "vs_5_1"
 #define SHADER_VERSION_PS "ps_5_1"
 #define SHADER_VERSION_RT "lib_6_3"
-
-#define TEXTURE_FILE_EXTENSION L".dds"
-#define DIFFUSE_SUFFIX             L"_D"
-#define NORMAL_SUFFIX              L"_N"
-#define METALLIC_ROUGHNESS_SUFFIX  L"_MR"
 
 #define LOG_SIZE 1024
 

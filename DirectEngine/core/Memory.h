@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <assert.h>
 #include <algorithm>
+#include <functional>
 
 #define MIN_ALIGN 16
 
@@ -150,7 +151,7 @@ namespace ArrayFunc
 	}
 
     template <typename T>
-    bool contains(const T* base, const size_t size, const T& element)
+    bool Contains(const T* base, const size_t size, const T& element)
     {
         for (int i = 0; i < size; i++)
         {
@@ -161,13 +162,39 @@ namespace ArrayFunc
 		}
 		return false;
 	}
+
+    template <typename T>
+    bool AnyMatch(const T* base, const size_t size, std::function<bool(T&)> matchFunc)
+    {
+        for (int i = 0; i < size; i++)
+        {
+            if (matchFunc(base[i]))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    template <typename T>
+    bool AllMatch(const T* base, const size_t size, std::function<bool(T&)> matchFunc)
+    {
+        for (int i = 0; i < size; i++)
+        {
+            if (!matchFunc(base[i]))
+            {
+				return false;
+			}
+		}
+		return true;
+	}
 }
 
 /// <summary>
 /// Stack allocated array, counts the number of elements if used with newElement().
 /// </summary>
 template <typename T, std::size_t CAPACITY>
-class CountingArray
+class StackArray
 {
 public:
     T& operator[](const size_t index)
@@ -209,8 +236,18 @@ public:
 
     bool contains(const T& element)
     {
-        return ArrayFunc::contains(base, size, element);
+        return ArrayFunc::Contains(base, size, element);
     }
+
+    bool anyMatch(std::function<bool(T&)> matchFunc)
+    {
+        return ArrayFunc::AnyMatch(base, size, matchFunc);
+    }
+
+    bool allMatch(std::function<bool(T&)> matchFunc)
+    {
+		return ArrayFunc::AllMatch(base, size, matchFunc);
+	}
 
     void clear()
     {
@@ -250,10 +287,10 @@ public:
 /// Arena allocated array, counts the number of elements if used with newElement().
 /// </summary>
 template <typename T>
-class FixedList
+class ArenaArray
 {
 public:
-    FixedList(MemoryArena& arena, size_t capacity) : capacity(capacity)
+    ArenaArray(MemoryArena& arena, size_t capacity) : capacity(capacity)
     {
 		assert(this->base == nullptr);
 		this->base = NewArray(arena, T, capacity);
@@ -289,12 +326,22 @@ public:
 
     bool contains(const T& element)
     {
-        return ArrayFunc::contains(base, size, element);
+        return ArrayFunc::Contains(base, size, element);
     }
 
     void clear()
     {
 		size = 0;
+    }
+
+    bool anyMatch(std::function<bool(T&)> matchFunc)
+    {
+		return ArrayFunc::AnyMatch(base, size, matchFunc);
+	}
+
+    bool allMatch(std::function<bool(T&)> matchFunc)
+    {
+        return ArrayFunc::AllMatch(base, size, matchFunc);
     }
 
     void removeAt(const size_t removeIndex)
@@ -344,6 +391,8 @@ struct FixedStr
 
     FixedStr& operator=(const char* other)
     {
+        assert(other != nullptr);
+        assert(strnlen_s(other, SIZE) < SIZE);
         strcpy_s((char*)str, SIZE, other);
         return *this;
     }
@@ -351,6 +400,8 @@ struct FixedStr
     // TODO: this isn't efficient, but we'll have to use std::move or something like that to make it better.
     FixedStr(const char* other)
     {
+        assert(other != nullptr);
+        assert(strnlen_s(other, SIZE) < SIZE);
         strcpy_s((char*)str, SIZE, other);
     }
 

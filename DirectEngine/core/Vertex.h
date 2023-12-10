@@ -19,14 +19,12 @@ namespace VertexData
         XMUINT4 boneIndices;
     };
 
-    struct MeshFile
+    struct MeshData
     {
         VertexData::Vertex* vertices = nullptr;
         size_t vertexCount = 0;
         INDEX_BUFFER_TYPE* indices = nullptr;
         size_t indexCount = 0;
-        std::string textureName{};
-        size_t textureCount = 0; // TODO use better solution
     };
 
     constexpr D3D12_INPUT_ELEMENT_DESC VERTEX_DESCS[] =

@@ -161,7 +161,7 @@ struct ExtendedMatrix
     }
 };
 
-struct MeshData
+struct MeshDataGPU
 {
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
     D3D12_INDEX_BUFFER_VIEW indexBufferView = {};
@@ -170,6 +170,7 @@ struct MeshData
     ID3D12Resource* scratchResource = {};
 };
 
+class MaterialData;
 struct EntityData
 {
     bool visible = true;
@@ -177,11 +178,11 @@ struct EntityData
     bool wireframe = false;
     bool mainOnly = false;
     size_t entityIndex = 0;
-    size_t materialIndex = 0;
+    MaterialData* material = nullptr;
     ConstantBuffer<EntityConstantBuffer> constantBuffer = {};
     ConstantBuffer<BoneMatricesBuffer> boneConstantBuffer = {};
     ConstantBuffer<BoneMatricesBuffer> firstPersonBoneConstantBuffer = {};
-    MeshData* meshData;
+    MeshDataGPU* meshData;
 };
 
 enum class RootConstantType
@@ -192,16 +193,16 @@ enum class RootConstantType
 
 struct RootConstantInfo
 {
-    RootConstantType type;
+    RootConstantType type = RootConstantType::UINT;
     FixedStr name = "-";
 };
 
 class MaterialData
 {
 public:
-    CountingArray<EntityData*, MAX_ENTITIES_PER_MATERIAL> entities = {};
-    CountingArray<Texture*, MAX_TEXTURES_PER_MATERIAL> textures = {};
-    CountingArray<RootConstantInfo, MAX_ROOT_CONSTANTS_PER_MATERIAL> rootConstants = {};
+    StackArray<EntityData*, MAX_ENTITIES_PER_MATERIAL> entities = {};
+    StackArray<TextureGPU*, MAX_TEXTURES_PER_MATERIAL> textures = {};
+    StackArray<RootConstantInfo, MAX_ROOT_CONSTANTS_PER_MATERIAL> rootConstants = {};
     UINT rootConstantData[MAX_ROOT_CONSTANTS_PER_MATERIAL] = {};
     PipelineConfig* pipeline = nullptr;
     std::string name = "Material";
@@ -235,7 +236,7 @@ class DebugLineData
 public:
     DebugLineData(MemoryArena& arena) : lineVertices(arena, MAX_DEBUG_LINE_VERTICES) {}
 
-    FixedList<VertexData::Vertex> lineVertices;
+    ArenaArray<VertexData::Vertex> lineVertices;
     ID3D12Resource* vertexBuffer = nullptr;
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
 
@@ -360,7 +361,7 @@ struct RenderTexture
 
     CameraData* camera;
 
-    Texture texture{};
+    TextureGPU texture{};
     ID3D12Resource* msaaBuffer;
     ID3D12Resource* dsvBuffer;
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle{};
@@ -377,7 +378,7 @@ struct GBuffer
     CD3DX12_VIEWPORT viewport;
     CD3DX12_RECT scissorRect;
 
-    Texture textures[BUFFER_COUNT];
+    TextureGPU textures[BUFFER_COUNT];
     ID3D12Resource* dsvBuffer;
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandles[BUFFER_COUNT];
@@ -403,8 +404,8 @@ struct ComputeShader
 {
     ID3D12RootSignature* rootSignature = nullptr;
     ID3D12PipelineState* pipelineState = nullptr;
-    CountingArray<Texture*, 4> inputTextures = {};
-    Texture* outputTexture = nullptr;
+    StackArray<TextureGPU*, 4> inputTextures = {};
+    TextureGPU* outputTexture = nullptr;
     ConstantBuffer<ImageData> constantImageData = {};
     ID3D12Resource** readbackHeap = nullptr;
     bool executed = false;
@@ -488,26 +489,26 @@ public:
     ConstantBuffer<SceneConstantBuffer> m_sceneConstantBuffer = {};
     ConstantBuffer<LightConstantBuffer> m_lightConstantBuffer = {};
     ShadowMap* m_shadowmap = nullptr;
-    Texture* m_irradianceMap = nullptr;
-    Texture* m_reflectanceMap = nullptr;
-    Texture* m_ambientLUT = nullptr;
+    TextureGPU* m_irradianceMap = nullptr;
+    TextureGPU* m_reflectanceMap = nullptr;
+    TextureGPU* m_ambientLUT = nullptr;
     GBuffer* m_gBuffer = nullptr;
     ID3D12Resource* m_textureUploadHeaps[MAX_TEXTURES] = {};
     size_t m_textureUploadIndex = 0;
     GeometryBuffer m_geometryBuffer = {};
-    FixedList<MaterialData> m_materials = { engineArena, MAX_MATERIALS };
-    FixedList<Texture> m_textures = { engineArena, MAX_TEXTURES };
-    FixedList<CameraData> m_cameras = { engineArena, MAX_CAMERAS };
-    FixedList<MeshData> m_meshes = { engineArena, MAX_MESHES };
+    ArenaArray<MaterialData> m_materials = { engineArena, MAX_MATERIALS };
+    ArenaArray<TextureGPU> m_textures = { engineArena, MAX_TEXTURES };
+    ArenaArray<CameraData> m_cameras = { engineArena, MAX_CAMERAS };
+    ArenaArray<MeshDataGPU> m_meshes = { engineArena, MAX_MESHES };
 
     ImGuiUI m_imgui = {};
     CameraData* mainCamera = nullptr;
-    FixedList<RenderTexture*> m_renderTextures{ engineArena, 2 };
+    ArenaArray<RenderTexture*> m_renderTextures{ engineArena, 2 };
 
     // Ray tracing
     ID3D12RootSignature* m_raytracingGlobalRootSignature = nullptr;
     ID3D12RootSignature* m_raytracingLocalRootSignature = nullptr;
-    Texture* m_raytracingOutput = nullptr;
+    TextureGPU* m_raytracingOutput = nullptr;
     ID3D12StateObject* m_raytracingState = nullptr;
     ID3D12Resource* m_topLevelAccelerationStructure = nullptr;
     ID3D12Resource* m_topLevelScratchResource = nullptr;
@@ -584,13 +585,13 @@ public:
     void CreatePipelineState(PipelineConfig* config, bool hotloadShaders = false);
     void CreateRenderTexture(UINT width, UINT height, bool msaaEnabled, RenderTexture& renderTexture, CameraData* camera = nullptr, DXGI_FORMAT textureFormat = DISPLAY_FORMAT);
     void CreateGBuffer(UINT width, UINT height, GBuffer& gBuffer, DXGI_FORMAT textureFormat);
-    void CreateEmptyTexture(int width, int height, std::wstring name, Texture& texture, const IID& riidTexture, void** ppvTexture, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
-    void CreateEmptyUAV(int width, int height, std::wstring name, Texture& texture, const IID& riidBuffer, void** ppvBuffer, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
-    Texture* CreateTexture(const std::wstring& filePath);
-    void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, Texture& targetTexture);
-    size_t CreateMaterial(const std::wstring& shaderName, const std::vector<Texture*>& textures = {}, const std::vector<RootConstantInfo>& rootConstants = {}, const D3D12_RASTERIZER_DESC& rasterizerDesc = CD3DX12_RASTERIZER_DESC{ D3D12_DEFAULT });
-    MeshData* CreateMesh(VertexData::MeshFile& meshFile);
-    size_t CreateEntity(const size_t materialIndex, MeshData* meshData);
+    void CreateEmptyTexture(int width, int height, const std::string& name, TextureGPU& texture, const IID& riidTexture, void** ppvTexture, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
+    void CreateEmptyUAV(int width, int height, const std::string& name, TextureGPU& texture, const IID& riidBuffer, void** ppvBuffer, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
+    TextureGPU* CreateTexture(const std::string& filePath);
+    void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, TextureGPU& targetTexture);
+    MaterialData* CreateMaterial(const std::string& shaderName, const std::vector<TextureGPU*>& textures = {}, const std::vector<RootConstantInfo>& rootConstants = {}, const D3D12_RASTERIZER_DESC& rasterizerDesc = CD3DX12_RASTERIZER_DESC{ D3D12_DEFAULT });
+    MeshDataGPU* CreateMesh(VertexData::MeshData& meshFile);
+    size_t CreateEntity(MaterialData* material, MeshDataGPU* meshData);
     void CreateComputeShader(ComputeShader& computeShader);
     void BuildBottomLevelAccelerationStructures(ID3D12GraphicsCommandList4* commandList);
     void BuildTopLevelAccelerationStructure(ID3D12GraphicsCommandList4* commandList);

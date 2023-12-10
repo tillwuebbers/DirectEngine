@@ -13,24 +13,24 @@ struct DescriptorHandle
     CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle = {};
 };
 
-struct Texture
+struct TextureGPU
 {
     ID3D12Resource* buffer = nullptr;
     DescriptorHandle handle = {};
-    std::wstring name = {};
+    std::string name = {};
 };
 
 class PipelineConfig
 {
 public:
-    PipelineConfig(const std::wstring& shaderName, size_t textureSlotCount)
+    PipelineConfig(const std::string& shaderName, size_t textureSlotCount)
     {
 		this->shaderName = shaderName;
         this->textureSlotCount = textureSlotCount;
     }
 
     bool ignoreDepth = false;
-    std::wstring shaderName;
+    std::string shaderName;
     size_t textureSlotCount = 0;
     size_t rootConstantCount = 0;
     UINT sampleCount = 1;

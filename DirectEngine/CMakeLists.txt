@@ -121,6 +121,9 @@ add_custom_target(Copy_Assets ALL
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${CMAKE_CURRENT_SOURCE_DIR}/textures
                 ${CMAKE_CURRENT_BINARY_DIR}/textures
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_CURRENT_SOURCE_DIR}/materials.txt
+				${CMAKE_CURRENT_BINARY_DIR}/materials.txt
 )
 
 # sub projects
