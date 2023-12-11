@@ -638,7 +638,7 @@ void Game::DrawDebugUI(EngineCore& engine)
 					for (TextureGPU* tex : mat.textures)
 					{
 						ImGui::PushID(tex);
-						std::string name = tex->name.empty() ? "texture" : std::string(tex->name.begin(), tex->name.end());
+						std::string name = tex->name.empty() ? "texture" : tex->name;
 						if (ImGui::TreeNode(name.c_str()))
 						{
 							auto desc = tex->buffer->GetDesc();

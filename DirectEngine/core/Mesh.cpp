@@ -329,6 +329,9 @@ GltfResult* LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 	
 	RESET_TIMER(timer);
 
+	// this is for auto material naming. TODO: this might not match the way the material.txt names were generated from the gltf file
+	int meshIndex = 0;
+
 	for (Mesh& mesh : model.meshes)
 	{
 		for (Primitive& primitive : mesh.primitives)
@@ -437,8 +440,11 @@ GltfResult* LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 			if (primitive.material >= 0)
 			{
 				assert(model.materials.size() > primitive.material);
-				const std::string& matName = model.materials[primitive.material].name;
-				meshFile.materialName = std::string(matName.begin(), matName.end()).c_str();
+				std::string matName = model.materials[primitive.material].name;
+				std::string fileNameWithoutExtension = std::filesystem::path(filePath).filename().replace_extension("").string();
+				if (matName.starts_with("Material_")) matName = std::format("{}-{}", fileNameWithoutExtension, meshIndex);
+
+				meshFile.materialName = matName.c_str();
 				meshFile.materialHash = std::hash<std::string>{}(meshFile.materialName.str);
 			}
 			else
@@ -446,6 +452,8 @@ GltfResult* LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 				meshFile.materialName = "default";
 				meshFile.materialHash = std::hash<std::string>{}(meshFile.materialName.str);
 			}
+
+			meshIndex++;
 		}
 	}
 

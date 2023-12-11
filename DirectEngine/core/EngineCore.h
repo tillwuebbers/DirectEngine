@@ -220,12 +220,12 @@ public:
 struct GeometryBuffer
 {
     size_t vertexCount = 0;
-    size_t maxVertexCount = 65536 * 16;
+    size_t maxVertexCount = 65536 * 256;
     size_t vertexStride = 0;
     ID3D12Resource* vertexUploadBuffer = nullptr;
     ID3D12Resource* vertexBuffer = nullptr;
     size_t indexCount = 0;
-    size_t maxIndexCount = 65536 * 16;
+    size_t maxIndexCount = 65536 * 256;
     size_t indexStride = sizeof(INDEX_BUFFER_FORMAT);
     ID3D12Resource* indexUploadBuffer = nullptr;
     ID3D12Resource* indexBuffer = nullptr;

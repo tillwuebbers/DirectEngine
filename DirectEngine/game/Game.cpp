@@ -70,7 +70,7 @@ void Game::StartGame(EngineCore& engine)
 	playerPitch = XM_PI;
 
 	light.position = { 10.f, 10.f, 10.f };
-	light.rotation = XMVector3Normalize({ -1.f, -1.f, 1.f });
+	light.rotation = XMVector3Normalize({ 0.1f, -0.7f, 0.7f });
 
 	// Audio
 	soundFiles[(size_t)AudioFile::PlayerDamage] = LoadAudioFile(L"audio/chord.wav", globalArena);
@@ -117,6 +117,8 @@ void Game::LoadLevel(EngineCore& engine)
 	Entity* helmet = CreateEntityFromGltf(engine, "models/DamagedHelmet.glb");
 	helmet->SetLocalPosition({ 0.f, 1.f, 0.f });
 	helmet->SetLocalRotation(XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f));
+	Entity* sponza = CreateEntityFromGltf(engine, "models/Sponza.glb");
+	sponza->SetLocalScale({ 0.01f, 0.01f, 0.01f });
 
 	// Level Meshes & Collision
 	level1MeshDataGPU.clear();
@@ -150,21 +152,24 @@ void Game::LoadLevel(EngineCore& engine)
 		PhysicsInit portalInit{ 0.f, PhysicsInitType::RigidBodyStatic };
 		portalInit.ownCollisionLayers = CollisionLayers::CL_Portal;
 		portalInit.collidesWithLayers = CollisionLayers::CL_Player;
-		btCollisionShape* portalShape = NewObject(levelArena, btBoxShape, btVector3(1.f, 2.f, 0.1f));
+		btCollisionShape* portalShape = NewObject(levelArena, btBoxShape, btVector3(1.0f, 2.0f, 0.1f));
 		portal->AddRigidBody(levelArena, dynamicsWorld, portalShape, portalInit);
 		if (portal->rigidBody != nullptr) portal->rigidBody->setCollisionFlags(portal->rigidBody->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
 
-		Entity* portalRenderQuad = CreateQuadEntity(engine, material, 2.f, 4.f);
-		portalRenderQuad->SetLocalRotation(XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.f, 0.f));
+		Entity* portalRenderQuad = CreateQuadEntity(engine, material, 2.0f, 4.0f);
+		portalRenderQuad->SetLocalRotation(XMQuaternionRotationRollPitchYaw(XM_PIDIV2, 0.0f, 0.0f));
 		portalRenderQuad->name = "PortalQuad";
 		portal->AddChild(portalRenderQuad, false);
-		portalRenderQuad->SetLocalPosition({ -1.f, 2.f, 0.f });
+		portalRenderQuad->SetLocalPosition({ -1.0f, 2.0f, 0.0f });
 		portalRenderQuad->GetData().raytraceVisible = false;
 
 		return portal;
 	};
-	portal1 = createPortal(portal1Material, { 1.f, 1.5f, -5.f }, "Portal 1");
-	portal2 = createPortal(portal2Material, { 1.f, 1.5f, -5.001f }, "Portal 2");
+
+	portal1 = createPortal(portal1Material, { -8.0f, 1.5f, 0.0f }, "Portal 1");
+	portal1->SetLocalRotation(XMQuaternionRotationRollPitchYaw(0.0f, XM_PIDIV2, 0.0f));
+	portal2 = createPortal(portal2Material, {  8.0f, 1.5f, 0.0f }, "Portal 2");
+	portal2->SetLocalRotation(XMQuaternionRotationRollPitchYaw(0.0f, -XM_PIDIV2, 0.0f));
 
 	// Crosshair
 	/*Entity* crosshair = CreateQuadEntity(engine, materialIndices[Material::Crosshair], .03f, .03f, true);
@@ -732,7 +737,7 @@ Entity* Game::LoadEntity(EngineCore& engine, MeshFile& meshFile)
 	}
 	else
 	{
-		WARN("Material not found for mesh {}", meshFile.materialName.str);
+		WARN("Material {} not found", meshFile.materialName.str);
 		material = defaultMaterial;
 	}
 
@@ -752,6 +757,7 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path)
 		mainEntity->name = "empty";
 		return mainEntity;
 	}
+
 	if (gltfResult->meshes.size == 0)
 	{
 		WARN("No meshes in glTF {}", path);
@@ -759,12 +765,20 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path)
 		mainEntity->name = "empty";
 		return mainEntity;
 	}
-
-	if (gltfResult->transformHierachy != nullptr)
+	else if (gltfResult->meshes.size == 1)
+	{
+		MeshFile& meshFile = gltfResult->meshes[0];
+		return LoadEntity(engine, meshFile);
+	}
+	else
 	{
 		Entity* mainEntity = CreateEmptyEntity(engine);
-		mainEntity->isSkinnedRoot = true;
-		mainEntity->transformHierachy = gltfResult->transformHierachy;
+
+		if (gltfResult->transformHierachy != nullptr)
+		{
+			mainEntity->isSkinnedRoot = true;
+			mainEntity->transformHierachy = gltfResult->transformHierachy;
+		}
 
 		for (MeshFile& meshFile : gltfResult->meshes)
 		{
@@ -775,12 +789,6 @@ Entity* Game::CreateEntityFromGltf(EngineCore& engine, const char* path)
 
 		return mainEntity;
 	}
-	else
-	{
-		MeshFile& meshFile = gltfResult->meshes[0];
-		return LoadEntity(engine, meshFile);
-	}
-	
 }
 
 void Game::UpdateCursorState()
