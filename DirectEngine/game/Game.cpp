@@ -70,7 +70,7 @@ void Game::StartGame(EngineCore& engine)
 	playerPitch = XM_PI;
 
 	light.position = { 10.f, 10.f, 10.f };
-	light.rotation = XMVector3Normalize({ 0.1f, -0.7f, 0.7f });
+	light.rotation = XMVector3Normalize({ 0.1f, -0.8f, 0.6f });
 
 	// Audio
 	soundFiles[(size_t)AudioFile::PlayerDamage] = LoadAudioFile(L"audio/chord.wav", globalArena);

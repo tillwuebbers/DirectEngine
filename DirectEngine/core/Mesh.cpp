@@ -5,6 +5,7 @@
 using namespace VertexData;
 
 #include <format>
+#include <regex>
 
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
@@ -442,7 +443,16 @@ GltfResult* LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 				assert(model.materials.size() > primitive.material);
 				std::string matName = model.materials[primitive.material].name;
 				std::string fileNameWithoutExtension = std::filesystem::path(filePath).filename().replace_extension("").string();
-				if (matName.starts_with("Material_")) matName = std::format("{}-{}", fileNameWithoutExtension, meshIndex);
+
+				std::regex matRegex("Material_(\\d+)");
+				auto regexBegin = std::sregex_iterator(matName.begin(), matName.end(), matRegex);
+				auto regexEnd = std::sregex_iterator();
+				
+				if (std::distance(regexBegin, regexEnd) > 0)
+				{
+					std::string matchedGroup = (*regexBegin)[1].str();
+					matName = std::format("{}-{}", fileNameWithoutExtension, matchedGroup);
+				}
 
 				meshFile.materialName = matName.c_str();
 				meshFile.materialHash = std::hash<std::string>{}(meshFile.materialName.str);
