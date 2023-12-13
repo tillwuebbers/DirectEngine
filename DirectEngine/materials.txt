@@ -1,131 +1,156 @@
 material ground entity
-texture textures/ground_D.dds
-texture textures/ground_N.dds
-texture textures/ground_MR.dds
+diffuse textures/ground_D.dds
+normal textures/ground_N.dds
+metallic_roughness textures/ground_MR.dds
 
 material skybox skybox
-texture textures/skyfire.dds
+diffuse textures/skyfire.dds
 
 material body entity
-texture textures/body_D.dds
-texture textures/body_N.dds
-texture textures/body_MR.dds
+diffuse textures/body_D.dds
+normal textures/body_N.dds
+metallic_roughness textures/body_MR.dds
 
 material eyeshornsteeth entity
-texture textures/eyeshornsteeth_D.dds
-texture textures/eyeshornsteeth_N.dds
-texture textures/eyeshornsteeth_MR.dds
+diffuse textures/eyeshornsteeth_D.dds
+normal textures/eyeshornsteeth_N.dds
+metallic_roughness textures/eyeshornsteeth_MR.dds
 
 material log01 entity
-texture textures/log01_D.dds
-texture textures/log01_N.dds
-texture textures/log01_MR.dds
+diffuse textures/log01_D.dds
+normal textures/log01_N.dds
+metallic_roughness textures/log01_MR.dds
 
 material log02 entity
-texture textures/log02_D.dds
-texture textures/log02_N.dds
-texture textures/log02_MR.dds
+diffuse textures/log02_D.dds
+normal textures/log02_N.dds
+metallic_roughness textures/log02_MR.dds
 
 material DamagedHelmet entity
-texture textures/Material_MR_D.dds
-texture textures/Material_MR_N.dds
-texture textures/Material_MR_MR.dds
+diffuse textures/Material_MR_D.dds
+normal textures/Material_MR_N.dds
+metallic_roughness textures/Material_MR_MR.dds
 
-material Sponza-0 entity
-texture textures/sponza/5061699253647017043.dds
-texture textures/sponza/8773302468495022225.dds
-texture textures/sponza/11872827283454512094.dds
-material Sponza-1 entity
-texture textures/sponza/7268504077753552595.dds
-texture textures/sponza/4477655471536070370.dds
-texture textures/sponza/8503262930880235456.dds
-material Sponza-2 ground
-# texture textures/sponza/white.dds
-material Sponza-3 entity
-texture textures/sponza/8006627369776289000.dds
-texture textures/sponza/12501374198249454378.dds
-texture textures/sponza/715093869573992647.dds
-material Sponza-4 entity
-texture textures/sponza/8750083169368950601.dds
-texture textures/sponza/13982482287905699490.dds
-texture textures/sponza/16885566240357350108.dds
-material Sponza-5 entity
-texture textures/sponza/5792855332885324923.dds
-texture textures/sponza/16299174074766089871.dds
-texture textures/sponza/11968150294050148237.dds
-material Sponza-6 entity
-texture textures/sponza/14650633544276105767.dds
-texture textures/sponza/2051777328469649772.dds
-texture textures/sponza/4871783166746854860.dds
-material Sponza-7 entity
-texture textures/sponza/15295713303328085182.dds
-texture textures/sponza/10388182081421875623.dds
-texture textures/sponza/9916269861720640319.dds
-material Sponza-8 entity
-texture textures/sponza/6047387724914829168.dds
-texture textures/sponza/15722799267630235092.dds
-texture textures/sponza/8051790464816141987.dds
-material Sponza-9 entity
-texture textures/sponza/5823059166183034438.dds
-texture textures/sponza/14267839433702832875.dds
-texture textures/sponza/13824894030729245199.dds
-material Sponza-10 entity
-texture textures/sponza/7441062115984513793.dds
-texture textures/sponza/6667038893015345571.dds
-texture textures/sponza/8114461559286000061.dds
-material Sponza-11 entity
-texture textures/sponza/11490520546946913238.dds
-texture textures/sponza/3628158980083700836.dds
-texture textures/sponza/3455394979645218238.dds
-material Sponza-12 entity
-texture textures/sponza/6151467286084645207.dds
-texture textures/sponza/7645212358685992005.dds
-texture textures/sponza/8783994986360286082.dds
-material Sponza-13 entity
-texture textures/sponza/4975155472559461469.dds
-texture textures/sponza/2299742237651021498.dds
-texture textures/sponza/3371964815757888145.dds
-material Sponza-14 entity
-texture textures/sponza/4675343432951571524.dds
-texture textures/sponza/7056944414013900257.dds
-texture textures/sponza/7815564343179553343.dds
-material Sponza-15 entity
-texture textures/sponza/2775690330959970771.dds
-texture textures/sponza/2374361008830720677.dds
-texture textures/sponza/7815564343179553343.dds
-material Sponza-16 entity
-texture textures/sponza/2185409758123873465.dds
-texture textures/sponza/332936164838540657.dds
-texture textures/sponza/7815564343179553343.dds
-material Sponza-17 entity
-texture textures/sponza/17876391417123941155.dds
-texture textures/sponza/6593109234861095314.dds
-texture textures/sponza/466164707995436622.dds
-material Sponza-18 entity
-texture textures/sponza/11474523244911310074.dds
-texture textures/sponza/4601176305987539675.dds
-texture textures/sponza/466164707995436622.dds
-material Sponza-19 entity
-texture textures/sponza/9288698199695299068.dds
-texture textures/sponza/4910669866631290573.dds
-texture textures/sponza/466164707995436622.dds
-material Sponza-20 entity
-texture textures/sponza/16275776544635328252.dds
-texture textures/sponza/14170708867020035030.dds
-texture textures/sponza/1219024358953944284.dds
-material Sponza-21 entity
-texture textures/sponza/755318871556304029.dds
-texture textures/sponza/3827035219084910048.dds
-texture textures/sponza/2411100444841994089.dds
-material Sponza-22 entity
-texture textures/sponza/8481240838833932244.dds
-texture textures/sponza/10381718147657362067.dds
-texture textures/sponza/17556969131407844942.dds
-material Sponza-23 entity
-texture textures/sponza/6772804448157695701.dds
-texture textures/sponza/759203620573749278.dds
-texture textures/sponza/13196865903111448057.dds
-material Sponza-24 entity
-texture textures/sponza/2969916736137545357.dds
-texture textures/sponza/14118779221266351425.dds
-texture textures/sponza/8747919177698443163.dds
+material Sponza_0 entity
+diffuse_clip textures/sponza/5061699253647017043.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/8773302468495022225.dds
+metallic_roughness textures/sponza/11872827283454512094.dds
+material Sponza_1 entity
+diffuse textures/sponza/7268504077753552595.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/4477655471536070370.dds
+metallic_roughness textures/sponza/8503262930880235456.dds
+material Sponza_2 entity
+diffuse textures/sponza/white.dds
+color 0.588 0.588 0.588 1
+material Sponza_3 entity
+diffuse_clip textures/sponza/8006627369776289000.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/12501374198249454378.dds
+metallic_roughness textures/sponza/715093869573992647.dds
+material Sponza_4 entity
+diffuse textures/sponza/8750083169368950601.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/13982482287905699490.dds
+metallic_roughness textures/sponza/16885566240357350108.dds
+material Sponza_5 entity
+diffuse textures/sponza/5792855332885324923.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/16299174074766089871.dds
+metallic_roughness textures/sponza/11968150294050148237.dds
+material Sponza_6 entity
+diffuse textures/sponza/14650633544276105767.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/2051777328469649772.dds
+metallic_roughness textures/sponza/4871783166746854860.dds
+material Sponza_7 entity
+diffuse textures/sponza/15295713303328085182.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/10388182081421875623.dds
+metallic_roughness textures/sponza/9916269861720640319.dds
+material Sponza_8 entity
+diffuse textures/sponza/6047387724914829168.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/15722799267630235092.dds
+metallic_roughness textures/sponza/8051790464816141987.dds
+material Sponza_9 entity
+diffuse textures/sponza/5823059166183034438.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/14267839433702832875.dds
+metallic_roughness textures/sponza/13824894030729245199.dds
+material Sponza_10 entity
+diffuse textures/sponza/7441062115984513793.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/6667038893015345571.dds
+metallic_roughness textures/sponza/8114461559286000061.dds
+material Sponza_11 entity
+diffuse textures/sponza/11490520546946913238.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/3628158980083700836.dds
+metallic_roughness textures/sponza/3455394979645218238.dds
+material Sponza_12 entity
+diffuse textures/sponza/6151467286084645207.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/7645212358685992005.dds
+metallic_roughness textures/sponza/8783994986360286082.dds
+material Sponza_13 entity
+diffuse textures/sponza/4975155472559461469.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/2299742237651021498.dds
+metallic_roughness textures/sponza/3371964815757888145.dds
+material Sponza_14 entity
+diffuse textures/sponza/4675343432951571524.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/7056944414013900257.dds
+metallic_roughness textures/sponza/7815564343179553343.dds
+material Sponza_15 entity
+diffuse textures/sponza/2775690330959970771.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/2374361008830720677.dds
+metallic_roughness textures/sponza/7815564343179553343.dds
+material Sponza_16 entity
+diffuse textures/sponza/2185409758123873465.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/332936164838540657.dds
+metallic_roughness textures/sponza/7815564343179553343.dds
+material Sponza_17 entity
+diffuse textures/sponza/17876391417123941155.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/6593109234861095314.dds
+metallic_roughness textures/sponza/466164707995436622.dds
+material Sponza_18 entity
+diffuse textures/sponza/11474523244911310074.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/4601176305987539675.dds
+metallic_roughness textures/sponza/466164707995436622.dds
+material Sponza_19 entity
+diffuse textures/sponza/9288698199695299068.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/4910669866631290573.dds
+metallic_roughness textures/sponza/466164707995436622.dds
+material Sponza_20 entity
+diffuse_clip textures/sponza/16275776544635328252.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/14170708867020035030.dds
+metallic_roughness textures/sponza/1219024358953944284.dds
+material Sponza_21 entity
+diffuse textures/sponza/755318871556304029.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/3827035219084910048.dds
+metallic_roughness textures/sponza/2411100444841994089.dds
+material Sponza_22 entity
+diffuse textures/sponza/8481240838833932244.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/10381718147657362067.dds
+metallic_roughness textures/sponza/17556969131407844942.dds
+material Sponza_23 entity
+diffuse textures/sponza/6772804448157695701.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/759203620573749278.dds
+metallic_roughness textures/sponza/13196865903111448057.dds
+material Sponza_24 entity
+diffuse textures/sponza/2969916736137545357.dds
+color 0.588 0.588 0.588 1
+normal textures/sponza/14118779221266351425.dds
+metallic_roughness textures/sponza/8747919177698443163.dds

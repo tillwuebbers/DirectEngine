@@ -12,16 +12,17 @@
 enum TextureFormat : int
 {
     BC1 = 15,
+    BC1A = 16,
     BC5 = 21,
 };
 
-void ConvertImage(const std::string& uri, const std::filesystem::path& modelDir, const std::filesystem::path& outputDirectory, TextureFormat format = BC1) {
+void ConvertImage(const std::string uri, const std::filesystem::path& modelDir, const std::filesystem::path& outputDirectory, std::string identifier, TextureFormat format) {
     std::filesystem::path relativeSourceUri = uri;
     if (relativeSourceUri.is_absolute()) relativeSourceUri = std::filesystem::relative(uri, modelDir);
 
     std::filesystem::path relativeTargetUri = relativeSourceUri;
     relativeTargetUri.replace_extension(".dds");
-    std::cout << "texture " << ("textures" / relativeTargetUri).string() << std::endl;
+    std::cout << identifier << " " << ("textures" / relativeTargetUri).string() << std::endl;
 
     std::filesystem::path sourcePath = std::filesystem::absolute(modelDir / relativeSourceUri);
     std::filesystem::path targetPath = outputDirectory / relativeTargetUri;
@@ -75,7 +76,7 @@ int main(int argc, char** argv) {
     std::filesystem::path modelDirectory = inputPath.parent_path();
 
     int idx = 0;
-    for (tinygltf::Material & material : model.materials)
+    for (tinygltf::Material& material : model.materials)
     {
         std::string materialName = material.name;
         if (materialName.empty()) materialName = std::format("{}-{}", inputPath.filename().replace_extension("").string(), idx);
@@ -88,15 +89,33 @@ int main(int argc, char** argv) {
         {
             tinygltf::Texture& texture = model.textures[baseColorIndex];
             tinygltf::Image& image = model.images[texture.source];
-            ConvertImage(image.uri, modelDirectory, outputDirectory);
+
+            if (material.alphaMode == "MASK")
+            {
+                ConvertImage(image.uri, modelDirectory, outputDirectory, "diffuse_clip", BC1A);
+            }
+            else
+            {
+                ConvertImage(image.uri, modelDirectory, outputDirectory, "diffuse", BC1);
+            }
 		}
+
+        if (material.pbrMetallicRoughness.baseColorFactor.size() > 0)
+        {
+            std::cout << "color";
+            for (double color : material.pbrMetallicRoughness.baseColorFactor)
+            {
+                std::cout << " " << color;
+            }
+            std::cout << std::endl;
+        }
 
 		int normalIndex = material.normalTexture.index;
         if (normalIndex >= 0)
         {
 			tinygltf::Texture& texture = model.textures[normalIndex];
 			tinygltf::Image& image = model.images[texture.source];
-			ConvertImage(image.uri, modelDirectory, outputDirectory, BC5);
+			ConvertImage(image.uri, modelDirectory, outputDirectory, "normal", BC5);
 		}
 
 		int metallicRoughnessIndex = material.pbrMetallicRoughness.metallicRoughnessTexture.index;
@@ -104,9 +123,13 @@ int main(int argc, char** argv) {
         {
 			tinygltf::Texture& texture = model.textures[metallicRoughnessIndex];
 			tinygltf::Image& image = model.images[texture.source];
-			ConvertImage(image.uri, modelDirectory, outputDirectory);
+			ConvertImage(image.uri, modelDirectory, outputDirectory, "metallic_roughness", BC1);
 		}
     }
+
+    // pause
+    std::cout << "Press enter to continue..." << std::endl;
+    std::cin.get();
 
     return 0;
 }

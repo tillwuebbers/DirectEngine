@@ -34,6 +34,7 @@ file (GLOB IMPORT_CODE "imgui/remixicon.h"
 file (GLOB SHADER_CODE "shaders/compile/rasterize/*.hlsl")
 file (GLOB SHADER_CODE_RT "shaders/compile/raytrace/*.hlsl")
 file (GLOB SHADER_CODE_CS "shaders/compile/compute/*.hlsl")
+file (GLOB SHADER_CODE_UTIL "shaders/util/*.hlsl")
 
 function(DEPS PROJ)
     # imgui
@@ -98,6 +99,11 @@ add_executable(${PROJECT_NAME} WIN32 "DirectEngine.cpp" "DirectEngine.h")
 target_link_libraries(${PROJECT_NAME} ${CORE_NAME})
 add_dependencies(${PROJECT_NAME} ${GAME_NAME})
 DEPS(${PROJECT_NAME})
+
+# show but don't compile materials.txt
+target_sources(${PROJECT_NAME} PRIVATE "materials.txt")
+set_source_files_properties("materials.txt" PROPERTIES HEADER_FILE_ONLY TRUE)
+source_group("Other" FILES "materials.txt")
 
 # assets
 file(COPY "Montserrat-Regular.ttf" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

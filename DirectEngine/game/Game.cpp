@@ -42,14 +42,17 @@ void Game::StartGame(EngineCore& engine)
 
 	for (TextureFile& textureFile : textures)
 	{
-		textureFile.textureGPU = engine.CreateTexture(textureFile.texturePath.str);
+		textureFile.textureGPU = engine.CreateTexture(textureFile.texturePath.str, textureFile.isSRGB);
 	}
 
 	for (MaterialFile& materialFile : materials)
 	{
 		std::vector<TextureGPU*> materialTextures = {};
-		std::transform(materialFile.textureFiles.begin(), materialFile.textureFiles.end(), std::back_inserter(materialTextures), [](TextureFile* textureFile) { return textureFile->textureGPU; });
-		materialFile.data = engine.CreateMaterial(materialFile.shaderName.str, materialTextures, {});
+		if (materialFile.diffuseTexture != nullptr) materialTextures.push_back(materialFile.diffuseTexture->textureGPU);
+		if (materialFile.normalTexture != nullptr) materialTextures.push_back(materialFile.normalTexture->textureGPU);
+		if (materialFile.metallicRoughnessTexture != nullptr) materialTextures.push_back(materialFile.metallicRoughnessTexture->textureGPU);
+
+		materialFile.data = engine.CreateMaterial(materialFile.shaderName.str, materialTextures, {}, materialFile.defines.base);
 	}
 
 	defaultMaterial = engine.CreateMaterial("ground");
@@ -58,7 +61,7 @@ void Game::StartGame(EngineCore& engine)
 
 	D3D12_RASTERIZER_DESC shellRasterizerDesc = CD3DX12_RASTERIZER_DESC{ D3D12_DEFAULT };
 	shellRasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
-	MaterialData* shellMaterial = engine.CreateMaterial("shelltexture", {}, {{RootConstantType::FLOAT, "layerOffset"}, {RootConstantType::UINT, "layerCount"}}, shellRasterizerDesc);
+	MaterialData* shellMaterial = engine.CreateMaterial("shelltexture", {}, {{RootConstantType::FLOAT, "layerOffset"}, {RootConstantType::UINT, "layerCount"}}, nullptr, shellRasterizerDesc);
 	shellMaterial->SetRootConstant(0, 0.005f);
 	shellMaterial->SetRootConstant(1, 16);
 	shellMaterial->shellCount = 16;
@@ -242,7 +245,6 @@ void Game::LoadLevel(EngineCore& engine)
 	groundPhysics.collidesWithLayers = CollisionLayers::CL_Entity;
 	Entity* groundEntity = CreateQuadEntity(engine, defaultMaterial, 200.f, 200.f, groundPhysics);
 	groundEntity->name = "Ground";
-	groundEntity->GetBuffer().color = { 1.f, 1.f, 1.f };
 	groundEntity->SetLocalPosition(XMVectorSetY(groundEntity->localMatrix.translation, -.01f));
 
 	// Cubes
@@ -729,16 +731,14 @@ Entity* Game::LoadEntity(EngineCore& engine, MeshFile& meshFile)
 {
 	MaterialFile* materialFile = GetMaterialFile(meshFile.materialHash);
 	MaterialData* material;
-	if (materialFile != nullptr)
-	{
-		std::vector<TextureGPU*> textures = {};
-		std::transform(materialFile->textureFiles.begin(), materialFile->textureFiles.end(), std::back_inserter(textures), [](TextureFile* textureFile) { return textureFile->textureGPU; });
-		material = engine.CreateMaterial(materialFile->shaderName.str, textures);
-	}
-	else
+	if (materialFile == nullptr || materialFile->data == nullptr)
 	{
 		WARN("Material {} not found", meshFile.materialName.str);
 		material = defaultMaterial;
+	}
+	else
+	{
+		material = materialFile->data;
 	}
 
 	MeshDataGPU* meshData = engine.CreateMesh(meshFile.mesh);

@@ -13,7 +13,7 @@ struct PSOutput
     float4 worldPosition : SV_Target1;
 };
 
-PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL, float2 uv : UV, float4 boneWeights : BONE_WEIGHTS, uint4 boneIndices : BONE_INDICES)
+PSInput VSMain(float4 position : POSITION, float3 normal : NORMAL, float2 uv : UV, float4 boneWeights : BONE_WEIGHTS, uint4 boneIndices : BONE_INDICES)
 {
     PSInput result;
     

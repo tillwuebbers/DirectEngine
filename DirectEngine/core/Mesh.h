@@ -7,7 +7,6 @@
 #define GLTF_JOINTS "JOINTS_0"
 #define GLTF_WEIGHTS "WEIGHTS_0"
 
-#include "../core/EngineCore.h"
 #include "../core/Memory.h"
 #include "../core/Common.h"
 #include "../core/Vertex.h"
@@ -84,6 +83,7 @@ struct TextureFile
 	FixedStr texturePath = "";
 	uint64_t textureHash = 0;
 	TextureGPU* textureGPU = nullptr;
+	bool isSRGB = false;
 };
 
 struct MaterialFile
@@ -92,8 +92,12 @@ struct MaterialFile
 	uint64_t materialHash = 0;
 	FixedStr shaderName = "";
 	uint64_t shaderHash = 0;
-	StackArray<TextureFile*, MAX_TEXTURES_PER_MATERIAL> textureFiles;
+	TextureFile* diffuseTexture = nullptr;
+	TextureFile* normalTexture = nullptr;
+	TextureFile* metallicRoughnessTexture = nullptr;
+	XMVECTOR diffuseColor = XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f);
 	MaterialData* data = 0;
+	StackArray<D3D_SHADER_MACRO, 16> defines = {};
 };
 
 struct MeshFile

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Assets.h"
 #include "Entity.h"
 
 class IEntityCreator

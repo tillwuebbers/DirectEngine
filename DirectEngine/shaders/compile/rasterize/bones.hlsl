@@ -23,7 +23,6 @@ PSInputDefault VSMain(float4 position : POSITION, float4 vertColor : COLOR, floa
 	result.worldNormal = mul(float4(normal, 0.), worldTransform).xyz;
 	result.uv = uv;
 
-	result.color = float4(1., 0., 0., 1.);
 	return result;
 }
 

@@ -16,7 +16,6 @@
 
 #include "Input.h"
 #include "ShadowMap.h"
-#include "Texture.h"
 #include "Audio.h"
 
 #include "IGame.h"
@@ -99,10 +98,10 @@ __declspec(align(256))
 struct EntityConstantBuffer
 {
     MAT_CMAJ worldTransform = XMMatrixIdentity();
-    XMVECTOR color = { 1., 1., 1. };
     XMVECTOR aabbLocalPosition = { 0., 0., 0. };
     XMVECTOR aabbLocalSize = { 1., 1., 1. };
-    bool isSelected;
+    XMVECTOR diffuseColor = { 1., 1., 1., 1. };
+    XMVECTOR metalRoughness = { 0., 1., 0., 0. };
 };
 
 __declspec(align(256))
@@ -170,7 +169,6 @@ struct MeshDataGPU
     ID3D12Resource* scratchResource = {};
 };
 
-class MaterialData;
 struct EntityData
 {
     bool visible = true;
@@ -183,38 +181,6 @@ struct EntityData
     ConstantBuffer<BoneMatricesBuffer> boneConstantBuffer = {};
     ConstantBuffer<BoneMatricesBuffer> firstPersonBoneConstantBuffer = {};
     MeshDataGPU* meshData;
-};
-
-enum class RootConstantType
-{
-    UINT = 0,
-    FLOAT = 1,
-};
-
-struct RootConstantInfo
-{
-    RootConstantType type = RootConstantType::UINT;
-    FixedStr name = "-";
-};
-
-class MaterialData
-{
-public:
-    StackArray<EntityData*, MAX_ENTITIES_PER_MATERIAL> entities = {};
-    StackArray<TextureGPU*, MAX_TEXTURES_PER_MATERIAL> textures = {};
-    StackArray<RootConstantInfo, MAX_ROOT_CONSTANTS_PER_MATERIAL> rootConstants = {};
-    UINT rootConstantData[MAX_ROOT_CONSTANTS_PER_MATERIAL] = {};
-    PipelineConfig* pipeline = nullptr;
-    std::string name = "Material";
-    size_t shellCount = 0;
-
-    template <typename T>
-    void SetRootConstant(size_t index, T value)
-    {
-        assert(index < rootConstants.size);
-        T* rootConstAddr = reinterpret_cast<T*>(&rootConstantData[index]);
-        *rootConstAddr = value;
-    }
 };
 
 struct GeometryBuffer
@@ -587,9 +553,9 @@ public:
     void CreateGBuffer(UINT width, UINT height, GBuffer& gBuffer, DXGI_FORMAT textureFormat);
     void CreateEmptyTexture(int width, int height, const std::string& name, TextureGPU& texture, const IID& riidTexture, void** ppvTexture, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
     void CreateEmptyUAV(int width, int height, const std::string& name, TextureGPU& texture, const IID& riidBuffer, void** ppvBuffer, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
-    TextureGPU* CreateTexture(const std::string& filePath);
-    void UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, TextureGPU& targetTexture);
-    MaterialData* CreateMaterial(const std::string& shaderName, const std::vector<TextureGPU*>& textures = {}, const std::vector<RootConstantInfo>& rootConstants = {}, const D3D12_RASTERIZER_DESC& rasterizerDesc = CD3DX12_RASTERIZER_DESC{ D3D12_DEFAULT });
+    TextureGPU* CreateTexture(const std::string& filePath, bool isSRGB);
+    void UploadTexture(TextureGPU& targetTexture, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, bool isSRGB, bool isCubemap = false);
+    MaterialData* CreateMaterial(const std::string& shaderName, const std::vector<TextureGPU*>& textures = {}, const std::vector<RootConstantInfo>& rootConstants = {}, D3D_SHADER_MACRO* defines = nullptr, const D3D12_RASTERIZER_DESC& rasterizerDesc = CD3DX12_RASTERIZER_DESC{ D3D12_DEFAULT });
     MeshDataGPU* CreateMesh(VertexData::MeshData& meshFile);
     size_t CreateEntity(MaterialData* material, MeshDataGPU* meshData);
     void CreateComputeShader(ComputeShader& computeShader);

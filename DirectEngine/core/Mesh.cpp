@@ -451,7 +451,7 @@ GltfResult* LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 				if (std::distance(regexBegin, regexEnd) > 0)
 				{
 					std::string matchedGroup = (*regexBegin)[1].str();
-					matName = std::format("{}-{}", fileNameWithoutExtension, matchedGroup);
+					matName = std::format("{}_{}", fileNameWithoutExtension, matchedGroup);
 				}
 
 				meshFile.materialName = matName.c_str();
@@ -473,9 +473,27 @@ GltfResult* LoadGltfFromFile(const std::string& filePath, MemoryArena& arena)
 	return result;
 }
 
+TextureFile* CreateTextureFile(MaterialFile* material, ArenaArray<TextureFile>& textures, const std::vector<std::string>& tokens)
+{
+	if (material == nullptr)
+	{
+		OutputDebugStringA("Unassociated texture entry!");
+		return nullptr;
+	}
+	if (tokens.size() != 2)
+	{
+		OutputDebugStringA("Wrong format! Expected texture <path>!");
+		return nullptr;
+	}
+
+	TextureFile* texture = &textures.newElement();
+	texture->texturePath = tokens[1].c_str();
+	texture->textureHash = std::hash<std::string>{}(texture->texturePath.str);
+	return texture;
+}
+
 void LoadMaterials(const std::string& assetListFilePath, ArenaArray<MaterialFile>& materials, ArenaArray<TextureFile>& textures)
 {
-	// load file and iterate lines
 	std::ifstream file(assetListFilePath);
 	assert(file.good());
 	
@@ -500,34 +518,69 @@ void LoadMaterials(const std::string& assetListFilePath, ArenaArray<MaterialFile
 				break;
 			}
 
+			if (material != nullptr)
+			{
+				material->defines.newElement() = { nullptr, nullptr };
+			}
+
 			material = &materials.newElement();
 			material->materialName = tokens[1].c_str();
 			material->materialHash = std::hash<std::string>{}(material->materialName.str);
 			material->shaderName = tokens[2].c_str();
 			material->shaderHash = std::hash<std::string>{}(material->shaderName.str);
+			continue;
 		}
-		else if (tokens[0] == "texture")
+		
+		if (material == nullptr)
 		{
-			if (material == nullptr)
-			{
-				OutputDebugStringA(std::format("Unassociated texture entry: {}\n", line).c_str());
-				break;
-			}
-			if (tokens.size() != 2)
-			{
-				OutputDebugStringA(std::format("Wrong format! Expected texture <path>: {}\n", line).c_str());
-				break;
-			}
+			OutputDebugStringA("Unassociated texture entry!");
+			assert(false);
+			continue;
+		}
 
-			TextureFile* texture = material->textureFiles.newElement() = &textures.newElement();
-			texture->texturePath = tokens[1].c_str();
-			texture->textureHash = std::hash<std::string>{}(texture->texturePath.str);
+		if (tokens[0] == "diffuse")
+		{
+			material->diffuseTexture = CreateTextureFile(material, textures, tokens);
+			material->diffuseTexture->isSRGB = true;
+			material->defines.newElement() = { "DIFFUSE_TEXTURE", "1" };
+		}
+		else if (tokens[0] == "diffuse_clip")
+		{
+			material->diffuseTexture = CreateTextureFile(material, textures, tokens);
+			material->defines.newElement() = { "DIFFUSE_TEXTURE", "1" };
+			material->defines.newElement() = { "ALPHA_CLIP", "1" };
+		}
+		else if (tokens[0] == "color")
+		{
+			if (tokens.size() != 5)
+			{
+				OutputDebugStringA(std::format("Wrong format! Expected color <r> <g> <b> <a>: {}\n", line).c_str());
+				assert(false);
+				continue;
+			}
+			material->diffuseColor = { std::stof(tokens[1]), std::stof(tokens[2]), std::stof(tokens[3]), std::stof(tokens[4])};
+		}
+		else if (tokens[0] == "normal")
+		{
+			material->normalTexture = CreateTextureFile(material, textures, tokens);
+			material->defines.newElement() = { "NORMAL_TEXTURE", "1" };
+		}
+		else if (tokens[0] == "metallic_roughness")
+		{
+			material->metallicRoughnessTexture = CreateTextureFile(material, textures, tokens);
+			material->defines.newElement() = { "METALLIC_ROUGHNESS_TEXTURE", "1" };
 		}
 		else
 		{
-			OutputDebugStringA(std::format("Invalid material line: {}\n", line).c_str());
-			break;
+			OutputDebugStringA(std::format("Invalid materials.txt line: {}\n", line).c_str());
+			assert(false);
+			continue;
 		}
+	}
+
+	if (material != nullptr)
+	{
+		material->defines.newElement() = { nullptr, nullptr };
 	}
 }
 

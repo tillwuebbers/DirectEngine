@@ -7,11 +7,10 @@ struct PSInput
 	float2 uv : UV;
 };
 
-PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL, float2 uv : UV)
+PSInput VSMain(float4 position : POSITION, float3 normal : NORMAL, float2 uv : UV)
 {
 	PSInput result;
 	result.position = float4(mul(mul(position, worldTransform), cameraProjection).xy, 0.f, 1.f);
-	result.color = color;
 	result.uv = uv;
 	return result;
 }

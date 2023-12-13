@@ -4,8 +4,6 @@
 #include "Config.h"
 #include "Physics.h"
 #include "Gizmo.h"
-#include "Assets.h"
-using namespace Assets;
 
 #include "../core/IGame.h"
 #include "../core/EngineCore.h"

@@ -19,10 +19,10 @@ cbuffer LightConstantBuffer : register(b1)
 cbuffer EntityConstantBuffer : register(b2)
 {
 	float4x4 worldTransform;
-	float4 color;
 	float3 aabbLocalPosition;
 	float3 aabbLocalSize;
-	bool isSelected;
+    float4 diffuseColor;
+    float4 metalRoughness;
 };
 
 cbuffer BoneMatricesBuffer : register(b3)
@@ -62,7 +62,6 @@ struct PSInputDefault
 	float4 position : SV_POSITION;
 	float4 worldPosition : POSITION;
 	float4 lightSpacePosition : TEXCOORD1;
-	float4 color : COLOR;
 	float3 worldNormal : TEXCOORD2;
     float3 normal : NORMAL;
     float3 tangent : TANGENT;

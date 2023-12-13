@@ -15,6 +15,7 @@ set_source_files_properties(${SHADER_CODE} ${SHADER_CODE_RT} ${SHADER_CODE_CS} $
 source_group("Rasterize Shader Files" FILES ${SHADER_CODE})
 source_group("Raytrace Shader Files" FILES ${SHADER_CODE_RT})
 source_group("Compute Shader Files" FILES ${SHADER_CODE_CS})
+source_group("Other Shader Files" FILES ${SHADER_CODE_UTIL})
 source_group("Code" FILES ${CORE_CODE})
 
 DEPS(${PROJECT_NAME})
@@ -53,6 +54,10 @@ foreach(SHADER_FILE_CS ${SHADER_CODE_CS})
         DEPENDS "${SHADER_DIR}/util/common.hlsl"
     )
 endforeach()
+
+# show but don't compile other shader files
+target_sources(${PROJECT_NAME} PRIVATE ${SHADER_CODE_UTIL})
+set_source_files_properties(${SHADER_CODE_UTIL} PROPERTIES HEADER_FILE_ONLY TRUE)
 
 # custom flags
 target_compile_definitions(${PROJECT_NAME} PRIVATE "ENABLE_TIMERS" "COMPILING_CORE")

@@ -9,10 +9,10 @@
 #include <algorithm>
 #include <functional>
 
-#define MIN_ALIGN 16
-
 #undef min
 #undef max
+
+#define MIN_ALIGN 16
 
 /// <summary>
 /// Takes the value and returns the next higher multiple of alignment.

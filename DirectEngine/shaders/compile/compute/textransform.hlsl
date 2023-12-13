@@ -13,7 +13,7 @@ ConstantBuffer<TextureInfo> textureInfo : register(b0);
 void main(uint3 threadID : SV_DispatchThreadID)
 {
     float2 uv = float2(threadID.xy) / float2(textureInfo.size);
-    float3 metalSample = metal.SampleLevel(smoothSampler, uv, 0.0);
-    float3 roughessSample = roughess.SampleLevel(smoothSampler, uv, 0.0);
+    float3 metalSample = metal.SampleLevel(smoothSampler, uv, 0.0).xyz;
+    float3 roughessSample = roughess.SampleLevel(smoothSampler, uv, 0.0).xyz;
     result[threadID.xy] = float4(0.0, metalSample.x, roughessSample.x, 1.0);
 }

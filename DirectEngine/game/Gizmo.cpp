@@ -41,7 +41,7 @@ void Gizmo::Init(MemoryArena& arena, IEntityCreator* game, EngineCore& engine, M
 	{
 		Entity* translateArrow = translateArrows[i];
 		translateArrow = game->CreateMeshEntity(engine, material, translateArrowMesh);
-		translateArrow->GetBuffer().color = xyzColors[i];
+		translateArrow->GetBuffer().diffuseColor = xyzColors[i];
 		//translateArrow->InitCollisionBody(game->physicsWorld);
 		//translateArrow->InitBoxCollider(game->physicsCommon, { 0.1f, 1.f, 0.1f }, { 0.f, .5f, 0.f }, CollisionLayers::GizmoClick);
 		translateArrow->SetLocalRotation(xyzRotations[i]);
@@ -52,7 +52,7 @@ void Gizmo::Init(MemoryArena& arena, IEntityCreator* game, EngineCore& engine, M
 
 		Entity* rotateArrow = rotateArrows[i];
 		rotateArrow = game->CreateMeshEntity(engine, material, rotateArrowMesh);
-		rotateArrow->GetBuffer().color = xyzColors[i];
+		rotateArrow->GetBuffer().diffuseColor = xyzColors[i];
 		//rotateArrow->InitCollisionBody(game->physicsWorld);
 		//rotateArrow->InitBoxCollider(game->physicsCommon, { 2.f, .05f, 2.f }, { 0.f, 0.f, 0.f }, CollisionLayers::GizmoClick);
 		rotateArrow->SetLocalRotation(xyzRotations[i]);
@@ -63,7 +63,7 @@ void Gizmo::Init(MemoryArena& arena, IEntityCreator* game, EngineCore& engine, M
 
 		Entity* scaleArrow = scaleArrows[i];
 		scaleArrow = game->CreateMeshEntity(engine, material, scaleArrowMesh);
-		scaleArrow->GetBuffer().color = xyzColors[i];
+		scaleArrow->GetBuffer().diffuseColor = xyzColors[i];
 		//scaleArrow->InitCollisionBody(game->physicsWorld);
 		//scaleArrow->InitBoxCollider(game->physicsCommon, { .15f, .5f, .15f }, { .0f, .25f, .0f }, CollisionLayers::GizmoClick);
 		scaleArrow->SetLocalRotation(xyzRotations[i]);

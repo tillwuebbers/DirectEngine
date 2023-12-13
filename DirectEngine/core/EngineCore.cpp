@@ -9,6 +9,7 @@
 
 #include <iostream>
 #include <format>
+#include <fstream>
 
 #include <d3d12.h>
 #include <d3dx12.h>
@@ -460,7 +461,7 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
 
         rootParameters[SCENE].InitAsDescriptorTable(1, &ranges[SCENE], D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[LIGHT].InitAsDescriptorTable(1, &ranges[LIGHT], D3D12_SHADER_VISIBILITY_ALL);
-        rootParameters[ENTITY].InitAsDescriptorTable(1, &ranges[ENTITY], D3D12_SHADER_VISIBILITY_VERTEX);
+        rootParameters[ENTITY].InitAsDescriptorTable(1, &ranges[ENTITY], D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[BONES].InitAsDescriptorTable(1, &ranges[BONES], D3D12_SHADER_VISIBILITY_VERTEX);
         rootParameters[CAMERA].InitAsDescriptorTable(1, &ranges[CAMERA], D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[SHADOWMAP].InitAsDescriptorTable(1, &ranges[SHADOWMAP], D3D12_SHADER_VISIBILITY_PIXEL);
@@ -581,13 +582,16 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
     const std::wstring shaderName = std::wstring{ config->shaderName.begin(), config->shaderName.end() };
 
 #if ISDEBUG
-    if (hotloadShaders)
+    if (true || hotloadShaders) //todo
     {
         wchar_t exePath[MAX_PATH];
         GetModuleFileName(nullptr, exePath, MAX_PATH);
         std::wstring shaderDir = std::wstring(exePath);
         shaderDir = shaderDir.substr(0, shaderDir.find_last_of(L"\\"));
         shaderDir.append(L"/../../../../../DirectEngine/shaders/");
+
+        wchar_t originDir[MAX_PATH];
+        assert(GetCurrentDirectory(MAX_PATH, originDir) != 0);
         assert(SetCurrentDirectory(shaderDir.c_str()) != 0);
 
         // Enable better shader debugging with the graphics debugging tools.
@@ -610,7 +614,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
 
         m_shaderError.clear();
 
-        config->creationError = D3DCompileFromFile(shaderPath.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_VS, SHADER_VERSION_VS, compileFlags, 0, &vertexShader, &vsErrors);
+        config->creationError = D3DCompileFromFile(shaderPath.c_str(), config->defines, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_VS, SHADER_VERSION_VS, compileFlags, 0, &vertexShader, &vsErrors);
         if (vsErrors)
         {
             m_shaderError = std::format("Vertex Shader Errors:\n{}\n", (LPCSTR)vsErrors->GetBufferPointer());
@@ -619,7 +623,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
         }
         if (FAILED(config->creationError)) return;
 
-        config->creationError = D3DCompileFromFile(shaderPath.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_PS, SHADER_VERSION_PS, compileFlags, 0, &pixelShader, &psErrors);
+        config->creationError = D3DCompileFromFile(shaderPath.c_str(), config->defines, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_PS, SHADER_VERSION_PS, compileFlags, 0, &pixelShader, &psErrors);
         if (psErrors)
         {
             m_shaderError = std::format("Pixel Shader Errors:\n{}\n", (LPCSTR)psErrors->GetBufferPointer());
@@ -630,7 +634,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
 
         if (raytracingShaderExists)
         {
-            config->creationError = D3DCompileFromFile(shaderPathRT.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_RT, SHADER_VERSION_RT, compileFlags, 0, &rtShader, &rtErrors);
+            config->creationError = D3DCompileFromFile(shaderPathRT.c_str(), config->defines, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_RT, SHADER_VERSION_RT, compileFlags, 0, &rtShader, &rtErrors);
             if (rtErrors)
             {
                 m_shaderError = std::format("Ray Tracing Shader Errors:\n{}\n", (LPCSTR)rtErrors->GetBufferPointer());
@@ -638,6 +642,8 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
                 OutputDebugStringA(m_shaderError.c_str());
             }
         }
+
+        assert(SetCurrentDirectory(originDir) != 0);
     }
     else
 #endif
@@ -812,9 +818,9 @@ void EngineCore::LoadAssets()
     m_shadowmap->Build(m_device, comPointers);
 
     // Irradiance
-    m_irradianceMap = CreateTexture("textures/skyfire_irradiance.dds");
-    m_reflectanceMap = CreateTexture("textures/skyfire_radiance.dds");
-    m_ambientLUT = CreateTexture("textures/ambientLUT.dds");
+    m_irradianceMap = CreateTexture("textures/skyfire_irradiance.dds", false);
+    m_reflectanceMap = CreateTexture("textures/skyfire_radiance.dds", false);
+    m_ambientLUT = CreateTexture("textures/ambientLUT.dds", false);
 
     // Cameras
     mainCamera = CreateCamera();
@@ -1023,48 +1029,62 @@ void EngineCore::CreateEmptyUAV(int width, int height, const std::string& name, 
     m_device->CreateUnorderedAccessView(texture.buffer, nullptr, nullptr, texture.handle.cpuHandle);
 }
 
-TextureGPU* EngineCore::CreateTexture(const std::string& filePath)
+TextureGPU* EngineCore::CreateTexture(const std::string& filePath, bool isSRGB)
 {
     TextureGPU& texture = m_textures.newElement();
     texture.name = filePath;
 
-    TextureData header = ParseDDSHeader(filePath);
-
     std::unique_ptr<uint8_t[]> data{};
     std::vector<D3D12_SUBRESOURCE_DATA> subresources{};
-    HRESULT hr = LoadDDSTextureFromFile(m_device, std::wstring{ filePath.begin(), filePath.end() }.c_str(), &texture.buffer, data, subresources);
-    if (hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND))
+    DDS_ALPHA_MODE alphaMode = DDS_ALPHA_MODE_UNKNOWN;
+    bool isCubemap = false;
+
+    wchar_t test[128];
+    GetCurrentDirectory(128, test);
+
+    HRESULT hr = LoadDDSTextureFromFileEx(m_device, std::wstring{ filePath.begin(), filePath.end() }.c_str(), 0, D3D12_RESOURCE_FLAG_NONE, DDS_LOADER_DEFAULT, &texture.buffer, data, subresources, &alphaMode, &isCubemap);
+    if (FAILED(hr))
     {
         // TODO: log error and load default texture instead
-        OutputDebugStringA(std::format("Texture file not found: {}\n", filePath).c_str());
-        CHECK_HRCMD(hr);
+        OutputDebugStringA(std::format("Texture file error: {}\n", filePath).c_str());
     }
-    else
-    {
-        CHECK_HRCMD(hr);
-	}
+    CHECK_HRCMD(hr);
+
     comPointers.AddPointer((void**)&texture.buffer);
-    UploadTexture(header, subresources, texture);
+    UploadTexture(texture, subresources, isSRGB, isCubemap);
 
     return &texture;
 }
 
-void EngineCore::UploadTexture(const TextureData& textureData, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, TextureGPU& targetTexture)
+void EngineCore::UploadTexture(TextureGPU& targetTexture, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, bool isSRGB, bool isCubemap)
 {
-    D3D12_RESOURCE_DESC textureDesc = {};
-    textureDesc.MipLevels = textureData.mipmapCount;
-    textureDesc.Format = textureData.format;
-    textureDesc.Width = textureData.width;
-    textureDesc.Height = textureData.height;
-    textureDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-    textureDesc.DepthOrArraySize = textureData.arraySize;
-    textureDesc.SampleDesc.Count = 1;
-    textureDesc.SampleDesc.Quality = 0;
-    textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-
-    const UINT64 uploadBufferSize = GetRequiredIntermediateSize(targetTexture.buffer, 0, subresources.size());
+    D3D12_RESOURCE_DESC resourceDesc = targetTexture.buffer->GetDesc();
+    if (isSRGB)
+    {
+        if (resourceDesc.Format == DXGI_FORMAT_R8G8B8A8_UNORM)
+        {
+            resourceDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+        }
+        else if (resourceDesc.Format == DXGI_FORMAT_BC1_UNORM)
+        {
+			resourceDesc.Format = DXGI_FORMAT_BC1_UNORM_SRGB;
+		}
+		else if (resourceDesc.Format == DXGI_FORMAT_BC2_UNORM)
+		{
+			resourceDesc.Format = DXGI_FORMAT_BC2_UNORM_SRGB;
+		}
+		else if (resourceDesc.Format == DXGI_FORMAT_BC3_UNORM)
+		{
+			resourceDesc.Format = DXGI_FORMAT_BC3_UNORM_SRGB;
+		}
+        else if (resourceDesc.Format == DXGI_FORMAT_BC7_UNORM)
+        {
+			resourceDesc.Format = DXGI_FORMAT_BC7_UNORM_SRGB;
+		}
+    }
 
     // Temporary upload buffer
+    const UINT64 uploadBufferSize = GetRequiredIntermediateSize(targetTexture.buffer, 0, subresources.size());
     CD3DX12_HEAP_PROPERTIES heapPropertiesUpload(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC bufferUloadDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
 
@@ -1085,13 +1105,39 @@ void EngineCore::UploadTexture(const TextureData& textureData, std::vector<D3D12
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.Format = textureDesc.Format;
-    srvDesc.ViewDimension = textureData.viewDimension;
-    srvDesc.Texture2D.MipLevels = textureData.mipmapCount;
+    srvDesc.Format = resourceDesc.Format;
+
+    D3D12_RESOURCE_DIMENSION dimension = resourceDesc.Dimension;
+    if (isCubemap)
+    {
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
+        srvDesc.TextureCube.MipLevels = resourceDesc.MipLevels;
+    }
+    else if (dimension == D3D12_RESOURCE_DIMENSION_TEXTURE1D)
+    {
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE1D;
+        srvDesc.Texture1D.MipLevels = resourceDesc.MipLevels;
+    }
+    else if (dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D)
+    {
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MipLevels = resourceDesc.MipLevels;
+    }
+    else if (dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D)
+    {
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
+        srvDesc.Texture3D.MipLevels = resourceDesc.MipLevels;
+	}
+    else
+    {
+		assert(false);
+        // TODO: set default SRV
+    }
+
     m_device->CreateShaderResourceView(targetTexture.buffer, &srvDesc, targetTexture.handle.cpuHandle);
 }
 
-MaterialData* EngineCore::CreateMaterial(const std::string& shaderName, const std::vector<TextureGPU*>& textures, const std::vector<RootConstantInfo>& rootConstants, const D3D12_RASTERIZER_DESC& rasterizerDesc)
+MaterialData* EngineCore::CreateMaterial(const std::string& shaderName, const std::vector<TextureGPU*>& textures, const std::vector<RootConstantInfo>& rootConstants, D3D_SHADER_MACRO* defines, const D3D12_RASTERIZER_DESC& rasterizerDesc)
 {
     INIT_TIMER(timer);
 
@@ -1108,6 +1154,7 @@ MaterialData* EngineCore::CreateMaterial(const std::string& shaderName, const st
     }
 
     data.pipeline = NewObject(engineArena, PipelineConfig, shaderName, textures.size());
+    data.pipeline->defines = defines;
     data.pipeline->rasterizerDesc = rasterizerDesc;
     if (m_msaaEnabled) data.pipeline->sampleCount = m_msaaSampleCount;
     CreatePipeline(data.pipeline, 0, rootConstants.size());
@@ -1618,8 +1665,8 @@ void EngineCore::LoadRaytracingShaderTables(ID3D12StateObject* dxrStateObject, c
 
 void EngineCore::CreateComputeShader(ComputeShader& computeShader)
 {
-    TextureGPU* metal = computeShader.inputTextures.newElement() = CreateTexture(std::format("textures/{}_M.dds", TEX_NAME).c_str());
-    TextureGPU* roughness = computeShader.inputTextures.newElement() = CreateTexture(std::format("textures/{}_R.dds", TEX_NAME).c_str());
+    TextureGPU* metal = computeShader.inputTextures.newElement() = CreateTexture(std::format("textures/{}_M.dds", TEX_NAME).c_str(), false);
+    TextureGPU* roughness = computeShader.inputTextures.newElement() = CreateTexture(std::format("textures/{}_R.dds", TEX_NAME).c_str(), false);
 
     int width = std::max(metal->buffer->GetDesc().Width, roughness->buffer->GetDesc().Width);
     int height = std::max(metal->buffer->GetDesc().Height, roughness->buffer->GetDesc().Height);
@@ -1761,11 +1808,7 @@ void EngineCore::RunComputeShaderPostPass()
     D3D12_RANGE readRange = { 0, 0 };
     void* mappedData;
     ThrowIfFailed((*m_computeShader.readbackHeap)->Map(0, &readRange, &mappedData));
-    TextureData saveData = {};
-    saveData.width = width;
-    saveData.height = height;
-    saveData.data = reinterpret_cast<uint8_t*>(mappedData);
-    SavePNG(std::format("{}_MR.hdr", TEX_NAME).c_str(), saveData);
+    //stbi_write_hdr(std::format("{}_MR.hdr", TEX_NAME).c_str(), width, height, 4, reinterpret_cast<float*>(mappedData));
     (*m_computeShader.readbackHeap)->Unmap(0, nullptr);
 }
 

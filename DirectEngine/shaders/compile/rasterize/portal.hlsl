@@ -9,7 +9,7 @@ struct PSInput
 	float4 screenPosition : TEXCOORD0;
 };
 
-PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL, float2 uv : UV)
+PSInput VSMain(float4 position : POSITION, float3 normal : NORMAL, float2 uv : UV)
 {
 	PSInput result;
 	result.worldPosition  = mul(position,             worldTransform);

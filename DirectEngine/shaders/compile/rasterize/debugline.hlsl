@@ -9,7 +9,6 @@ struct PSInput
 PSInput VSMain(float4 position : POSITION, float4 vertColor : COLOR, float3 normal : NORMAL, float2 uv : UV)
 {
 	PSInput result;
-	
 	result.position = mul(position, VSGetVP());
 	result.color = vertColor;
 
