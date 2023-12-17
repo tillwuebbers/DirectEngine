@@ -130,6 +130,15 @@ add_custom_target(Copy_Assets ALL
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 ${CMAKE_CURRENT_SOURCE_DIR}/materials.txt
 				${CMAKE_CURRENT_BINARY_DIR}/materials.txt
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+				${CMAKE_CURRENT_SOURCE_DIR}/../Tools/dxc/dxc.exe
+				${CMAKE_CURRENT_BINARY_DIR}/dxc.exe
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different
+				${CMAKE_CURRENT_SOURCE_DIR}/../Tools/dxc/dxcompiler.dll
+				${CMAKE_CURRENT_BINARY_DIR}/dxcompiler.dll
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+				${CMAKE_CURRENT_SOURCE_DIR}/../Tools/dxc/dxil.dll
+				${CMAKE_CURRENT_BINARY_DIR}/dxil.dll
 )
 
 # sub projects
