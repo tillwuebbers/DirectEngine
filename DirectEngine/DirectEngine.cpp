@@ -12,6 +12,7 @@
 #include <DirectXMath.h>
 #include <dxgidebug.h>
 
+#include "core/Constants.h"
 #include "core/EngineCore.h"
 #include "core/UI.h"
 #include "core/IGame.h"

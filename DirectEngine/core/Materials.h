@@ -49,3 +49,4 @@ struct MaterialFile
 };
 
 void LoadMaterials(const std::string& assetListFilePath, ArenaArray<MaterialFile>& materials, ArenaArray<TextureFile>& textures, ArenaArray<StandaloneShaderFile>& standaloneShaders);
+void CompileShaders(const std::string& shadersDir, const std::string& includeDir, const std::string& outputDir, const std::string& materialsFile);

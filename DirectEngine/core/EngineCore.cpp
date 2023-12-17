@@ -10,6 +10,7 @@
 #include <iostream>
 #include <format>
 #include <fstream>
+#include <filesystem>
 
 #include <d3d12.h>
 #include <d3dx12.h>
@@ -20,6 +21,7 @@
 
 #include "UI.h"
 #include "EngineCore.h"
+#include "Materials.h"
 #include "DirectXRaytracingHelper.h"
 #include "../directx-tex/DDSTextureLoader12.h"
 
@@ -643,7 +645,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
         CD3DX12_DXIL_LIBRARY_SUBOBJECT* raytracingStateLib1 = raytracingStateDesc.CreateSubobject<CD3DX12_DXIL_LIBRARY_SUBOBJECT>();
         raytracingStateLib1->SetDXILLibrary(&rtBytecode);
 
-        ThrowIfFailed(m_device->CreateStateObject(raytracingStateDesc, NewComObject(comPointers, &m_raytracingState)));
+        ThrowIfFailed(m_device->CreateStateObject(raytracingStateDesc, NewComObjectReplace(comPointers, &m_raytracingState)));
         m_raytracingState->SetName(L"RT State");
 
         LoadRaytracingShaderTables(m_raytracingState, L"MyRaygenShader", L"MyMissShader", L"MyHitGroup");
@@ -2049,6 +2051,17 @@ void EngineCore::MoveToNextFrame()
 void EngineCore::OnShaderReload()
 {
     WaitForGpu();
+
+#ifdef _DEBUG
+    // current path
+    std::filesystem::path rootPath = std::filesystem::current_path() / "../../../.." / "DirectEngine";
+    std::filesystem::path shaderPath = rootPath / "shaders" / "compile";
+    std::filesystem::path includePath = rootPath / "shaders";
+    std::filesystem::path outputPath = "shaders_bin";
+    std::filesystem::path materialsPath = rootPath / "materials.txt";
+
+    CompileShaders(shaderPath.string(), includePath.string(), outputPath.string(), materialsPath.string());
+#endif
 
     for (MaterialData& material : m_materials)
     {
