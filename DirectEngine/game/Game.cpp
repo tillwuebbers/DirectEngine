@@ -38,7 +38,8 @@ void Game::StartGame(EngineCore& engine)
 	RESET_TIMER(timer);
 
 	// Materials
-	LoadMaterials("materials.txt", materials, textures);
+	ArenaArray<StandaloneShaderFile> standaloneShaders{ globalArena, 64 };
+	LoadMaterials("materials.txt", materials, textures, standaloneShaders);
 
 	for (TextureFile& textureFile : textures)
 	{
@@ -52,19 +53,20 @@ void Game::StartGame(EngineCore& engine)
 		if (materialFile.normalTexture != nullptr) materialTextures.push_back(materialFile.normalTexture->textureGPU);
 		if (materialFile.metallicRoughnessTexture != nullptr) materialTextures.push_back(materialFile.metallicRoughnessTexture->textureGPU);
 
-		materialFile.data = engine.CreateMaterial(materialFile.shaderName.str, materialTextures, {}, materialFile.defines.base);
+		std::vector<RootConstantInfo> rootConstants = {};
+		for (RootConstantInfo& rootConstant : materialFile.rootConstants)
+		{
+			rootConstants.push_back(rootConstant);
+		}
+
+		CD3DX12_RASTERIZER_DESC rasterizerDesc(D3D12_DEFAULT);
+		rasterizerDesc.CullMode = materialFile.cullMode;
+		materialFile.data = engine.CreateMaterial(materialFile.materialName.str, materialTextures, rootConstants, rasterizerDesc);
 	}
 
 	defaultMaterial = engine.CreateMaterial("ground");
-	portal1Material = engine.CreateMaterial("portal", {&engine.m_renderTextures[0]->texture});
+	portal1Material = engine.CreateMaterial("portal", { &engine.m_renderTextures[0]->texture });
 	portal2Material = engine.CreateMaterial("portal", { &engine.m_renderTextures[1]->texture });
-
-	D3D12_RASTERIZER_DESC shellRasterizerDesc = CD3DX12_RASTERIZER_DESC{ D3D12_DEFAULT };
-	shellRasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
-	MaterialData* shellMaterial = engine.CreateMaterial("shelltexture", {}, {{RootConstantType::FLOAT, "layerOffset"}, {RootConstantType::UINT, "layerCount"}}, nullptr, shellRasterizerDesc);
-	shellMaterial->SetRootConstant(0, 0.005f);
-	shellMaterial->SetRootConstant(1, 16);
-	shellMaterial->shellCount = 16;
 
 	LOG_TIMER(timer, "Materials");
 	RESET_TIMER(timer);

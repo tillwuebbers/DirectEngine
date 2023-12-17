@@ -1,0 +1,7 @@
+project("ShaderPreCompile")
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+add_executable(${PROJECT_NAME} "ShaderPreCompile.cpp")
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../DirectEngine/directx/headers)
+target_link_libraries(${PROJECT_NAME} ${CORE_NAME})
+target_compile_definitions(${PROJECT_NAME} PRIVATE "UNICODE;_UNICODE")
+target_compile_options(${PROJECT_NAME} PUBLIC -std:c++20 /Zc:strictStrings- /wd4244 /wd4267 /wd4305)

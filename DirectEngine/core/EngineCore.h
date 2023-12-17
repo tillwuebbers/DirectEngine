@@ -548,14 +548,14 @@ public:
     CameraData* CreateCamera();
     CD3DX12_CPU_DESCRIPTOR_HANDLE CreateDepthStencilView(UINT width, UINT height, ComStack& comStack, ID3D12Resource** bufferTarget, int fixedOffset = -1, UINT sampleCount = 1);
     void CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount);
-    void CreatePipelineState(PipelineConfig* config, bool hotloadShaders = false);
+    void CreatePipelineState(PipelineConfig* config);
     void CreateRenderTexture(UINT width, UINT height, bool msaaEnabled, RenderTexture& renderTexture, CameraData* camera = nullptr, DXGI_FORMAT textureFormat = DISPLAY_FORMAT);
     void CreateGBuffer(UINT width, UINT height, GBuffer& gBuffer, DXGI_FORMAT textureFormat);
     void CreateEmptyTexture(int width, int height, const std::string& name, TextureGPU& texture, const IID& riidTexture, void** ppvTexture, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
     void CreateEmptyUAV(int width, int height, const std::string& name, TextureGPU& texture, const IID& riidBuffer, void** ppvBuffer, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
     TextureGPU* CreateTexture(const std::string& filePath, bool isSRGB);
     void UploadTexture(TextureGPU& targetTexture, std::vector<D3D12_SUBRESOURCE_DATA>& subresources, bool isSRGB, bool isCubemap = false);
-    MaterialData* CreateMaterial(const std::string& shaderName, const std::vector<TextureGPU*>& textures = {}, const std::vector<RootConstantInfo>& rootConstants = {}, D3D_SHADER_MACRO* defines = nullptr, const D3D12_RASTERIZER_DESC& rasterizerDesc = CD3DX12_RASTERIZER_DESC{ D3D12_DEFAULT });
+    MaterialData* CreateMaterial(const std::string& shaderName, const std::vector<TextureGPU*>& textures = {}, const std::vector<RootConstantInfo>& rootConstants = {}, const D3D12_RASTERIZER_DESC& rasterizerDesc = CD3DX12_RASTERIZER_DESC{ D3D12_DEFAULT });
     MeshDataGPU* CreateMesh(VertexData::MeshData& meshFile);
     size_t CreateEntity(MaterialData* material, MeshDataGPU* meshData);
     void CreateComputeShader(ComputeShader& computeShader);

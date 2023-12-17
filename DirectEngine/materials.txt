@@ -1,10 +1,15 @@
+shader gbuffer raster
+shader shadow raster
+shader shadow raytrace
+shader aabb raster
+shader debugline raster
+shader portal raster
+
 material ground entity
-diffuse textures/ground_D.dds
-normal textures/ground_N.dds
-metallic_roughness textures/ground_MR.dds
 
 material skybox skybox
 diffuse textures/skyfire.dds
+cullmode front
 
 material body entity
 diffuse textures/body_D.dds
@@ -30,6 +35,12 @@ material DamagedHelmet entity
 diffuse textures/Material_MR_D.dds
 normal textures/Material_MR_N.dds
 metallic_roughness textures/Material_MR_MR.dds
+
+material shelltest shelltexture
+color 1 1 1 1
+rootconstant layerOffset float 0.005
+rootconstant layerCount uint 16
+cullmode none
 
 material Sponza_0 entity
 diffuse_clip textures/sponza/5061699253647017043.dds

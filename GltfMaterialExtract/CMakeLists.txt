@@ -1,7 +1,5 @@
 project("GltfMaterialExtract")
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-file (GLOB PROGRAM_CODE *.h *.cpp)
-file (GLOB IMPORT_CODE "import/tiny_gltf.h")
-add_executable(${PROJECT_NAME} "GltfMaterialExtract.cpp" "GltfMaterialExtract.h")
+add_executable(${PROJECT_NAME} "GltfMaterialExtract.cpp")
 target_compile_definitions(${PROJECT_NAME} PRIVATE "UNICODE;_UNICODE")
 target_compile_options(${PROJECT_NAME} PUBLIC -std:c++20 /Zc:strictStrings- /wd4244 /wd4267 /wd4305)

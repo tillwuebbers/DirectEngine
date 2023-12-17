@@ -164,7 +164,7 @@ namespace ArrayFunc
 	}
 
     template <typename T>
-    bool AnyMatch(const T* base, const size_t size, std::function<bool(T&)> matchFunc)
+    bool AnyMatch(const T* base, const size_t size, std::function<bool(const T&)> matchFunc)
     {
         for (int i = 0; i < size; i++)
         {
@@ -177,7 +177,7 @@ namespace ArrayFunc
     }
 
     template <typename T>
-    bool AllMatch(const T* base, const size_t size, std::function<bool(T&)> matchFunc)
+    bool AllMatch(const T* base, const size_t size, std::function<bool(const T&)> matchFunc)
     {
         for (int i = 0; i < size; i++)
         {
@@ -190,11 +190,48 @@ namespace ArrayFunc
 	}
 }
 
+template <typename T>
+class IArray
+{
+public:
+    virtual T& operator[](const size_t index) = 0;
+    virtual const T& operator[](const size_t index) const = 0;
+    virtual T& at(const size_t index) = 0;
+    virtual const T& at(const size_t index) const = 0;
+    virtual void clear() = 0;
+    virtual size_t getSize() = 0;
+
+    struct Iterator
+    {
+        using iterator_category = std::forward_iterator_tag;
+        using difference_type = std::ptrdiff_t;
+        using value_type = T;
+        using pointer = T*;
+        using reference = T&;
+
+        Iterator(pointer ptr) : m_ptr(ptr) {}
+
+        reference operator*() const { return *m_ptr; }
+        pointer operator->() { return m_ptr; }
+        Iterator& operator++() { m_ptr++; return *this; }
+        Iterator operator++(int) { Iterator tmp = *this; ++(*this); return tmp; }
+        friend bool operator== (const Iterator& a, const Iterator& b) { return a.m_ptr == b.m_ptr; };
+        friend bool operator!= (const Iterator& a, const Iterator& b) { return a.m_ptr != b.m_ptr; };
+
+    private:
+        pointer m_ptr;
+    };
+
+    // iterator
+    virtual IArray<T>::Iterator begin() = 0;
+    virtual IArray<T>::Iterator end() = 0;
+};
+
 /// <summary>
 /// Stack allocated array, counts the number of elements if used with newElement().
 /// </summary>
 template <typename T, std::size_t CAPACITY>
-class StackArray
+class StackArray : public IArray<T>
 {
 public:
     T& operator[](const size_t index)
@@ -224,7 +261,7 @@ public:
         return *new(reinterpret_cast<void*>(&base[size++])) T(Args...);
     }
 
-    bool removeAt(const size_t removeIndex)
+    void removeAt(const size_t removeIndex)
     {
         ArrayFunc::RemoveAt(base, CAPACITY, size, removeIndex);
     }
@@ -239,12 +276,12 @@ public:
         return ArrayFunc::Contains(base, size, element);
     }
 
-    bool anyMatch(std::function<bool(T&)> matchFunc)
+    bool anyMatch(std::function<bool(const T&)> matchFunc)
     {
         return ArrayFunc::AnyMatch(base, size, matchFunc);
     }
 
-    bool allMatch(std::function<bool(T&)> matchFunc)
+    bool allMatch(std::function<bool(const T&)> matchFunc)
     {
 		return ArrayFunc::AllMatch(base, size, matchFunc);
 	}
@@ -254,40 +291,24 @@ public:
         size = 0;
     }
 
+    size_t getSize()
+    {
+        return size;
+    }
+
     T base[CAPACITY]{};
     size_t size = 0;
     size_t capacity = CAPACITY;
 
-    struct Iterator
-    {
-        using iterator_category = std::forward_iterator_tag;
-        using difference_type = std::ptrdiff_t;
-        using value_type = T;
-        using pointer = T*;
-        using reference = T&;
-
-        Iterator(pointer ptr) : m_ptr(ptr) {}
-
-        reference operator*() const { return *m_ptr; }
-        pointer operator->() { return m_ptr; }
-        Iterator& operator++() { m_ptr++; return *this; }
-        Iterator operator++(int) { Iterator tmp = *this; ++(*this); return tmp; }
-        friend bool operator== (const Iterator& a, const Iterator& b) { return a.m_ptr == b.m_ptr; };
-        friend bool operator!= (const Iterator& a, const Iterator& b) { return a.m_ptr != b.m_ptr; };
-
-    private:
-        pointer m_ptr;
-    };
-
-    Iterator begin() { return Iterator(reinterpret_cast<T*>(base)); }
-    Iterator end() { return Iterator(reinterpret_cast<T*>(base + size)); }
+    IArray<T>::Iterator begin() { return IArray<T>::Iterator(reinterpret_cast<T*>(base)); }
+    IArray<T>::Iterator end() { return IArray<T>::Iterator(reinterpret_cast<T*>(base + size)); }
 };
 
 /// <summary>
 /// Arena allocated array, counts the number of elements if used with newElement().
 /// </summary>
 template <typename T>
-class ArenaArray
+class ArenaArray : public IArray<T>
 {
 public:
     ArenaArray(MemoryArena& arena, size_t capacity) : capacity(capacity)
@@ -329,58 +350,42 @@ public:
         return ArrayFunc::Contains(base, size, element);
     }
 
-    void clear()
+    void removeAt(const size_t removeIndex)
     {
-		size = 0;
+        ArrayFunc::RemoveAt(base, capacity, size, removeIndex);
     }
 
-    bool anyMatch(std::function<bool(T&)> matchFunc)
+    void removeAllEqual(const T& element)
+    {
+        ArrayFunc::RemoveAllEqual(base, capacity, size, element);
+    }
+
+    bool anyMatch(std::function<bool(const T&)> matchFunc)
     {
 		return ArrayFunc::AnyMatch(base, size, matchFunc);
 	}
 
-    bool allMatch(std::function<bool(T&)> matchFunc)
+    bool allMatch(std::function<bool(const T&)> matchFunc)
     {
         return ArrayFunc::AllMatch(base, size, matchFunc);
     }
 
-    void removeAt(const size_t removeIndex)
+    void clear()
     {
-		ArrayFunc::RemoveAt(base, capacity, size, removeIndex);
-	}
+        size = 0;
+    }
 
-    void removeAllEqual(const T& element)
+    size_t getSize()
     {
-		ArrayFunc::RemoveAllEqual(base, capacity, size, element);
-	}
+        return size;
+    }
 
     T* base = nullptr;
     const size_t capacity = 0;
     size_t size = 0;
 
-    struct Iterator
-    {
-        using iterator_category = std::forward_iterator_tag;
-        using difference_type = std::ptrdiff_t;
-        using value_type = T;
-        using pointer = T*;
-        using reference = T&;
-
-        Iterator(pointer ptr) : m_ptr(ptr) {}
-
-        reference operator*() const { return *m_ptr; }
-        pointer operator->() { return m_ptr; }
-        Iterator& operator++() { m_ptr++; return *this; }
-        Iterator operator++(int) { Iterator tmp = *this; ++(*this); return tmp; }
-        friend bool operator== (const Iterator& a, const Iterator& b) { return a.m_ptr == b.m_ptr; };
-        friend bool operator!= (const Iterator& a, const Iterator& b) { return a.m_ptr != b.m_ptr; };
-
-    private:
-        pointer m_ptr;
-    };
-
-    Iterator begin() { return Iterator(reinterpret_cast<T*>(base)); }
-    Iterator end() { return Iterator(reinterpret_cast<T*>(base + size)); }
+    IArray<T>::Iterator begin() { return IArray<T>::Iterator(reinterpret_cast<T*>(base)); }
+    IArray<T>::Iterator end() { return IArray<T>::Iterator(reinterpret_cast<T*>(base + size)); }
 };
 
 // Used for short strings, to avoid std. This might not be a great idea but i'm trying it for fun here.
@@ -396,6 +401,8 @@ struct FixedStr
         strcpy_s((char*)str, SIZE, other);
         return *this;
     }
+
+    FixedStr() = default;
 
     // TODO: this isn't efficient, but we'll have to use std::move or something like that to make it better.
     FixedStr(const char* other)

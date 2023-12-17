@@ -572,7 +572,7 @@ void WaitUntilFileFree(const wchar_t* path)
     }
 }
 
-void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders)
+void EngineCore::CreatePipelineState(PipelineConfig* config)
 {
     INIT_TIMER(timer);
 
@@ -581,72 +581,6 @@ void EngineCore::CreatePipelineState(PipelineConfig* config, bool hotloadShaders
     ComPtr<ID3DBlob> rtShader{};
     const std::wstring shaderName = std::wstring{ config->shaderName.begin(), config->shaderName.end() };
 
-#if ISDEBUG
-    if (true || hotloadShaders) //todo
-    {
-        wchar_t exePath[MAX_PATH];
-        GetModuleFileName(nullptr, exePath, MAX_PATH);
-        std::wstring shaderDir = std::wstring(exePath);
-        shaderDir = shaderDir.substr(0, shaderDir.find_last_of(L"\\"));
-        shaderDir.append(L"/../../../../../DirectEngine/shaders/");
-
-        wchar_t originDir[MAX_PATH];
-        assert(GetCurrentDirectory(MAX_PATH, originDir) != 0);
-        assert(SetCurrentDirectory(shaderDir.c_str()) != 0);
-
-        // Enable better shader debugging with the graphics debugging tools.
-        UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-        const std::wstring shaderPath = std::wstring(L"compile/rasterize/").append(shaderName).append(L".hlsl");
-        const std::wstring shaderPathRT = std::wstring(L"compile/raytrace/").append(shaderName).append(L".hlsl");
-        Sleep(100);
-
-        WaitUntilFileFree(shaderPath.c_str());
-
-        bool raytracingShaderExists = PathFileExists(shaderPathRT.c_str());
-        if (raytracingShaderExists)
-        {
-            WaitUntilFileFree(shaderPathRT.c_str());
-        }
-
-        ComPtr<ID3DBlob> vsErrors;
-        ComPtr<ID3D10Blob> psErrors;
-        ComPtr<ID3DBlob> rtErrors;
-
-        m_shaderError.clear();
-
-        config->creationError = D3DCompileFromFile(shaderPath.c_str(), config->defines, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_VS, SHADER_VERSION_VS, compileFlags, 0, &vertexShader, &vsErrors);
-        if (vsErrors)
-        {
-            m_shaderError = std::format("Vertex Shader Errors:\n{}\n", (LPCSTR)vsErrors->GetBufferPointer());
-            OutputDebugString(std::format(L"{}\n", shaderPath).c_str());
-            OutputDebugStringA(m_shaderError.c_str());
-        }
-        if (FAILED(config->creationError)) return;
-
-        config->creationError = D3DCompileFromFile(shaderPath.c_str(), config->defines, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_PS, SHADER_VERSION_PS, compileFlags, 0, &pixelShader, &psErrors);
-        if (psErrors)
-        {
-            m_shaderError = std::format("Pixel Shader Errors:\n{}\n", (LPCSTR)psErrors->GetBufferPointer());
-            OutputDebugString(std::format(L"{}\n", shaderPath).c_str());
-            OutputDebugStringA(m_shaderError.c_str());
-        }
-        if (FAILED(config->creationError)) return;
-
-        if (raytracingShaderExists)
-        {
-            config->creationError = D3DCompileFromFile(shaderPathRT.c_str(), config->defines, D3D_COMPILE_STANDARD_FILE_INCLUDE, SHADER_ENTRY_RT, SHADER_VERSION_RT, compileFlags, 0, &rtShader, &rtErrors);
-            if (rtErrors)
-            {
-                m_shaderError = std::format("Ray Tracing Shader Errors:\n{}\n", (LPCSTR)rtErrors->GetBufferPointer());
-                OutputDebugString(std::format(L"{}\n", shaderPathRT.c_str()).c_str());
-                OutputDebugStringA(m_shaderError.c_str());
-            }
-        }
-
-        assert(SetCurrentDirectory(originDir) != 0);
-    }
-    else
-#endif
     {
         std::wstring path = std::wstring(L"shaders_bin/");
         path.append(shaderName);
@@ -1137,7 +1071,7 @@ void EngineCore::UploadTexture(TextureGPU& targetTexture, std::vector<D3D12_SUBR
     m_device->CreateShaderResourceView(targetTexture.buffer, &srvDesc, targetTexture.handle.cpuHandle);
 }
 
-MaterialData* EngineCore::CreateMaterial(const std::string& shaderName, const std::vector<TextureGPU*>& textures, const std::vector<RootConstantInfo>& rootConstants, D3D_SHADER_MACRO* defines, const D3D12_RASTERIZER_DESC& rasterizerDesc)
+MaterialData* EngineCore::CreateMaterial(const std::string& shaderName, const std::vector<TextureGPU*>& textures, const std::vector<RootConstantInfo>& rootConstants, const D3D12_RASTERIZER_DESC& rasterizerDesc)
 {
     INIT_TIMER(timer);
 
@@ -1154,7 +1088,6 @@ MaterialData* EngineCore::CreateMaterial(const std::string& shaderName, const st
     }
 
     data.pipeline = NewObject(engineArena, PipelineConfig, shaderName, textures.size());
-    data.pipeline->defines = defines;
     data.pipeline->rasterizerDesc = rasterizerDesc;
     if (m_msaaEnabled) data.pipeline->sampleCount = m_msaaSampleCount;
     CreatePipeline(data.pipeline, 0, rootConstants.size());
@@ -2119,7 +2052,7 @@ void EngineCore::OnShaderReload()
 
     for (MaterialData& material : m_materials)
     {
-        CreatePipelineState(material.pipeline, true);
+        CreatePipelineState(material.pipeline);
 
         if (FAILED(material.pipeline->creationError))
         {
@@ -2132,7 +2065,7 @@ void EngineCore::OnShaderReload()
         }
     }
 
-    CreatePipelineState(m_shadowConfig, true);
+    CreatePipelineState(m_shadowConfig);
     if (FAILED(m_shadowConfig->creationError))
     {
         _com_error err(m_shadowConfig->creationError);
@@ -2143,7 +2076,7 @@ void EngineCore::OnShaderReload()
         return;
     }
 
-    CreatePipelineState(m_wireframeConfig, true);
+    CreatePipelineState(m_wireframeConfig);
     if (FAILED(m_wireframeConfig->creationError))
     {
         _com_error err(m_wireframeConfig->creationError);
@@ -2154,7 +2087,7 @@ void EngineCore::OnShaderReload()
         return;
     }
 
-    CreatePipelineState(m_debugLineConfig, true);
+    CreatePipelineState(m_debugLineConfig);
     if (FAILED(m_debugLineConfig->creationError))
     {
         _com_error err(m_debugLineConfig->creationError);

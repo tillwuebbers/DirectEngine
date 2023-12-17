@@ -38,7 +38,6 @@ public:
     UINT renderTargetCount = 1;
 	D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     D3D12_RASTERIZER_DESC rasterizerDesc = CD3DX12_RASTERIZER_DESC{ D3D12_DEFAULT };
-    D3D_SHADER_MACRO* defines = nullptr;
     DXGI_FORMAT format = DISPLAY_FORMAT;
 
     ID3D12PipelineState* pipelineState = nullptr;
@@ -57,6 +56,7 @@ struct RootConstantInfo
 {
     RootConstantType type = RootConstantType::UINT;
     FixedStr name = "-";
+    uint32_t defaultValue = 0;
 };
 
 struct EntityData;

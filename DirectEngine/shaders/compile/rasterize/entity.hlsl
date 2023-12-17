@@ -23,7 +23,7 @@ PSInputDefault VSMain(float4 position : POSITION, float3 normal : NORMAL, float3
     #else
     float4 vertexPos = position;
     #endif
-
+    
     PSInputDefault result = VSCalcDefault(vertexPos, normal, tangent, bitangent, uv);
     return result;
 }

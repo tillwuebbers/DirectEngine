@@ -8,7 +8,7 @@
 #define GLTF_WEIGHTS "WEIGHTS_0"
 
 #include "../core/Memory.h"
-#include "../core/Common.h"
+#include "../core/Materials.h"
 #include "../core/Vertex.h"
 using namespace VertexData;
 
@@ -78,28 +78,6 @@ struct TransformHierachy
 	void SetAnimationActive(std::string name, bool state);
 };
 
-struct TextureFile
-{
-	FixedStr texturePath = "";
-	uint64_t textureHash = 0;
-	TextureGPU* textureGPU = nullptr;
-	bool isSRGB = false;
-};
-
-struct MaterialFile
-{
-	FixedStr materialName = "";
-	uint64_t materialHash = 0;
-	FixedStr shaderName = "";
-	uint64_t shaderHash = 0;
-	TextureFile* diffuseTexture = nullptr;
-	TextureFile* normalTexture = nullptr;
-	TextureFile* metallicRoughnessTexture = nullptr;
-	XMVECTOR diffuseColor = XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f);
-	MaterialData* data = 0;
-	StackArray<D3D_SHADER_MACRO, 16> defines = {};
-};
-
 struct MeshFile
 {
 	MeshData mesh = {};
@@ -119,4 +97,3 @@ struct GltfResult
 MeshData CreateQuad(float width, float height, MemoryArena& arena);
 MeshData CreateQuadY(float width, float height, MemoryArena& arena);
 GltfResult* LoadGltfFromFile(const std::string& filePath, MemoryArena& arena);
-void LoadMaterials(const std::string& assetListFilePath, ArenaArray<MaterialFile>& materials, ArenaArray<TextureFile>& textures);
