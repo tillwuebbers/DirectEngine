@@ -1,4 +1,5 @@
 shader gbuffer raster
+shader stencilWrite raster
 shader shadow raster
 shader shadow raytrace
 shader aabb raster

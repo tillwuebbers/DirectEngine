@@ -319,19 +319,20 @@ struct CameraData
 
 struct RenderTexture
 {
-    UINT width;
-    UINT height;
-    DXGI_FORMAT format;
-    CD3DX12_VIEWPORT viewport;
-    CD3DX12_RECT scissorRect;
+    UINT width = 0;
+    UINT height = 0;
+    DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
+    CD3DX12_VIEWPORT viewport = {};
+    CD3DX12_RECT scissorRect = {};
 
-    CameraData* camera;
+    CameraData* camera = nullptr;
+    EntityData* stencilObject = nullptr;
 
     TextureGPU texture{};
-    ID3D12Resource* msaaBuffer;
-    ID3D12Resource* dsvBuffer;
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle{};
-    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle{};
+    ID3D12Resource* msaaBuffer = nullptr;
+    ID3D12Resource* dsvBuffer = nullptr;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = {};
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle = {};
 };
 
 struct GBuffer
@@ -436,6 +437,7 @@ public:
     UINT m_msaaSampleCount = 4;
     bool m_raytracingEnabled = true;
     PipelineConfig* m_gBufferConfig;
+    PipelineConfig* m_stencilWriteConfig;
     PipelineConfig* m_shadowConfig;
     PipelineConfig* m_wireframeConfig;
     PipelineConfig* m_debugLineConfig;
@@ -547,7 +549,7 @@ public:
     void ResetLevelData();
     CameraData* CreateCamera();
     CD3DX12_CPU_DESCRIPTOR_HANDLE CreateDepthStencilView(UINT width, UINT height, ComStack& comStack, ID3D12Resource** bufferTarget, int fixedOffset = -1, UINT sampleCount = 1);
-    void CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount);
+    HRESULT CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount);
     void CreatePipelineState(PipelineConfig* config);
     void CreateRenderTexture(UINT width, UINT height, bool msaaEnabled, RenderTexture& renderTexture, CameraData* camera = nullptr, DXGI_FORMAT textureFormat = DISPLAY_FORMAT);
     void CreateGBuffer(UINT width, UINT height, GBuffer& gBuffer, DXGI_FORMAT textureFormat);
@@ -566,9 +568,10 @@ public:
     void RunComputeShaderPrePass(ID3D12GraphicsCommandList4* renderList);
     void RunComputeShaderPostPass();
     void RenderGBuffer(ID3D12GraphicsCommandList4* renderList);
+    void RenderPortalStencil(ID3D12GraphicsCommandList4* renderList, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera, EntityData* entity);
     void RaytraceShadows(ID3D12GraphicsCommandList4* renderList);
     void RenderShadows(ID3D12GraphicsCommandList* renderList);
-    void RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);
+    void RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera, bool useVariant);
     void RenderWireframe(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);
     void RenderDebugLines(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera);
     void ExecCommandList(ID3D12GraphicsCommandList* commandList);

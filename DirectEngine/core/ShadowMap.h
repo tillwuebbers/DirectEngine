@@ -13,9 +13,8 @@ struct ShadowMap
 	ID3D12Resource* textureResource = nullptr;
 	DescriptorHandle shaderResourceViewHandle;
 	CD3DX12_CPU_DESCRIPTOR_HANDLE depthStencilViewCPU;
-	DXGI_FORMAT format;
 
-	ShadowMap(DXGI_FORMAT format, UINT width, UINT height);
+	ShadowMap(UINT width, UINT height);
 
 	void Build(ID3D12Device* device, ComStack& comStack);
 };

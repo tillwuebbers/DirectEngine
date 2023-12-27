@@ -114,7 +114,7 @@ cmake_path(NATIVE_PATH SHADER_DIR SHADER_DIR_NATIVE)
 set(SHADER_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders_bin")
 
 # target for model copying
-add_custom_target(Copy_Assets ALL
+add_custom_target(Assets ALL
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${CMAKE_CURRENT_SOURCE_DIR}/audio
                 ${CMAKE_CURRENT_BINARY_DIR}/audio
@@ -139,6 +139,7 @@ add_custom_target(Copy_Assets ALL
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
 				${CMAKE_CURRENT_SOURCE_DIR}/../Tools/dxc/dxil.dll
 				${CMAKE_CURRENT_BINARY_DIR}/dxil.dll
+        COMMAND "ShaderPreCompile" ${CMAKE_CURRENT_SOURCE_DIR}/shaders/compile/ ${CMAKE_CURRENT_SOURCE_DIR}/shaders/ ${CMAKE_CURRENT_BINARY_DIR}/shaders_bin/ ${CMAKE_CURRENT_SOURCE_DIR}/materials.txt
 )
 
 # sub projects

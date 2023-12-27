@@ -1,7 +1,7 @@
 #include "ShadowMap.h"
 #include "../Helpers.h"
 
-ShadowMap::ShadowMap(DXGI_FORMAT format, UINT width, UINT height) : format(format), width(width), height(height)
+ShadowMap::ShadowMap(UINT width, UINT height) : width(width), height(height)
 {
 	viewport = CD3DX12_VIEWPORT{ 0.f, 0.f, static_cast<float>(width), static_cast<float>(height) };
 	scissorRect = CD3DX12_RECT{ 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
@@ -17,14 +17,14 @@ void ShadowMap::Build(ID3D12Device* device, ComStack& comStack)
 	texDesc.Height = height;
 	texDesc.DepthOrArraySize = 1;
 	texDesc.MipLevels = 1; // Important! Will create very strange bugs if != 1
-	texDesc.Format = format;
+	texDesc.Format = DXGI_FORMAT_R32_TYPELESS;
 	texDesc.SampleDesc.Count = 1;
 	texDesc.SampleDesc.Quality = 0;
 	texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
 	D3D12_CLEAR_VALUE optClear;
-	optClear.Format = DEPTH_BUFFER_FORMAT;
+	optClear.Format = DXGI_FORMAT_D32_FLOAT;
 	optClear.DepthStencil.Depth = 1.0f;
 	optClear.DepthStencil.Stencil = 0;
 
@@ -47,7 +47,7 @@ void ShadowMap::Build(ID3D12Device* device, ComStack& comStack)
 	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
 	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
 	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-	dsvDesc.Format = DEPTH_BUFFER_FORMAT;
+	dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
 	dsvDesc.Texture2D.MipSlice = 0;
 	device->CreateDepthStencilView(textureResource, &dsvDesc, depthStencilViewCPU);
 }

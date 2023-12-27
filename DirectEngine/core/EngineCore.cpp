@@ -433,7 +433,7 @@ CD3DX12_CPU_DESCRIPTOR_HANDLE EngineCore::CreateDepthStencilView(UINT width, UIN
     return dsvHandle;
 }
 
-void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount)
+HRESULT EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCount, size_t rootConstantCount)
 {
     config->creationError = S_OK;
     config->rootConstantCount = rootConstantCount;
@@ -548,7 +548,7 @@ void EngineCore::CreatePipeline(PipelineConfig* config, size_t constantBufferCou
     }
 
     CreatePipelineState(config);
-    assert(config->creationError == S_OK);
+    return config->creationError;
 }
 
 void WaitUntilFileFree(const wchar_t* path)
@@ -621,9 +621,7 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
     psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
     psoDesc.RasterizerState = config->rasterizerDesc;
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-    psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-    psoDesc.DepthStencilState.DepthFunc = config->ignoreDepth ? D3D12_COMPARISON_FUNC_ALWAYS : D3D12_COMPARISON_FUNC_LESS_EQUAL;
-    psoDesc.DepthStencilState.DepthWriteMask = config->ignoreDepth ? D3D12_DEPTH_WRITE_MASK_ZERO : D3D12_DEPTH_WRITE_MASK_ALL;
+    psoDesc.DepthStencilState = config->depthStencilState;
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.PrimitiveTopologyType = config->topologyType;
     psoDesc.NumRenderTargets = config->renderTargetCount;
@@ -635,7 +633,20 @@ void EngineCore::CreatePipelineState(PipelineConfig* config)
     psoDesc.DSVFormat = DEPTH_BUFFER_FORMAT;
 
     config->creationError = m_device->CreateGraphicsPipelineState(&psoDesc, NewComObjectReplace(comPointers, &config->pipelineState));
+    if (config->creationError != S_OK)
+    {
+        return;
+    }
     config->pipelineState->SetName(shaderName.c_str());
+
+    psoDesc.DepthStencilState.StencilEnable = true;
+    psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+    config->creationError = m_device->CreateGraphicsPipelineState(&psoDesc, NewComObjectReplace(comPointers, &config->pipelineVariant1));
+    if (config->creationError != S_OK)
+    {
+        return;
+    }
+    config->pipelineVariant1->SetName(shaderName.c_str());
 
     // Raytracing
     if (m_raytracingSupport && rtShader.Get() != nullptr)
@@ -678,26 +689,41 @@ void EngineCore::LoadAssets()
     m_gBufferConfig = NewObject(engineArena, PipelineConfig, "gbuffer", 0);
     m_gBufferConfig->format = DXGI_FORMAT_R16G16B16A16_FLOAT;
     m_gBufferConfig->renderTargetCount = GBuffer::BUFFER_COUNT;
-    CreatePipeline(m_gBufferConfig, 0, 0);
+    ThrowIfFailed(CreatePipeline(m_gBufferConfig, 0, 0));
+
+    m_stencilWriteConfig = NewObject(engineArena, PipelineConfig, "stencilWrite", 0);
+    m_stencilWriteConfig->renderTargetCount = 0;
+    m_stencilWriteConfig->sampleCount = m_msaaEnabled ? m_msaaSampleCount : 1;
+    m_stencilWriteConfig->depthStencilState.StencilEnable = true;
+    m_stencilWriteConfig->depthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+    m_stencilWriteConfig->depthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_INVERT;
+    m_stencilWriteConfig->depthStencilState.FrontFace.StencilFailOp = D3D12_STENCIL_OP_ZERO;
+    m_stencilWriteConfig->depthStencilState.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_ZERO;
+    m_stencilWriteConfig->depthStencilState.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+    m_stencilWriteConfig->depthStencilState.BackFace.StencilPassOp = D3D12_STENCIL_OP_INVERT;
+    m_stencilWriteConfig->depthStencilState.BackFace.StencilFailOp = D3D12_STENCIL_OP_ZERO;
+    m_stencilWriteConfig->depthStencilState.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_ZERO;
+    ThrowIfFailed(CreatePipeline(m_stencilWriteConfig, 0, 0));
 
     m_shadowConfig = NewObject(engineArena, PipelineConfig, "shadow", 0);
     m_shadowConfig->rasterizerDesc.SlopeScaledDepthBias = 1.0;
     m_shadowConfig->rasterizerDesc.CullMode = D3D12_CULL_MODE_FRONT;
-    CreatePipeline(m_shadowConfig, 0, 0);
+    ThrowIfFailed(CreatePipeline(m_shadowConfig, 0, 0));
 
     m_wireframeConfig = NewObject(engineArena, PipelineConfig, "aabb", 0);
     m_wireframeConfig->sampleCount = m_msaaEnabled ? m_msaaSampleCount : 1;
     m_wireframeConfig->rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
     m_wireframeConfig->rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
-    CreatePipeline(m_wireframeConfig, 0, 0);
+    ThrowIfFailed(CreatePipeline(m_wireframeConfig, 0, 0));
 
     m_debugLineConfig = NewObject(engineArena, PipelineConfig, "debugline", 0);
-    m_debugLineConfig->ignoreDepth = true;
+    m_debugLineConfig->depthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+    m_debugLineConfig->depthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
     m_debugLineConfig->topologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
     m_debugLineConfig->sampleCount = m_msaaEnabled ? m_msaaSampleCount : 1;
     m_debugLineConfig->rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
     m_debugLineConfig->rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
-    CreatePipeline(m_debugLineConfig, 0, 0);
+    ThrowIfFailed(CreatePipeline(m_debugLineConfig, 0, 0));
 
     {
         // Debug lines
@@ -748,7 +774,7 @@ void EngineCore::LoadAssets()
     }
 
     // Shadowmap
-    m_shadowmap = NewObject(engineArena, ShadowMap, DEPTH_BUFFER_FORMAT_TYPELESS, SHADOWMAP_SIZE, SHADOWMAP_SIZE);
+    m_shadowmap = NewObject(engineArena, ShadowMap, SHADOWMAP_SIZE, SHADOWMAP_SIZE);
     m_shadowmap->depthStencilViewCPU = GetNewDSVHandle();
     m_shadowmap->shaderResourceViewHandle = GetNewDescriptorHandle();
     m_shadowmap->Build(m_device, comPointers);
@@ -1092,7 +1118,7 @@ MaterialData* EngineCore::CreateMaterial(const std::string& shaderName, const st
     data.pipeline = NewObject(engineArena, PipelineConfig, shaderName, textures.size());
     data.pipeline->rasterizerDesc = rasterizerDesc;
     if (m_msaaEnabled) data.pipeline->sampleCount = m_msaaSampleCount;
-    CreatePipeline(data.pipeline, 0, rootConstants.size());
+    ThrowIfFailed(CreatePipeline(data.pipeline, 0, rootConstants.size()));
 
     OUTPUT_TIMERW(timer, L"Material Creation");
     RESET_TIMER(timer);
@@ -1485,8 +1511,8 @@ void EngineCore::PopulateCommandList()
             }
 
             m_renderCommandList->ClearRenderTargetView(renderTexture->rtvHandle, m_game->GetClearColor(), 0, nullptr);
-            m_renderCommandList->ClearDepthStencilView(renderTexture->dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-            RenderScene(m_renderCommandList, renderTexture->rtvHandle, renderTexture->dsvHandle, renderTexture->camera);
+            RenderPortalStencil(m_renderCommandList, renderTexture->dsvHandle, renderTexture->camera, renderTexture->stencilObject);
+            RenderScene(m_renderCommandList, renderTexture->rtvHandle, renderTexture->dsvHandle, renderTexture->camera, true);
 
             if (m_msaaEnabled)
             {
@@ -1528,7 +1554,7 @@ void EngineCore::PopulateCommandList()
     m_renderCommandList->RSSetViewports(1, &m_viewport);
     m_renderCommandList->RSSetScissorRects(1, &m_scissorRect);
 
-    RenderScene(m_renderCommandList, mainRtvHandle, mainDsvHandle, mainCamera);
+    RenderScene(m_renderCommandList, mainRtvHandle, mainDsvHandle, mainCamera, false);
     RenderWireframe(m_renderCommandList, mainRtvHandle, mainDsvHandle, mainCamera);
     RenderDebugLines(m_renderCommandList, mainRtvHandle, mainDsvHandle, mainCamera);
 
@@ -1799,6 +1825,33 @@ void EngineCore::RenderGBuffer(ID3D12GraphicsCommandList4* renderList)
     }
 }
 
+void EngineCore::RenderPortalStencil(ID3D12GraphicsCommandList4* renderList, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera, EntityData* entity)
+{
+    if (entity == nullptr || !entity->visible || entity->wireframe) return;
+
+    renderList->SetPipelineState(m_stencilWriteConfig->pipelineState);
+
+    ID3D12DescriptorHeap* ppHeaps[] = { m_cbvHeap };
+    renderList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+    renderList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    renderList->IASetVertexBuffers(0, 1, &entity->meshData->vertexBufferView);
+    renderList->IASetIndexBuffer(&entity->meshData->indexBufferView);
+
+    renderList->SetGraphicsRootSignature(m_stencilWriteConfig->rootSignature);
+    renderList->SetGraphicsRootDescriptorTable(ENTITY, entity->constantBuffer.handles[m_frameIndex].gpuHandle);
+    renderList->SetGraphicsRootDescriptorTable(BONES, entity->boneConstantBuffer.handles[m_frameIndex].gpuHandle);
+    renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);
+    renderList->SetGraphicsRootDescriptorTable(LIGHT, m_lightConstantBuffer.handles[m_frameIndex].gpuHandle);
+    renderList->SetGraphicsRootDescriptorTable(CAMERA, mainCamera->constantBuffer.handles[m_frameIndex].gpuHandle);
+
+    renderList->OMSetRenderTargets(0, nullptr, FALSE, &dsvHandle);
+    renderList->OMSetStencilRef(0xFF);
+
+    renderList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+    renderList->DrawIndexedInstanced(entity->meshData->indexBufferView.SizeInBytes / sizeof(INDEX_BUFFER_TYPE), 1, 0, 0, 0);
+}
+
 void EngineCore::RaytraceShadows(ID3D12GraphicsCommandList4* renderList)
 {
     if (m_raytracingState == nullptr || !m_raytracingEnabled || !m_raytracingSupport) return;
@@ -1873,7 +1926,7 @@ void EngineCore::RenderShadows(ID3D12GraphicsCommandList* renderList)
     Transition(renderList, m_shadowmap->textureResource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 }
 
-void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera)
+void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle, CameraData* camera, bool useVariant)
 {
     renderList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
@@ -1884,7 +1937,14 @@ void EngineCore::RenderScene(ID3D12GraphicsCommandList* renderList, D3D12_CPU_DE
 
     for (MaterialData& data : m_materials)
     {
-        renderList->SetPipelineState(data.pipeline->pipelineState);
+        if (useVariant)
+        {
+            renderList->SetPipelineState(data.pipeline->pipelineVariant1);
+        }
+        else
+        {
+            renderList->SetPipelineState(data.pipeline->pipelineState);
+        }
         renderList->SetGraphicsRootSignature(data.pipeline->rootSignature);
 
         renderList->SetGraphicsRootDescriptorTable(SCENE, m_sceneConstantBuffer.handles[m_frameIndex].gpuHandle);

@@ -149,7 +149,7 @@ void Game::LoadLevel(EngineCore& engine)
 	levelShape = NewObject(levelArena, btBvhTriangleMeshShape, levelMeshInterface, true);
 
 	// Portals
-	auto createPortal = [&](MaterialData* material, XMVECTOR pos, const char* name) {
+	auto createPortal = [&](MaterialData* material, XMVECTOR pos, const char* name, size_t stencilIdx) {
 		Entity* portal = CreateEmptyEntity(engine);
 		portal->SetLocalPosition(pos);
 		portal->name = name;
@@ -168,12 +168,14 @@ void Game::LoadLevel(EngineCore& engine)
 		portalRenderQuad->SetLocalPosition({ -1.0f, 2.0f, 0.0f });
 		portalRenderQuad->GetData().raytraceVisible = false;
 
+		engine.m_renderTextures[stencilIdx]->stencilObject = &portalRenderQuad->GetData();
+
 		return portal;
 	};
 
-	portal1 = createPortal(portal1Material, { -8.0f, 1.5f, 0.0f }, "Portal 1");
+	portal1 = createPortal(portal1Material, { -8.0f, 1.5f, 0.0f }, "Portal 1", 0);
 	portal1->SetLocalRotation(XMQuaternionRotationRollPitchYaw(0.0f, XM_PIDIV2, 0.0f));
-	portal2 = createPortal(portal2Material, {  8.0f, 1.5f, 0.0f }, "Portal 2");
+	portal2 = createPortal(portal2Material, {  8.0f, 1.5f, 0.0f }, "Portal 2", 1);
 	portal2->SetLocalRotation(XMQuaternionRotationRollPitchYaw(0.0f, -XM_PIDIV2, 0.0f));
 
 	// Crosshair

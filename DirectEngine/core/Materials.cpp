@@ -243,6 +243,8 @@ void CompileShaders(const std::string& shadersDir, const std::string& includeDir
 	ArenaArray<StandaloneShaderFile> standaloneShaders = { materialArena, 64 };
 	LoadMaterials(materialsFile, materials, textures, standaloneShaders);
 
+	std::filesystem::create_directory(outputDir);
+
 	ArenaArray<HANDLE> processes = { materialArena, 256 };
 	for (StandaloneShaderFile& shader : standaloneShaders)
 	{

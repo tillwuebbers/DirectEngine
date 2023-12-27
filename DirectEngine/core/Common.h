@@ -30,7 +30,6 @@ public:
         this->textureSlotCount = textureSlotCount;
     }
 
-    bool ignoreDepth = false;
     std::string shaderName;
     size_t textureSlotCount = 0;
     size_t rootConstantCount = 0;
@@ -38,9 +37,11 @@ public:
     UINT renderTargetCount = 1;
 	D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     D3D12_RASTERIZER_DESC rasterizerDesc = CD3DX12_RASTERIZER_DESC{ D3D12_DEFAULT };
+    D3D12_DEPTH_STENCIL_DESC depthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
     DXGI_FORMAT format = DISPLAY_FORMAT;
 
     ID3D12PipelineState* pipelineState = nullptr;
+    ID3D12PipelineState* pipelineVariant1 = nullptr;
     ID3D12RootSignature* rootSignature = nullptr;
 
     HRESULT creationError = ERROR_SUCCESS;
